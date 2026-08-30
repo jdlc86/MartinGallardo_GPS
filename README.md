@@ -1,154 +1,168 @@
-# MartinGallardo_GPS
+# ParkingMartin-G
 
-MVP de gestión de vehículos de parking mediante **Telegram + Supabase/PostgreSQL + Storage**, orientado a operarios que reciben, aparcan, localizan y retiran vehículos.
+MVP de gestión de vehículos de parking mediante **Telegram + Supabase/PostgreSQL + Supabase Storage + GitHub Pages**, orientado a operarios que reciben, aparcan, localizan y entregan vehículos.
 
-> Estado: backend Telegram y control de acceso ya funcionales en Supabase. La siguiente fase es completar el flujo operativo de vehículos, sectores, fotos, geolocalización y pruebas automatizadas.
+> Estado (30/08/2026): flujo operativo Telegram, GPS preciso, expediente web de vehículo y control de acceso funcionales. La configuración manual por sectores queda descartada para esta versión.
 
-## Objetivo del producto
+## Objetivo
 
-El operario debe poder hacer todo desde Telegram, sin una app adicional:
+El operario trabaja principalmente desde Telegram. El sistema mantiene trazabilidad de matrícula, ubicación, fotografías, documentación, operario, fecha/hora e historial del vehículo.
 
-1. Solicitar acceso al bot.
-2. Ser aprobado o rechazado por un administrador.
-3. Registrar la llegada de un vehículo.
-4. Guardar matrícula, fotos y ubicación.
-5. Usar GPS cuando tenga precisión suficiente.
-6. Si la precisión es mala, seleccionar manualmente un sector del parking o escribir una descripción de ubicación.
-7. Buscar un vehículo cuando haya que retirarlo.
-8. Ver fotos, ubicación, sector y notas desde el propio bot.
-9. Registrar la retirada y mantener auditoría de quién hizo cada acción.
+Volumen de diseño inicial: **un parking y aproximadamente 150 vehículos/día**.
 
-El sistema está diseñado inicialmente para **un solo parking** y un volumen aproximado de **150 vehículos/día**.
+## Flujo operativo
+
+### Aeropuerto · Recogida
+
+Registra la recepción del vehículo en el aeropuerto y conserva las evidencias correspondientes. La fotografía de matrícula de esta etapa se conserva como evidencia, pero **no se ejecuta OCR aquí**.
+
+### Aparcar
+
+Flujo objetivo:
+
+1. Introducir matrícula.
+2. Poder cancelar la operación mientras se espera texto del operario.
+3. Solicitar una **foto clara de la matrícula**.
+4. Ejecutar OCR mediante Google Cloud Vision y comparar con la matrícula introducida.
+5. Si coincide: mostrar **MATRÍCULA VERIFICADA** y continuar.
+6. Si no coincide o no puede leerse: permitir **REPETIR FOTO**, **IGNORAR Y CONTINUAR** o **CANCELAR**.
+7. Cualquier override/ignorado queda auditado con operario, fecha/hora, matrícula esperada/detectada y evidencia.
+8. Obtener ubicación GPS precisa mediante Telegram Mini App.
+9. El operario revisa la precisión y pulsa **USAR ESTA UBICACIÓN**.
+10. La Mini App confirma el envío, espera aproximadamente 2 segundos, se cierra y vuelve automáticamente al chat para finalizar la confirmación.
+
+**OCR se utiliza únicamente al aparcar el vehículo.** No se realiza OCR durante Recogida ni durante la salida del parking.
+
+### Buscar vehículo
+
+Permite localizar un vehículo por matrícula y recuperar su información de parking.
+
+Cuando el vehículo está actualmente aparcado puede mostrarse **NAVEGAR HASTA EL COCHE**, abriendo Google Maps con las coordenadas guardadas.
+
+El botón de navegación **solo debe existir cuando el estado actual sea `parked`**. Si el vehículo ya no está en el parking, las coordenadas pueden conservarse como información histórica, pero no debe ofrecerse navegación hacia ellas.
+
+### Aeropuerto · Entrega
+
+Registra la salida/entrega del vehículo y actualiza su estado e historial. No requiere OCR de matrícula en la versión actual.
+
+## Otras opciones
+
+El menú no incluye un botón `CERRAR`, porque dejaba al operario sin acciones útiles.
+
+Debe mantener disponibles las operaciones reales y **CONSULTAR VEHÍCULO**.
+
+### Consultar vehículo
+
+Abre un expediente web dentro de Telegram. La consulta no modifica el estado operativo del coche.
+
+El expediente debe mostrar, cuando existan:
+
+- matrícula y estado actual;
+- fecha/hora de aparcado y última actualización;
+- ubicación GPS y precisión;
+- referencia textual de ubicación;
+- navegación únicamente si sigue aparcado;
+- fotografías y documentación;
+- verificaciones OCR y overrides;
+- operario responsable de cada evidencia/acción;
+- historial cronológico completo.
+
+La interfaz debe usar nombres comprensibles en español, no nombres internos como `lookup`, `park`, `pickup` o `retrieve`.
+
+### Organización de fotografías
+
+Las evidencias se muestran **de la más nueva a la más antigua** y agrupadas por:
+
+1. **día**, y
+2. **lugar/etapa** (por ejemplo `Aeropuerto · Recogida`, `Parking · Aparcado`).
+
+Cada fotografía/documento debe indicar **tipo de evidencia, hora y operario que la tomó/subió**.
+
+Los archivos permanecen en almacenamiento privado y se consultan mediante URLs firmadas temporales. No se deben crear URLs públicas permanentes.
+
+## Geolocalización: decisión vigente
+
+La localización principal del coche es **GPS preciso**.
+
+Se conserva:
+
+- latitud/longitud;
+- precisión horizontal en metros;
+- referencia textual cuando sea útil;
+- navegación mediante Google Maps mientras el vehículo permanezca aparcado.
+
+### Sectores descartados
+
+**No se implementará configuración manual del parking por sectores en esta versión.**
+
+Quedan descartados del flujo activo:
+
+- selección manual de sector;
+- obligación de configurar el terreno;
+- palabra `Configurar` para definir sectores;
+- uso de sectores como fallback habitual del GPS.
+
+Las tablas o código histórico relacionados con sectores pueden existir todavía, pero **no representan el diseño funcional vigente** y no deben reintroducirse en el flujo sin una decisión posterior explícita.
+
+Si la experiencia real demuestra zonas donde el GPS falla sistemáticamente, podrá evaluarse en el futuro un mecanismo auxiliar, pero no forma parte del MVP actual.
 
 ## Arquitectura actual
 
 ```text
-Telegram
+Telegram Bot
    |
    | webhook HTTPS
    v
-Supabase Edge Function: telegram-bot
+Supabase Edge Functions
    |
    +--> PostgreSQL
-   |      - telegram_users
-   |      - telegram_access_requests
+   |      - usuarios/operarios y permisos
    |      - vehicles
    |      - parking_events
-   |      - parking_sectors
-   |      - parking_config
-   |      - vehicle_photos
-   |      - audit_events / config_audit
+   |      - evidencias/fotos
+   |      - auditoría
+   |      - verificaciones OCR
    |
-   +--> Supabase Storage
-          - bucket privado vehicle-photos
+   +--> Supabase Storage (privado)
+   |
+   +--> Google Cloud Vision (OCR solo al aparcar)
+   |
+   +--> Telegram Mini Apps
+            |
+            +--> GPS preciso
+            +--> Consultar vehículo
+                    |
+                    +--> interfaz alojada en GitHub Pages
 ```
 
-## Seguridad
+## Seguridad y auditoría
 
-- `TELEGRAM_BOT_TOKEN` se guarda únicamente como **Supabase Edge Function Secret**.
-- No se deben guardar tokens, service-role keys ni secretos en GitHub.
-- El webhook valida `X-Telegram-Bot-Api-Secret-Token`.
-- El acceso de operarios se controla por `telegram_user_id`.
-- Las cuentas tienen rol `admin` u `operario` y estado activo/inactivo.
-- Las tablas expuestas tienen RLS habilitado; la lógica privilegiada vive en backend/Edge Functions.
-- Un operario desactivado debe perder acceso inmediatamente.
+- `TELEGRAM_BOT_TOKEN`, claves de Supabase y `GOOGLE_VISION_API_KEY` se mantienen como secretos de backend; nunca en GitHub ni en HTML público.
+- El acceso se controla por usuario de Telegram y estado activo/inactivo.
+- Un trabajador desactivado debe perder acceso al bot.
+- Las fotos/documentos se almacenan de forma privada.
+- Los overrides de OCR deben quedar auditados.
+- Las acciones importantes conservan operario y fecha/hora.
+- La Mini App/expediente debe validar que la petición procede de una sesión válida de Telegram antes de exponer datos del vehículo.
 
-## Funcionalidad ya implementada
+## UX acordada
 
-### Control de acceso Telegram
+- Cuando se espera matrícula u otro texto libre importante, ofrecer **CANCELAR** sin sustituir el teclado normal.
+- Evitar pantallas sin acciones útiles.
+- La ubicación precisa debe poder revisarse antes de aceptarla.
+- Tras aceptar la ubicación, esperar ~2 s, cerrar la Mini App y regresar al chat.
+- `NAVEGAR HASTA EL COCHE` solo aparece para vehículos actualmente aparcados.
+- `CONSULTAR VEHÍCULO` permanece disponible en Otras opciones y funciona como expediente informativo completo.
 
-Un usuario desconocido que escribe al bot queda registrado como solicitud pendiente.
+## Control de acceso
 
-El administrador puede usar:
+El administrador dispone del flujo de aprobación/bloqueo de operarios. Las solicitudes rechazadas no deben volver automáticamente a pendientes simplemente porque el usuario escriba de nuevo al bot.
 
-- `/solicitudes`
-- `/operarios`
-- `/alta ID`
-- `/bloquear ID`
-- `/reactivar ID`
-- `/estado ID`
-- `/mi_id`
-- `/admin`
+## Documentación adicional
 
-`/solicitudes` muestra botones inline:
+- `AGENTS.md`
+- `docs/ARCHITECTURE.md`
+- `docs/CODEX_IMPLEMENTATION_PLAN.md`
+- `docs/TEST_PLAN.md`
 
-- `✅ Aceptar`
-- `❌ Rechazar`
-
-Estados de solicitud:
-
-```text
-pending -> approved
-pending -> rejected
-```
-
-Una solicitud rechazada **no debe volver automáticamente a pending** por escribir de nuevo al bot.
-
-### Modelo de parking ya creado
-
-La base ya contiene tablas para:
-
-- trabajadores/usuarios,
-- vehículos,
-- eventos de parking,
-- sectores,
-- configuración del parking,
-- fotos,
-- auditoría.
-
-Hay una deuda técnica conocida: actualmente existen `app_users`, `workers` y `telegram_users`. El bot usa `telegram_users`, mientras parte del dominio de parking referencia `workers`. **Codex debe resolver esta duplicidad de forma explícita y mediante migraciones, no creando una cuarta tabla de usuarios.**
-
-## Reglas funcionales críticas
-
-### Operaciones principales del operario
-
-Solo existen dos acciones operativas principales:
-
-1. **Dejar coche**: el vehículo llega del aeropuerto y el operario lo aparca.
-2. **Retirar coche**: el operario necesita localizarlo para devolverlo.
-
-### Geolocalización
-
-- Usar GPS cuando la precisión sea aceptable.
-- El umbral debe venir de `parking_config.default_accuracy_threshold_m`.
-- Si la precisión es mala, el operario debe poder elegir manualmente un sector.
-- Si el parking/sector aún no está configurado, debe poder escribir una descripción textual de dónde dejó el vehículo.
-- Nunca bloquear el flujo porque el GPS sea malo.
-
-### Configuración del terreno
-
-- Solo administradores pueden configurar el parking.
-- Para entrar al modo de configuración debe exigirse la palabra **`Configurar`**.
-- Debe quedar auditado qué usuario de Telegram realizó cada cambio.
-- Inicialmente hay un único parking.
-
-### Fotos
-
-- Se almacenan en bucket privado `vehicle-photos`.
-- El administrador/operario autorizado debe poder consultarlas desde Telegram.
-- No exponer URLs públicas permanentes; usar acceso backend o URLs firmadas de corta duración.
-
-## Desarrollo
-
-Las instrucciones completas para agentes/Codex están en [`AGENTS.md`](./AGENTS.md).
-
-Documentación técnica:
-
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
-- [`docs/CODEX_IMPLEMENTATION_PLAN.md`](./docs/CODEX_IMPLEMENTATION_PLAN.md)
-- [`docs/TEST_PLAN.md`](./docs/TEST_PLAN.md)
-
-## Regla de ramas
-
-No implementar directamente en `main`.
-
-Usar ramas del tipo:
-
-```text
-feat/<descripcion>
-fix/<descripcion>
-test/<descripcion>
-docs/<descripcion>
-```
-
-Cada cambio debe incluir pruebas y, si modifica esquema, una migración reproducible.
+Estos documentos históricos deben interpretarse conforme a las decisiones vigentes de este README, especialmente la **eliminación del diseño por sectores** y el **OCR únicamente al aparcar**.
