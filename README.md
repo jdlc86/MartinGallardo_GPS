@@ -2,7 +2,7 @@
 
 MVP de gestión de vehículos de parking mediante **Telegram + Supabase/PostgreSQL + Supabase Storage + GitHub Pages**, orientado a operarios que reciben, aparcan, localizan y entregan vehículos.
 
-> Estado (30/08/2026): flujo operativo Telegram, GPS preciso, expediente web de vehículo y control de acceso funcionales. La configuración manual por sectores queda descartada para esta versión.
+> Estado (30/08/2026): flujo operativo Telegram, GPS preciso, expediente web de vehículo, OCR al aparcar y gestión de usuarios/roles funcionales. La configuración manual por sectores queda descartada para esta versión.
 
 ## Objetivo
 
@@ -49,7 +49,7 @@ Registra la salida/entrega del vehículo y actualiza su estado e historial. No r
 
 El menú no incluye un botón `CERRAR`, porque dejaba al operario sin acciones útiles.
 
-Debe mantener disponibles las operaciones reales y **CONSULTAR VEHÍCULO**.
+Debe mantener disponibles las operaciones reales y **CONSULTAR VEHÍCULO**. Para usuarios con rol `owner` o `admin` aparece además **GESTIONAR OPERARIOS**.
 
 ### Consultar vehículo
 
@@ -67,7 +67,7 @@ El expediente debe mostrar, cuando existan:
 - operario responsable de cada evidencia/acción;
 - historial cronológico completo.
 
-La interfaz debe usar nombres comprensibles en español, no nombres internos como `lookup`, `park`, `pickup` o `retrieve`.
+La interfaz usa nombres comprensibles en español, no nombres internos como `lookup`, `park`, `pickup` o `retrieve`.
 
 ### Organización de fotografías
 
@@ -122,6 +122,7 @@ Supabase Edge Functions
    |      - evidencias/fotos
    |      - auditoría
    |      - verificaciones OCR
+   |      - user_admin_events
    |
    +--> Supabase Storage (privado)
    |
@@ -141,9 +142,9 @@ Supabase Edge Functions
 - El acceso se controla por usuario de Telegram y estado activo/inactivo.
 - Un trabajador desactivado debe perder acceso al bot.
 - Las fotos/documentos se almacenan de forma privada.
-- Los overrides de OCR deben quedar auditados.
+- Los overrides de OCR quedan auditados.
 - Las acciones importantes conservan operario y fecha/hora.
-- La Mini App/expediente debe validar que la petición procede de una sesión válida de Telegram antes de exponer datos del vehículo.
+- La Mini App/expediente valida que la petición procede de una sesión válida de Telegram antes de exponer datos del vehículo.
 
 ## UX acordada
 
@@ -154,9 +155,69 @@ Supabase Edge Functions
 - `NAVEGAR HASTA EL COCHE` solo aparece para vehículos actualmente aparcados.
 - `CONSULTAR VEHÍCULO` permanece disponible en Otras opciones y funciona como expediente informativo completo.
 
-## Control de acceso
+## Control de acceso y roles
 
-El administrador dispone del flujo de aprobación/bloqueo de operarios. Las solicitudes rechazadas no deben volver automáticamente a pendientes simplemente porque el usuario escriba de nuevo al bot.
+El modelo vigente tiene tres niveles:
+
+### 👑 Owner / Propietario
+
+Existe una única cuenta `owner`. Es la cuenta propietaria original del sistema.
+
+- Siempre permanece activa.
+- No puede ser degradada a `admin` u `operario`.
+- No puede ser bloqueada ni eliminada.
+- La protección existe **en PostgreSQL mediante trigger**, no únicamente en la interfaz de Telegram.
+- Existe un índice único que impide crear un segundo `owner` mientras el propietario actual exista.
+
+### 🛡️ Administrador
+
+Un administrador activo puede:
+
+- ver solicitudes pendientes;
+- autorizar nuevos operarios;
+- autorizar directamente un nuevo administrador;
+- promover un operario existente a administrador;
+- quitar el rol de administrador a otros administradores;
+- dar de baja usuarios;
+- reactivar usuarios bloqueados;
+- rechazar solicitudes pendientes.
+
+Ningún administrador puede modificar los permisos del `owner`.
+
+Para evitar errores accidentales, un administrador tampoco puede cambiar **sus propios** permisos desde el panel; otro administrador/owner debe hacerlo.
+
+### 👤 Operario
+
+Puede utilizar los flujos operativos del parking, pero no ve ni puede usar la gestión de usuarios.
+
+### Panel `GESTIONAR OPERARIOS`
+
+Solo aparece a `owner` y `admin` dentro de **OTRAS OPCIONES**.
+
+Organiza los usuarios en:
+
+- **SOLICITUDES PENDIENTES**;
+- **OPERARIOS ACTIVOS**;
+- **ADMINISTRADORES**;
+- **USUARIOS BLOQUEADOS**.
+
+Las acciones disponibles dependen del estado y rol del usuario seleccionado: `AUTORIZAR COMO OPERARIO`, `AUTORIZAR COMO ADMIN`, `HACER ADMINISTRADOR`, `QUITAR ADMINISTRADOR`, `DAR DE BAJA`, `REACTIVAR` o `RECHAZAR`.
+
+La cuenta `owner` muestra **CUENTA PROTEGIDA** y no presenta acciones destructivas.
+
+### Auditoría administrativa
+
+Todos los cambios de permisos se registran en `user_admin_events` con:
+
+- administrador que realizó la acción;
+- usuario afectado;
+- acción ejecutada;
+- rol anterior/nuevo;
+- estado activo anterior/nuevo;
+- fecha/hora;
+- metadata adicional cuando corresponda.
+
+Las solicitudes rechazadas no vuelven automáticamente a pendientes simplemente porque el usuario escriba de nuevo al bot.
 
 ## Documentación adicional
 
@@ -165,4 +226,4 @@ El administrador dispone del flujo de aprobación/bloqueo de operarios. Las soli
 - `docs/CODEX_IMPLEMENTATION_PLAN.md`
 - `docs/TEST_PLAN.md`
 
-Estos documentos históricos deben interpretarse conforme a las decisiones vigentes de este README, especialmente la **eliminación del diseño por sectores** y el **OCR únicamente al aparcar**.
+Estos documentos históricos deben interpretarse conforme a las decisiones vigentes de este README, especialmente la **eliminación del diseño por sectores**, el **OCR únicamente al aparcar** y el **modelo owner/admin/operario**.
