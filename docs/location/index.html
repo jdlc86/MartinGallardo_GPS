@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ubicación precisa</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#111)}
+.wrap{max-width:480px;margin:0 auto}h1{font-size:24px;margin:0 0 10px}p{line-height:1.4}#status{margin:22px 0;padding:16px;border-radius:12px;background:var(--tg-theme-secondary-bg-color,#f2f2f2);font-size:17px}button{width:100%;padding:16px;border:0;border-radius:12px;font-size:17px;font-weight:700;background:var(--tg-theme-button-color,#2481cc);color:var(--tg-theme-button-text-color,#fff)}
+.small{margin-top:12px;font-size:13px;opacity:.75}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>📍 Ubicación precisa</h1>
+<p>Obtendremos varias lecturas GPS y usaremos la de mejor precisión.</p>
+<div id="status">Pulsa el botón para comenzar.</div>
+<button id="go">OBTENER UBICACIÓN</button>
+<div class="small" id="detail"></div>
+</div>
+<script>
+const tg=window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();}
+const status=document.getElementById('status');
+const detail=document.getElementById('detail');
+const btn=document.getElementById('go');
+let best=null,watchId=null,timer=null;
+function show(p){status.textContent=`Precisión actual: ±${Math.round(p.coords.accuracy)} m`;detail.textContent=`Lat ${p.coords.latitude.toFixed(6)} · Lon ${p.coords.longitude.toFixed(6)}`;}
+function finish(){if(watchId!==null)navigator.geolocation.clearWatch(watchId);if(timer)clearTimeout(timer);btn.disabled=false;if(!best){status.textContent='No se pudo obtener la ubicación.';btn.textContent='REINTENTAR';return;}const payload={type:'parking_location',latitude:best.coords.latitude,longitude:best.coords.longitude,horizontal_accuracy:best.coords.accuracy,source:'telegram_miniapp'};status.textContent=`Mejor precisión: ±${Math.round(best.coords.accuracy)} m`;if(tg){tg.sendData(JSON.stringify(payload));setTimeout(()=>tg.close(),300);}else{detail.textContent='Esta pantalla debe abrirse desde Telegram.';}}
+function onPos(p){if(!best||p.coords.accuracy<best.coords.accuracy)best=p;show(p);if(p.coords.accuracy<=5)finish();}
+function onErr(){status.textContent='No se pudo acceder a la ubicación. Revisa el permiso de ubicación de Telegram.';btn.disabled=false;btn.textContent='REINTENTAR';}
+btn.onclick=()=>{if(!navigator.geolocation){onErr();return;}best=null;btn.disabled=true;btn.textContent='BUSCANDO...';status.textContent='Buscando GPS...';detail.textContent='';watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:0,timeout:12000});timer=setTimeout(finish,8000);};
+</script>
+</body>
+</html>
