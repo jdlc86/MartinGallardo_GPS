@@ -1,291 +1,204 @@
-# Plan de pruebas
+# Plan de pruebas actual
 
 ## Objetivo
 
-Permitir que Codex valide el sistema sin depender de múltiples personas reales usando Telegram.
+Validar el sistema vigente sin depender de múltiples personas reales ni reintroducir flujos antiguos.
 
-La estrategia combina:
+## 1. Entrada Telegram y menús
 
-1. tests unitarios;
-2. tests de integración con Supabase;
-3. simulación de updates Telegram;
-4. smoke test manual mínimo con el bot real.
+Casos obligatorios:
 
-## 1. Pirámide de pruebas
+- `/start` de operario activo -> menú base;
+- `/start` de admin/owner -> mismo menú base;
+- `OTRAS OPCIONES` operario -> sin administración;
+- `OTRAS OPCIONES` admin/owner -> incluye `GESTIONAR OPERARIOS`;
+- callback antiguo `menu:close` -> no deja pantalla muerta; vuelve a UI vigente;
+- ningún flujo nuevo genera botón `CERRAR`;
+- el webhook de producción apunta a `telegram-gateway`.
 
-### Unitarias
+## 2. Solicitudes y permisos
 
-Funciones puras:
+Matriz mínima:
 
-- normalización de matrícula;
-- parseo de comandos;
-- validación de roles;
-- transición de estados;
-- evaluación de precisión GPS;
-- construcción de botones/menús;
-- validación de callback data.
-
-### Integración
-
-Probar contra Supabase local/dev:
-
-- CRUD controlado;
-- constraints;
-- transiciones;
-- idempotencia;
-- RLS donde aplique;
-- Storage privado.
-
-### Webhook simulado
-
-Enviar payloads equivalentes a Telegram hacia el handler o función extraída, sin necesidad de cuentas adicionales.
-
-### Smoke real
-
-Solo para confirmar integración externa:
-
-- `/start`;
-- un callback inline;
-- una foto;
-- una ubicación.
-
-No repetir manualmente todos los casos que cubre la suite.
-
----
-
-## 2. Fixtures Telegram
-
-Crear builders para:
-
-```ts
-makeMessageUpdate({
-  updateId,
-  telegramUserId,
-  text,
-  username,
-  firstName,
-})
-
-makeCallbackUpdate({
-  updateId,
-  telegramUserId,
-  data,
-  chatId,
-  messageId,
-})
-
-makeLocationUpdate(...)
-makePhotoUpdate(...)
-```
-
-Nunca usar IDs de personas reales en fixtures. Usar rangos ficticios documentados.
-
----
-
-## 3. Matriz de control de acceso
-
-| Caso | Estado inicial | Acción | Resultado esperado |
+| Caso | Estado inicial | Acción | Resultado |
 |---|---|---|---|
-| desconocido | sin usuario/solicitud | `/start` | solicitud `pending` |
-| pending repetido | pending | `/start` | sigue pending, actualiza last_seen/attempts |
-| rechazado repetido | rejected | `/start` | sigue rejected |
-| aprobar | pending | callback approve | worker activo + approved |
-| rechazar | pending | callback reject | rejected, sin acceso |
-| doble aprobar | approved | callback approve | sin duplicados |
-| doble rechazar | rejected | callback reject | sin transición inválida |
-| operario pulsa approve | pending | callback operario | 403 lógico/no autorizado |
-| admin bloquea operario | activo | bloquear | acceso denegado inmediato |
-| admin reactiva | inactivo | reactivar | acceso restaurado |
-| admin intenta bloquearse | admin activo | bloquear self | denegado |
+| desconocido | sin usuario | escribe | `pending` |
+| pending | pendiente <72 h | escribe | sigue pending |
+| pending vencido | expires_at pasado | job/trigger | `expired` |
+| rejected | sin usuario | vuelve a escribir | nuevo `pending` |
+| approved activo | usuario activo | escribe | acceso |
+| approved bloqueado | active=false | escribe | sin acceso, no pending |
+| alta operario | pending | aprobar | approved + active=true |
+| alta admin | pending | aprobar admin | approved + admin activo |
+| bloquear | approved activo | dar de baja | approved + active=false |
+| reactivar | approved bloqueado | reactivar | approved + active=true |
+| promover | operario activo | hacer admin | admin activo |
+| degradar | admin activo | quitar admin | operario activo |
+| modificar owner | owner | cualquier acción destructiva | rechazado |
+| admin self-change | admin | cambiarse rol/estado | rechazado |
 
----
+Invariante: ningún usuario existente en `telegram_users` puede quedar `pending/rejected/expired`.
 
-## 4. Matriz de vehículos
-
-### Matrícula
-
-Probar equivalencias:
-
-```text
-1234 ABC
-1234-ABC
-1234abc
- 1234 ABC 
-```
-
-Todas deben producir el mismo `normalized_plate` si esa es la regla implementada.
+## 3. Recogida aeropuerto
 
 Probar:
 
-- vacío;
-- caracteres no esperados;
-- longitud absurda;
-- matrícula duplicada.
+- matrícula válida;
+- fotos de estado requeridas;
+- foto de matrícula guardada sin OCR;
+- documentación obligatoria;
+- cancelar en cada paso;
+- evidencias vinculadas al vehículo/operario;
+- finalizar solo con requisitos completos.
 
-### Dejar coche
+## 4. Aparcar + OCR
 
 Casos:
 
-- nuevo vehículo + GPS bueno;
-- nuevo + GPS malo + sector manual;
-- nuevo + GPS malo + texto;
-- parking sin sectores + texto;
-- vehículo ya parked -> confirmación;
-- usuario cancela en cada paso;
-- retry del último update -> no duplica evento;
-- foto subida dos veces/retry -> no duplica metadata si existe dedupe.
+- matrícula nueva;
+- matrícula existente;
+- foto OCR coincide;
+- OCR detecta otra matrícula;
+- OCR no puede leer;
+- repetir foto;
+- override y continuar;
+- override genera auditoría;
+- cancelar;
+- Google Vision no disponible -> feedback controlado;
+- retry de foto no debe duplicar evidencia/evento cuando se implemente dedupe.
 
-### Retirar
+OCR no debe ejecutarse en ninguna otra etapa.
 
-- vehículo parked -> retrieve correcto;
+## 5. GPS Mini App
+
+Probar:
+
+- captura de GPS;
+- precisión disponible;
+- precisión no disponible;
+- usuario acepta ubicación;
+- ubicación llega al backend;
+- Mini App muestra confirmación;
+- cierre tras ~2 s;
+- regreso al chat;
+- cancelación/reintento;
+- sin flujo de sectores.
+
+No inventar precisión cuando el dispositivo/Telegram no la informa.
+
+## 6. Buscar vehículo
+
+- matrícula `parked` -> resultado correcto;
+- navegación visible solo para `parked` con coordenadas válidas;
+- vehículo `retrieved/in_transit/requested` -> sin navegación;
 - matrícula inexistente;
-- vehículo ya retrieved;
-- doble callback confirmar;
-- historial queda intacto.
+- GPS histórico puede mostrarse como histórico pero no como destino activo;
+- evento de consulta auditado cuando corresponda.
 
----
+## 7. Entrega aeropuerto
 
-## 5. GPS
+- vehículo válido;
+- confirmar entrega;
+- cambio de estado;
+- historial intacto;
+- no ejecutar OCR;
+- doble confirmación no debe duplicar entrega.
 
-Dado threshold 15 m:
+## 8. Consultar vehículo
 
-| accuracy | esperado |
-|---:|---|
-| 3 | good |
-| 15 | good |
-| 15.01 | poor |
-| 40 | poor |
-| null | no inventar calidad; solicitar fallback |
+Probar expediente con:
 
-Probar cambio de threshold en configuración.
+- vehículo sin evidencias;
+- múltiples días/etapas;
+- fotos ordenadas de nuevas a antiguas;
+- agrupación día + etapa;
+- hora y operario visibles;
+- URLs firmadas válidas;
+- URL expirada;
+- OCR y overrides;
+- historial traducido a nombres operativos;
+- botón Navegar solo si `parked`.
 
-Probar que la selección manual conserva la accuracy original cuando exista.
+## 9. Estado conversacional
 
----
+- sesión persistente entre invocaciones;
+- sesión expirada;
+- cancelar limpia/neutraliza estado;
+- `/start` devuelve a UI consistente;
+- no depender de memoria RAM de Edge Function.
 
-## 6. Configuración
+## 10. Idempotencia
 
-Casos:
+Simular el mismo `update_id` dos veces para operaciones con escritura:
 
-- operario intenta configurar -> denegado;
-- admin entra sin escribir `Configurar` -> no modifica;
-- admin confirma `Configurar` -> modo permitido;
-- crear sector;
-- código duplicado;
-- editar sector;
-- desactivar sector;
-- sector usado históricamente -> no borrado destructivo;
-- auditoría registra actor.
+- solicitud de acceso;
+- aprobación/rechazo;
+- foto;
+- OCR override;
+- aparcado;
+- entrega.
 
----
+Objetivo: máximo un efecto de dominio.
 
-## 7. Fotos
+La deduplicación explícita por `update_id` sigue siendo deuda técnica y debe tener pruebas antes de declararse resuelta.
 
-Casos:
+## 11. Seguridad
 
-- upload válido;
-- MIME/tamaño no permitido según política implementada;
-- Storage falla después de crear metadata;
-- DB falla después de upload -> cleanup/registro recuperable;
-- acceso público directo -> debe fallar;
-- signed URL -> expira;
-- vehículo retirado -> fotos siguen accesibles para autorizado.
+Automatizar/verificar:
 
----
+- ningún secreto en GitHub;
+- webhook rechaza secret incorrecto;
+- usuario no admin no puede ejecutar callbacks admin;
+- owner no puede modificarse;
+- Storage no permite acceso público permanente;
+- Mini Apps requieren contexto Telegram válido;
+- service-role no aparece en HTML/JS cliente;
+- `telegram_user_id` se obtiene de `from.id`;
+- RLS activo en tablas expuestas.
 
-## 8. Idempotencia
+### `plate_verifications`
 
-Es obligatorio probar reintentos de Telegram.
+Actualmente RLS está desactivado. Debe existir una prueba específica una vez definida la política y habilitado RLS.
 
-Simular exactamente el mismo `update_id` dos veces para:
+## 12. Integridad de datos
 
-- `/start` unknown;
-- approve;
-- reject;
-- park;
-- retrieve;
-- photo.
+Comprobar periódicamente:
 
-Resultado: máximo un efecto de dominio.
+- usuarios activos con solicitud distinta de approved = 0;
+- usuarios bloqueados con solicitud pending = 0;
+- más de un owner = 0;
+- evidencias sin vehicle_id = 0;
+- plate_verifications sin vehicle válido = 0;
+- navegación ofrecida a vehículo no parked = 0.
 
----
+## 13. Carga razonable
 
-## 9. Concurrencia
+Dataset sintético aproximado:
 
-Casos útiles:
-
-- dos admins intentan aprobar la misma solicitud;
-- dos operarios intentan retirar el mismo vehículo;
-- dos actualizaciones de ubicación casi simultáneas;
-- reactivación y bloqueo concurrentes.
-
-Usar constraints/transacciones para que el estado final sea determinista o, como mínimo, consistente.
-
----
-
-## 10. Seguridad
-
-Automatizar comprobaciones:
-
-- ningún secreto en repo;
-- service role no aparece en código cliente;
-- bucket privado;
-- RLS habilitado en tablas expuestas;
-- callbacks admin verifican actor en DB;
-- username no se usa como identidad;
-- `telegram_user_id` proviene de `from.id`, no de texto escrito;
-- webhook rechaza secret header incorrecto;
-- endpoint no procesa payload malformado como operación válida.
-
----
-
-## 11. Pruebas de carga razonables
-
-No se necesita stress masivo para MVP.
-
-Generar dataset sintético aproximado:
-
-- 30 días;
 - 150 vehículos/día;
-- varios eventos por vehículo;
-- fotos como metadata simulada.
+- 30 días;
+- múltiples eventos y evidencias.
 
-Medir búsquedas típicas:
+Medir:
 
-- matrícula exacta;
+- búsqueda por matrícula;
 - vehículos parked;
 - historial de vehículo;
-- últimas operaciones de un operario.
+- expediente con evidencias;
+- listados administrativos.
 
-Objetivo: detectar consultas sin índice o N+1, no demostrar escalado a millones de TPS.
+## 14. Smoke test de release
 
----
+1. owner `/start`;
+2. operario `/start`;
+3. comparar menús base;
+4. solicitud nueva -> aprobar/rechazar;
+5. Recogida con vehículo TEST;
+6. Aparcar con OCR;
+7. GPS Mini App;
+8. Buscar + navegación;
+9. Consultar vehículo;
+10. Entrega;
+11. verificar auditoría y estados finales.
 
-## 12. Smoke test real de release
-
-Antes de un despliegue considerado estable:
-
-1. admin `/start`;
-2. usuario de prueba autorizado o simulación controlada de solicitud;
-3. botón Aceptar/Rechazar;
-4. flujo de dejar coche con matrícula ficticia claramente marcada TEST;
-5. ubicación real o controlada;
-6. foto de prueba;
-7. búsqueda;
-8. retirada;
-9. cleanup de datos TEST si corresponde sin borrar auditoría necesaria.
-
-Nunca usar vehículos reales para pruebas automatizadas destructivas.
-
----
-
-## 13. Definition of Done de pruebas
-
-Una feature puede considerarse lista cuando:
-
-- happy path cubierto;
-- al menos los errores previsibles cubiertos;
-- retry/idempotencia cubierta si tiene efecto de escritura;
-- permisos cubiertos;
-- migración verificada;
-- no exige una segunda persona real para ejecutar CI.
+Usar datos TEST y no borrar auditoría necesaria.
