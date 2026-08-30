@@ -18,26 +18,24 @@ body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;backgr
 <button id="go">OBTENER UBICACIÓN</button>
 <button id="use" style="display:none">✅ USAR ESTA UBICACIÓN</button>
 <button id="retry" class="secondary" style="display:none">↻ MEJORAR PRECISIÓN</button>
-<button id="close" class="secondary" style="display:none">↩ VOLVER AL CHAT</button>
 <div class="small" id="detail"></div>
-<div class="build">GPS UI build 2026-08-30-B</div>
+<div class="build">GPS UI build 2026-08-30-C</div>
 </div>
 <script>
 const tg=window.Telegram?.WebApp;
 if(tg){tg.ready();tg.expand();}
 const ENDPOINT='https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/telegram-location-submit';
-const status=document.getElementById('status'),detail=document.getElementById('detail'),go=document.getElementById('go'),use=document.getElementById('use'),retry=document.getElementById('retry'),closeBtn=document.getElementById('close');
+const status=document.getElementById('status'),detail=document.getElementById('detail'),go=document.getElementById('go'),use=document.getElementById('use'),retry=document.getElementById('retry');
 let best=null,watchId=null,timer=null;
 function stopWatch(){if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null;}if(timer){clearTimeout(timer);timer=null;}}
 function renderBest(){if(!best)return;status.textContent=`Mejor precisión: ±${Math.round(best.coords.accuracy)} m`;detail.textContent=`Lat ${best.coords.latitude.toFixed(6)} · Lon ${best.coords.longitude.toFixed(6)}`;go.style.display='none';use.style.display='block';retry.style.display='block';}
 function finishSearch(){stopWatch();if(!best){status.textContent='No se pudo obtener la ubicación.';go.disabled=false;go.textContent='REINTENTAR';return;}renderBest();}
 function onPos(p){if(!best||p.coords.accuracy<best.coords.accuracy)best=p;status.textContent=`Buscando GPS… ±${Math.round(best.coords.accuracy)} m`;detail.textContent=`Lat ${best.coords.latitude.toFixed(6)} · Lon ${best.coords.longitude.toFixed(6)}`;if(best.coords.accuracy<=3)finishSearch();}
 function onErr(){stopWatch();status.textContent='No se pudo acceder a la ubicación. Revisa el permiso de ubicación.';go.style.display='block';go.disabled=false;go.textContent='REINTENTAR';}
-function startSearch(){if(!navigator.geolocation){onErr();return;}best=null;go.disabled=true;go.textContent='BUSCANDO…';use.style.display='none';retry.style.display='none';closeBtn.style.display='none';status.textContent='Buscando GPS…';detail.textContent='';watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:0,timeout:15000});timer=setTimeout(finishSearch,8000);}
+function startSearch(){if(!navigator.geolocation){onErr();return;}best=null;go.disabled=true;go.textContent='BUSCANDO…';use.style.display='none';retry.style.display='none';status.textContent='Buscando GPS…';detail.textContent='';watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:0,timeout:15000});timer=setTimeout(finishSearch,8000);}
 go.onclick=startSearch;
 retry.onclick=()=>{go.style.display='block';startSearch();};
-closeBtn.onclick=()=>{if(tg)tg.close();};
-use.onclick=async()=>{if(!best||!tg){status.textContent='Esta pantalla debe abrirse desde Telegram.';return;}use.disabled=true;retry.disabled=true;status.textContent='Enviando ubicación al chat…';try{const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData,latitude:best.coords.latitude,longitude:best.coords.longitude,horizontal_accuracy:best.coords.accuracy})});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||'No se pudo guardar');status.textContent=`✅ Ubicación enviada · precisión ±${Math.round(best.coords.accuracy)} m`;detail.textContent='Ya puedes volver al chat para verla.';use.style.display='none';retry.style.display='none';closeBtn.style.display='block';}catch(e){status.textContent='No se pudo enviar la ubicación.';detail.textContent=String(e?.message||e);use.disabled=false;retry.disabled=false;}};
+use.onclick=async()=>{if(!best||!tg){status.textContent='Esta pantalla debe abrirse desde Telegram.';return;}use.disabled=true;retry.disabled=true;status.textContent='Enviando ubicación al chat…';try{const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData,latitude:best.coords.latitude,longitude:best.coords.longitude,horizontal_accuracy:best.coords.accuracy})});const data=await r.json().catch(()=>({}));if(!r.ok||!data.ok)throw new Error(data.error||'No se pudo guardar');status.textContent=`✅ Ubicación aceptada · precisión ±${Math.round(best.coords.accuracy)} m`;detail.textContent='Volviendo al chat para confirmar…';use.style.display='none';retry.style.display='none';setTimeout(()=>tg.close(),2000);}catch(e){status.textContent='No se pudo enviar la ubicación.';detail.textContent=String(e?.message||e);use.disabled=false;retry.disabled=false;}};
 </script>
 </body>
 </html>
