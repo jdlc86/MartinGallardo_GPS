@@ -21,6 +21,22 @@ async def list_pending_users() -> list[AppUser]:
         return [_to_user(row) for row in result.fetchall()]
 
 
+async def list_active_non_owner_users() -> list[AppUser]:
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                """
+                select id, telegram_user_id, full_name, telegram_username,
+                       role::text as role, status::text as status
+                from public.app_users
+                where status = 'ACTIVE' and role <> 'OWNER'
+                order by full_name asc
+                """
+            )
+        )
+        return [_to_user(row) for row in result.fetchall()]
+
+
 async def set_user_status(
     *, actor: AppUser, target_telegram_user_id: int, status: str
 ) -> AppUser:
