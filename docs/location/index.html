@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ubicación precisa</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:24px;background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#111)}
+.wrap{max-width:480px;margin:0 auto}
+h1{font-size:24px;margin:0 0 10px}
+p{line-height:1.4}
+#status{margin:22px 0;padding:16px;border-radius:12px;background:var(--tg-theme-secondary-bg-color,#f2f2f2);font-size:17px}
+button{width:100%;padding:16px;border:0;border-radius:12px;font-size:17px;font-weight:700;background:var(--tg-theme-button-color,#2481cc);color:var(--tg-theme-button-text-color,#fff)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>📍 Ubicación precisa</h1>
+<p>Obtendremos la ubicación del teléfono para registrar el coche.</p>
+<div id="status">Pulsa el botón.</div>
+<button id="go">OBTENER UBICACIÓN</button>
+</div>
+<script>
+const tg=window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();}
+const status=document.getElementById('status');
+const btn=document.getElementById('go');
+function fail(m){status.textContent=m;btn.disabled=false;btn.textContent='REINTENTAR';}
+function sendPosition(lat,lng,acc){
+  status.textContent='Ubicación obtenida · '+(acc==null?'precisión no informada':'precisión ±'+Math.round(acc)+' m');
+  if(!tg){fail('Esta pantalla debe abrirse desde Telegram.');return;}
+  tg.sendData(JSON.stringify({type:'parking_location',latitude:lat,longitude:lng,horizontal_accuracy:acc,source:'telegram_miniapp'}));
+  setTimeout(()=>tg.close(),250);
+}
+function browserGeo(){
+  if(!navigator.geolocation){fail('El dispositivo no permite geolocalización.');return;}
+  navigator.geolocation.getCurrentPosition(
+    p=>sendPosition(p.coords.latitude,p.coords.longitude,Number.isFinite(p.coords.accuracy)?p.coords.accuracy:null),
+    ()=>fail('No se pudo obtener la ubicación. Revisa el permiso de ubicación de Telegram.'),
+    {enableHighAccuracy:true,timeout:12000,maximumAge:0}
+  );
+}
+btn.onclick=()=>{
+  btn.disabled=true;btn.textContent='OBTENIENDO...';
+  const lm=tg?.LocationManager;
+  if(lm){
+    lm.init(()=>{
+      if(!lm.isLocationAvailable){browserGeo();return;}
+      lm.getLocation(loc=>{
+        if(!loc){browserGeo();return;}
+        sendPosition(Number(loc.latitude),Number(loc.longitude),loc.horizontal_accuracy==null?null:Number(loc.horizontal_accuracy));
+      });
+    });
+  } else browserGeo();
+};
+</script>
+</body>
+</html>
