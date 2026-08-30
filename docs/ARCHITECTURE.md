@@ -1,364 +1,228 @@
-# Arquitectura técnica
+# Arquitectura actual
 
-## 1. Alcance
+## Alcance
 
-Sistema para gestionar vehículos de un único parking usando Telegram como interfaz operativa y Supabase como backend.
+ParkingMartin-G gestiona un único parking mediante Telegram. Supabase aporta backend, base de datos y almacenamiento privado; GitHub Pages aloja las Mini Apps.
 
-Componentes:
-
-- Telegram Bot API.
-- Supabase Edge Functions.
-- PostgreSQL.
-- Supabase Storage.
-- Futuro: mini mapa opcional para selección visual de sectores.
-
-## 2. Flujo de datos
+## Componentes
 
 ```text
-[Operario/Admin]
+Telegram Bot API
       |
       v
-[Telegram App]
+telegram-gateway
       |
       v
-[Telegram Bot API]
+telegram-entry
       |
-      | HTTPS webhook
-      v
-[Edge Function telegram-bot]
-      |
-      +--> autorización
-      +--> máquina de estados conversacional
-      +--> dominio parking
-      +--> auditoría
-      |
-      +--> [PostgreSQL]
-      |
-      +--> [Storage vehicle-photos]
+      +--> telegram-router3 / telegram-bot (lógica heredada interna)
+      +--> PostgreSQL
+      +--> Supabase Storage
+      +--> Google Cloud Vision
+
+Mini Apps
+  +--> /location/  -> telegram-location-submit
+  +--> /vehicle/   -> vehicle-consult-api
 ```
 
-## 3. Estado desplegado
+## Responsabilidades
 
-### Edge Function
+### `telegram-gateway`
 
-Existe `telegram-bot` y actualmente contiene:
+Entrada visible del bot. Debe ser el único webhook de producción.
 
-- webhook Telegram;
-- validación de secret header;
-- resolución de usuario por `telegram_user_id`;
-- `/start`, `/admin`, `/mi_id`;
-- `/solicitudes`;
-- callbacks `approve:*` y `reject:*`;
-- `/operarios`, `/alta`, `/bloquear`, `/reactivar`, `/estado`.
+Responsable de:
 
-El código desplegado todavía no está versionado de forma completa en este repositorio. Una de las primeras tareas de Codex debe ser **traer la Edge Function al repo** bajo una estructura estándar, por ejemplo:
+- `/start`;
+- menú inicial;
+- `OTRAS OPCIONES`;
+- menú según rol;
+- impedir que callbacks antiguos como `menu:close` restauren UI obsoleta.
 
-```text
-supabase/
-  functions/
-    telegram-bot/
-      index.ts
-  migrations/
-```
+### `telegram-entry`
 
-Después, el despliegue debe salir del código versionado y no de modificaciones manuales aisladas.
+Orquesta funciones actuales de mayor nivel:
 
-## 4. Tablas actuales relevantes
+- OCR al aparcar;
+- gestión de usuarios;
+- panel admin;
+- sesiones y forwarding a lógica heredada.
+
+### `telegram-router3` / `telegram-bot`
+
+Contienen lógica operativa heredada todavía utilizada por algunos pasos. No deben considerarse fuentes de navegación global.
+
+Riesgo actual: siguen activas y conservan endpoints de configuración capaces de cambiar el webhook. Deben retirarse o neutralizarse cuando el backend se versione y consolide.
+
+### `telegram-location-submit`
+
+Recibe la ubicación aprobada por el usuario desde la Mini App de GPS y actualiza el flujo de aparcado.
+
+### `vehicle-consult-api`
+
+API autenticada por datos de Telegram para cargar el expediente completo de un vehículo.
+
+## Mini App de GPS
+
+Flujo:
+
+1. Telegram abre `/location/`.
+2. Se obtiene posición y precisión.
+3. El operario decide **USAR ESTA UBICACIÓN**.
+4. La Mini App envía los datos al backend.
+5. Muestra confirmación.
+6. Espera ~2 s y se cierra para volver al chat.
+
+No se usan sectores como fallback.
+
+## Mini App Consultar vehículo
+
+Muestra:
+
+- estado actual;
+- GPS/precisión;
+- referencia;
+- navegación solo si `status='parked'`;
+- evidencias;
+- OCR;
+- overrides;
+- operarios;
+- historial.
+
+Las evidencias se ordenan descendente por fecha y se agrupan por día + etapa.
+
+## Datos principales
 
 ### `telegram_users`
 
-Fuente de autorización usada actualmente por el bot.
+Autorización y rol Telegram.
 
-Campos relevantes:
+Roles actuales:
 
-- `id uuid`
-- `telegram_user_id bigint unique`
-- `username text`
-- `first_name text`
-- `last_name text`
-- `role text` (`admin` / `operario`)
-- `active boolean`
-- `created_at timestamptz`
-- `deactivated_at timestamptz`
+- `owner`
+- `admin`
+- `operario`
+
+`active=false` representa bloqueo/dado de baja.
 
 ### `telegram_access_requests`
 
-Solicitud de acceso externa.
+Estados actuales:
 
-Campos:
+- `pending`
+- `approved`
+- `rejected`
+- `expired`
 
-- `telegram_user_id bigint unique`
-- perfil Telegram
-- `first_seen_at`
-- `last_seen_at`
-- `attempts`
-- `status`: `pending | approved | rejected`
+`pending` caduca a las 72 h. Un rechazado puede generar una nueva solicitud al contactar de nuevo si no existe usuario bloqueado/autorizado.
 
 ### `workers`
 
-Entidad de dominio creada para trabajadores del parking.
+Identidad de dominio usada en eventos/evidencias. Sigue coexistiendo con `telegram_users`; la consolidación requiere migración cuidadosa.
 
-Campos principales:
+### `telegram_conversation_sessions`
 
-- `id uuid`
-- `telegram_user_id bigint unique`
-- `phone_e164`
-- `full_name`
-- `role`
-- `active`
-- timestamps y notas.
+Estado persistente de flujos Telegram multi-mensaje.
 
 ### `vehicles`
 
-Estado actual del vehículo.
-
-Campos principales:
-
-- `id uuid`
-- `plate`
-- `normalized_plate unique`
-- `status`
-- `current_sector_id`
-- `current_lat/current_lng`
-- `current_accuracy_m`
-- `current_location_text`
-- `parked_at`
-- `retrieved_at`
-- `last_updated_by`
+Proyección del estado actual del coche. La matrícula normalizada es la clave de búsqueda operativa.
 
 ### `parking_events`
 
-Historial operacional.
+Historial operativo append-oriented: aparcado, consulta, recogida, entrega y eventos de auditoría operativa.
 
-Campos principales:
+### `vehicle_evidence`
 
-- `vehicle_id`
-- `worker_id`
-- `operation`
-- `sector_id`
-- coordenadas
-- precisión
-- `location_text`
-- `gps_quality`
-- `created_at`
-- `metadata jsonb`
+Metadatos de fotografías/documentos actuales. Es la tabla de evidencias vigente.
 
-Índices existentes relevantes:
+### `evidence_requirements`
 
-- `(vehicle_id, created_at desc)`
-- `(worker_id, created_at desc)`
+Requisitos de evidencias por etapa.
 
-### `parking_sectors`
+### `plate_verifications`
 
-Sectores configurables del parking.
+Resultado OCR de matrícula y overrides.
 
-- `code unique`
-- `name`
-- `description`
-- centro GPS
-- `radius_m`
-- `active`
-- actor/timestamps.
+**RLS está actualmente desactivado en esta tabla y debe corregirse de forma controlada.**
 
-### `parking_config`
+### `user_admin_events`
 
-Configuración singleton del parking.
+Auditoría de altas, bajas, promociones, degradaciones y cambios de acceso.
 
-- `parking_name`
-- `configured`
-- centro GPS
-- `default_accuracy_threshold_m` (actualmente default 15 m)
-- `updated_by`
-- `config_notes`
+## Tablas legacy
 
-### `vehicle_photos`
+Existen pero no forman parte del diseño funcional actual:
 
-Metadatos de fotos almacenadas.
+- `app_users`
+- `vehicle_photos`
+- `parking_sectors`
+- `config_audit`
+- `audit_events`
 
-- `vehicle_id`
-- `event_id`
-- `uploaded_by`
-- `storage_bucket` default `vehicle-photos`
-- `storage_path unique`
-- `kind`
-- timestamps / metadata.
+No eliminarlas sin comprobar FKs, triggers y datos, pero tampoco desarrollar nuevas funciones basadas en ellas.
 
-### `config_audit` y `audit_events`
+## Estados funcionales
 
-Tablas de auditoría existentes. Codex debe evitar crear una tercera solución de auditoría sin evaluar primero cuál consolidar.
-
-### `app_users`
-
-Modelo de usuario anterior/alternativo. Debe tratarse como deuda técnica y no asumirse como fuente de verdad sin migración explícita.
-
-## 5. Duplicidad de identidad: plan recomendado
-
-Problema:
+### Acceso
 
 ```text
-telegram_users   <- bot
-workers          <- dominio parking
-app_users        <- modelo previo
+sin usuario -> pending -> approved
+                     \-> rejected
+pending vencido ------> expired
+rejected + nuevo contacto -> pending
+approved + active=false -> bloqueado
 ```
 
-Objetivo:
+Un usuario que ya existe en `telegram_users` no debe aparecer como `pending/rejected/expired`.
 
-```text
-workers = identidad operativa canónica
-telegram_access_requests = cola/historial de solicitudes
-```
+### Vehículos
 
-Migración propuesta en fases:
+Los estados operativos usados actualmente incluyen `requested`, `in_transit`, `parked` y `retrieved`.
 
-### Fase A — compatibilidad
+Solo `parked` habilita navegación hacia las coordenadas actuales.
 
-- añadir cualquier campo Telegram faltante a `workers`;
-- copiar usuarios activos desde `telegram_users`;
-- mapear roles;
-- no borrar nada.
+## OCR
 
-### Fase B — doble lectura controlada
+Google Cloud Vision se usa exclusivamente al **aparcar**.
 
-- bot consulta primero `workers`;
-- fallback temporal a `telegram_users` solo para transición;
-- nuevas altas escriben en `workers`.
+No ejecutar OCR en:
 
-### Fase C — convergencia
+- Aeropuerto · Recogida;
+- salida/búsqueda;
+- Aeropuerto · Entrega.
 
-- eliminar fallback;
-- comprobar ausencia de dependencias;
-- archivar/eliminar tablas redundantes en migración separada.
+## Geolocalización
 
-## 6. Estado de vehículo
+Fuente de verdad: GPS preciso capturado por Mini App.
 
-Estados mínimos recomendados:
+Datos:
 
-```text
-parked
-retrieved
-```
+- latitud;
+- longitud;
+- `accuracy_m`;
+- referencia textual opcional.
 
-Opcionales futuros:
+No existe flujo de configuración por sectores.
 
-```text
-expected
-in_transit
-cancelled
-```
+## Seguridad
 
-No añadir estados sin caso de uso real.
+- Webhook valida secret header.
+- Mini Apps validan contexto Telegram.
+- Service role y claves privadas permanecen en backend.
+- Storage es privado.
+- Owner está protegido por restricciones/triggers PostgreSQL.
+- Acciones administrativas consultan rol/estado en DB.
 
-`vehicles` es proyección del estado actual. `parking_events` es historial append-oriented.
+### Riesgo RLS
 
-## 7. Eventos
+Supabase reporta `plate_verifications` sin RLS. Antes de habilitarlo hay que decidir si la tabla será backend-only o si necesita políticas de lectura/escritura específicas.
 
-Operaciones mínimas:
+## Deuda técnica de arquitectura
 
-```text
-park
-retrieve
-location_corrected
-photo_added
-```
-
-Las acciones puramente administrativas pueden ir a auditoría en lugar de `parking_events`.
-
-## 8. Matrículas
-
-Normalización recomendada:
-
-```text
-uppercase
-remove spaces
-remove hyphens
-trim
-```
-
-La búsqueda debe usar `normalized_plate`.
-
-Nunca destruir el valor original `plate` introducido por el operario.
-
-## 9. Conversaciones
-
-Edge Functions son stateless. Para flujos de varios pasos se recomienda una tabla `bot_sessions` o `operation_drafts`.
-
-Modelo sugerido:
-
-```text
-id uuid
-telegram_user_id bigint
-flow text
-state text
-payload jsonb
-expires_at timestamptz
-updated_at timestamptz
-```
-
-Ejemplo `flow='park_vehicle'`, estados:
-
-```text
-awaiting_plate
-awaiting_photos
-awaiting_location
-awaiting_manual_sector
-awaiting_location_text
-confirming
-```
-
-Cada update debe poder reanudarse leyendo esta fila.
-
-## 10. Idempotencia Telegram
-
-Añadir persistencia de `update_id` procesados o equivalente.
-
-Requisito:
-
-- no crear dos `parking_events` por retry;
-- no subir dos veces la misma foto;
-- no aprobar dos veces una misma solicitud causando duplicados.
-
-## 11. Storage
-
-Bucket actual: `vehicle-photos`, privado.
-
-Path recomendado:
-
-```text
-vehicles/<vehicle_uuid>/<event_uuid>/<photo_uuid>.jpg
-```
-
-No usar matrícula, teléfono o nombre personal en paths si no es necesario.
-
-## 12. Seguridad RLS
-
-Principio:
-
-- cliente Telegram nunca recibe service-role key;
-- Edge Function actúa como backend privilegiado;
-- tablas públicas con RLS;
-- no crear policies amplias por comodidad;
-- para futuros frontends, diseñar policies separadas.
-
-## 13. Observabilidad
-
-Registrar errores con contexto no sensible:
-
-- `update_id`
-- tipo de evento
-- actor Telegram ID si es imprescindible para depuración (evitar imprimir token o payloads completos con PII)
-- operación
-- vehicle UUID
-
-Nunca loguear `TELEGRAM_BOT_TOKEN` ni headers de autorización.
-
-## 14. Escalabilidad
-
-150 vehículos/día es una carga baja para Supabase.
-
-Evitar optimización prematura. Priorizar:
-
-- consistencia;
-- índices;
-- paginación;
-- no hacer N+1 innecesario;
-- no descargar binarios durante búsquedas.
+1. Versionar Edge Functions y migraciones en GitHub.
+2. Hacer imposible que funciones legacy cambien el webhook.
+3. Consolidar `telegram_users` y `workers` sin perder historial.
+4. Implementar deduplicación por `update_id`.
+5. Resolver RLS de `plate_verifications`.
+6. Retirar funciones de prueba/diagnóstico que ya no sean necesarias (`miniapp-launch-test`, routers antiguos, reset/diagnostics) después de confirmar que no tienen dependencias.
