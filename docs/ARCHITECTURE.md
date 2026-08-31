@@ -51,15 +51,39 @@ pg_cron -> pg_net -> performance-report-sender -> Telegram Bot API
 Responsabilidades:
 
 - recibir `/start` y mensajes de usuarios activos;
-- mostrar una bienvenida y un único acceso a ParkingMartin-G;
+- mostrar bienvenida y un único acceso a ParkingMartin-G;
 - configurar el botón permanente de menú Telegram;
 - impedir que callbacks antiguos restauren la UI clásica;
 - capturar `message` y `edited_message` de ubicaciones en vivo;
 - eliminar la última ubicación cuando Telegram informa fin de compartición;
 - bloquear ejecución funcional en `group`/`supergroup`;
-- reenviar únicamente los casos que siguen necesitando el backend heredado, principalmente acceso de usuarios no autorizados.
+- reenviar únicamente casos que siguen necesitando backend heredado, principalmente acceso de usuarios no autorizados.
 
 No debe volver a existir un menú operativo Recogida/Aparcar/Buscar/Entrega en el chat.
+
+## `telegram-modern-action`
+
+Backend de dashboard, Equipo & Accesos y acciones administrativas.
+
+Responsabilidades actuales:
+
+- validar criptográficamente `initData` de Telegram;
+- aceptar `auth_date` de hasta **24 horas**;
+- volver a comprobar en cada petición que el usuario siga activo;
+- comprobar Root/Admin para cualquier acción administrativa;
+- impedir self-change administrativo y proteger Root;
+- sincronizar `telegram_users` con `workers` cuando cambia acceso/rol;
+- auditar cambios en `user_admin_events`;
+- enviar notificaciones automáticas por Telegram tras aprobar, reactivar, promover o degradar.
+
+Notificaciones:
+
+- aprobación -> bienvenida + rol visible + botón Mini App;
+- reactivación -> bienvenida de regreso + rol visible + botón;
+- promoción -> aviso de nuevo rol Admin;
+- degradación -> aviso de nuevo rol Operario.
+
+El valor interno `owner` se presenta siempre como **Root** en UI/mensajes.
 
 ## Backend heredado
 
@@ -67,15 +91,13 @@ No debe volver a existir un menú operativo Recogida/Aparcar/Buscar/Entrega en e
 
 No son interfaz de producción y no deben recuperar control del webhook ni crear navegación global visible.
 
-La retirada definitiva requiere primero versionar las Edge Functions y verificar dependencias.
-
 ## Mini App principal
 
 Ruta base: `docs/preview-modern/`.
 
 ### `index.html`
 
-Centro inteligente. Funcionalidades visibles:
+Centro inteligente con:
 
 - Centro de Operaciones;
 - Vehículos;
@@ -85,28 +107,34 @@ Centro inteligente. Funcionalidades visibles:
 - GPS Pro · Diagnóstico;
 - Expediente 360º.
 
-Equipo & Accesos se oculta por defecto y solo se muestra tras consultar el rol real mediante `telegram-modern-action`. La API vuelve a comprobar permisos, por lo que ocultar la tarjeta no es el control de seguridad principal.
+Equipo & Accesos se oculta por defecto y solo se muestra tras consultar el rol real. La API vuelve a comprobar permisos.
 
-### Centro de Operaciones
+### Política UX de errores
 
-`operations.html` enlaza los cuatro flujos actuales:
+El backend puede devolver códigos técnicos estables para lógica y logs, pero **la UI no debe mostrarlos directamente**.
 
-- `pickup.html` -> `modern-pickup-api`;
-- `park.html` -> `modern-parking-api`;
-- `search.html` -> `modern-search-api`;
-- `delivery.html` -> `modern-delivery-api`.
+La capa común `docs/preview-modern/ux-errors.js` traduce errores conocidos a mensajes de usuario con una acción recomendada. Deben cubrirse, como mínimo:
+
+- sesión caducada;
+- permisos insuficientes;
+- usuario no autorizado/inactivo;
+- fallo de red;
+- respuesta inválida del servidor;
+- estado de dominio cambiado;
+- GPS insuficiente;
+- matrícula/foto/archivo inválido.
+
+No mostrar al usuario final prefijos `ERROR:`, `JS ERROR:`, códigos HTTP, SQL, stack traces ni códigos internos como `expired_init_data` o `not_admin`.
+
+Los errores inesperados deben producir un mensaje genérico accionable y conservar el detalle técnico solo en consola/logs.
 
 ## Flujos
 
 ### Recogida
 
-Estado inicial/final típico:
-
 ```text
 requested -> in_transit
 ```
-
-Características:
 
 - requisitos dinámicos desde `evidence_requirements`;
 - fotos de estado;
@@ -122,25 +150,22 @@ Características:
 in_transit/requested -> parked
 ```
 
-Características:
-
 - foto matrícula + OCR;
 - override auditable;
-- GPS integrado en la Mini App;
+- GPS integrado;
 - precisión horizontal;
-- referencia textual obligatoria si `accuracy_m` supera el umbral de `parking_config`;
+- referencia textual obligatoria si se supera el umbral;
 - evento `park`.
 
 `vehicles.normalized_plate` es una columna generada y el backend solo escribe `plate`.
 
 ### Buscar
 
-No modifica el estado.
-
 - solo acepta `status='parked'`;
-- devuelve coordenadas actuales, precisión y referencia;
+- devuelve coordenadas, precisión y referencia;
 - navegación solo con coordenadas válidas;
-- evento `lookup`.
+- evento `lookup`;
+- no modifica estado.
 
 ### Entrega
 
@@ -148,53 +173,33 @@ No modifica el estado.
 parked -> retrieved
 ```
 
-- localización inicial del vehículo;
+- localización inicial;
 - navegación opcional;
 - foto de matrícula de salida;
 - OCR `stage='parking_exit'`;
 - override auditable;
-- confirmación explícita final;
+- confirmación final;
 - evento `retrieve`.
 
 ## OCR
 
-Google Cloud Vision se utiliza actualmente en tres etapas:
+Google Cloud Vision se usa en `airport_pickup`, `parking` y `parking_exit`.
 
-- `airport_pickup`;
-- `parking`;
-- `parking_exit`.
-
-Los resultados se registran en `plate_verifications` con `matched`, `mismatch`, `ocr_failed` u `overridden`.
-
-Los overrides permanecen en esa misma tabla; no se insertan operaciones OCR arbitrarias en `parking_events`.
+Resultados en `plate_verifications`: `matched`, `mismatch`, `ocr_failed`, `overridden`.
 
 ## Evidencias
 
 Fuente actual: `vehicle_evidence` + Storage privado `vehicle-evidence`.
 
-Tipos usados incluyen:
-
-- `state_photo`;
-- `plate_photo`;
-- `documentation`.
-
-Las evidencias finalizadas se vinculan al evento cuando corresponde. En Recogida, fotos de estado/documentación pendientes pueden eliminarse tanto de DB como de Storage.
+Tipos: `state_photo`, `plate_photo`, `documentation`.
 
 ## Expediente 360º
 
 `vehicle-v7.html` consume `vehicle-consult-api`.
 
-Funciones:
+Incluye resumen, evidencias, OCR, ubicación, navegación solo `parked`, historial, compartir y PDF.
 
-- resumen del vehículo;
-- evidencias y OCR;
-- ubicación actual;
-- navegación solo `parked`;
-- historial;
-- compartir expediente mediante `vehicle-share-api`;
-- PDF mediante `vehicle-report-api`.
-
-Las URLs de evidencias son firmadas y temporales.
+La UI traduce operaciones internas del historial a español y presenta estados de forma legible. Las URLs de evidencias son firmadas y temporales.
 
 ## GPS
 
@@ -202,80 +207,43 @@ Las URLs de evidencias son firmadas y temporales.
 
 El aparcado usa GPS desde `park.html`. Se almacena la mejor lectura seleccionada y su precisión.
 
-No existe configuración por sectores.
+**No existe configuración funcional por sectores ni configuración de terreno.** La tabla legacy `parking_sectors` no implica que esa función esté implementada.
 
 ### GPS Pro · Diagnóstico
 
-`gps-diagnostic.html` es informativo. No escribe en Supabase ni modifica vehículos.
+Informativo; no escribe en Supabase ni modifica vehículos.
 
 ## Equipo en vivo
 
-### Captura
+`telegram-gateway` recibe primera ubicación por `message` y actualizaciones por `edited_message`.
 
-El operario inicia **Compartir ubicación en tiempo real** desde Telegram.
+`worker_live_locations` mantiene solo la última posición por usuario. Al terminar la compartición, la fila se elimina cuando Telegram emite la edición correspondiente.
 
-`telegram-gateway` recibe:
+`team-live.html` consume `modern-live-team-api`, visible para cualquier usuario activo, con refresco ~10 s y sin trayectoria histórica.
 
-- primera posición mediante `message`;
-- actualizaciones mediante `edited_message`.
-
-La tabla `worker_live_locations` mantiene **solo la última posición** por `telegram_user_id`.
-
-Se evita una escritura redundante si no ha pasado aproximadamente 10 s, el movimiento es menor a ~5 m y la precisión no mejora de forma relevante.
-
-Cuando Telegram emite una edición con fin de compartición, la fila se elimina.
-
-### Visualización
-
-`team-live.html` -> `modern-live-team-api`.
-
-- visible para cualquier usuario activo;
-- mapa Leaflet/OpenStreetMap;
-- refresco ~10 s;
-- estados EN VIVO / RETRASADA / ÚLTIMA POSICIÓN;
-- API filtra posiciones de más de 30 minutos.
-
-No se guarda trayectoria.
-
-`worker_daily_presence` registra solo que un trabajador compartió ubicación en una fecha concreta para el informe diario.
+`worker_daily_presence` registra únicamente presencia diaria para informes.
 
 ## Informes automáticos
 
 `performance-report-sender` se invoca mediante `pg_cron` + `pg_net`.
 
-El cron puede ejecutarse cada hora; la Edge Function solo envía cuando la hora local Europe/Madrid es:
+Horarios Europe/Madrid: **04:00, 13:00, 20:00**.
 
-- 04:00;
-- 13:00;
-- 20:00.
-
-A las 04:00 reporta el día anterior; el resto, el día en curso.
-
-`get_daily_performance_report(date)` agrega `parking_events`, OCR y presencia diaria.
-
-`performance_report_dispatches` implementa deduplicación por fecha/hora/destinatario/tipo.
-
-Operarios reciben informe individual. Root/Admin reciben además el informe global del equipo.
+Operarios reciben informe individual; Root/Admin reciben además informe global. `performance_report_dispatches` deduplica.
 
 ## Identidad y roles
 
 ### `telegram_users`
 
-Roles internos:
+Roles internos: `owner`, `admin`, `operario`.
 
-- `owner`;
-- `admin`;
-- `operario`.
+En UI: `owner` -> **Root**.
 
-En UI, **`owner` se muestra como Root**.
-
-Root está protegido por restricciones/triggers de PostgreSQL. Admin no puede modificar a Root y el panel evita self-change.
+Root está protegido por PostgreSQL. Admin no puede modificar a Root y el panel evita self-change.
 
 ### `workers`
 
-Identidad de dominio usada por eventos y evidencias. Sigue coexistiendo con `telegram_users`.
-
-No crear una tercera tabla de identidad.
+Identidad de dominio usada por eventos/evidencias. Coexiste con `telegram_users`; no crear una tercera identidad.
 
 ## Tablas de uso actual
 
@@ -293,35 +261,29 @@ No crear una tercera tabla de identidad.
 - `worker_daily_presence`
 - `performance_report_dispatches`
 
-`telegram_conversation_sessions` queda como compatibilidad de backend, no como estado normal de los cuatro flujos modernos.
+`telegram_conversation_sessions` queda como compatibilidad de backend.
 
 ## Seguridad
 
 Protecciones vigentes:
 
 - secret header de webhook;
-- Telegram `initData` validado criptográficamente;
-- expiración de `auth_date`;
+- Telegram `initData` validado por HMAC;
+- ventana de `auth_date` de 24 h en administración;
+- estado activo y rol comprobados en cada acción sensible;
 - server/service keys solo backend;
 - origen GitHub Pages restringido en APIs web;
 - Storage privado;
-- permisos de administración comprobados en backend;
-- group guard en gateway;
+- permisos administrativos en backend;
+- group guard;
 - RLS en tablas nuevas de live/reporting sin políticas cliente.
 
 ### Hallazgos abiertos del advisor
 
-Prioridad alta:
-
-1. `plate_verifications`: RLS desactivado en esquema público.
+1. `plate_verifications`: RLS desactivado.
 2. `telegram_access_requests_visible_rejected`: vista marcada `SECURITY DEFINER`.
-
-Prioridad media:
-
-3. funciones históricas de acceso con `search_path` mutable;
+3. funciones históricas de acceso con `search_path` mutable.
 4. `expire_pending_access_requests()` ejecutable por roles cliente pese a `SECURITY DEFINER`.
-
-Las nuevas funciones `get_daily_performance_report(date)` y `mark_worker_daily_presence()` fueron endurecidas con `search_path=public` y `REVOKE EXECUTE` a `anon/authenticated`.
 
 ## Legado
 
@@ -333,4 +295,4 @@ No forma parte del diseño funcional actual:
 - `config_audit`;
 - `audit_events`.
 
-No eliminar todavía sin revisar FKs, triggers y dependencias.
+No eliminar sin revisar FKs, triggers y dependencias.
