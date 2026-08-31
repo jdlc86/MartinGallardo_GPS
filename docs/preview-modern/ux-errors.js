@@ -21,7 +21,7 @@
     origin_not_allowed:'Por seguridad, esta pantalla debe abrirse desde ParkingMartin-G dentro de Telegram.',
     vehicle_not_found:'No encontramos ese vehículo. Revisa la matrícula y vuelve a intentarlo.',
     not_found:'No encontramos la información solicitada. Revisa los datos y vuelve a intentarlo.',
-    already_parked:'Ese vehículo ya figura como aparcado. Consulta su expediente antes de continuar.',
+    already_parked:'Ese vehículo ya figura como aparcado. Si necesitas cambiarlo de sitio, utiliza Reubicar vehículo.',
     not_parked:'Ese vehículo ya no figura como aparcado. Actualiza la información antes de continuar.',
     state_changed:'El estado del vehículo ha cambiado desde que abriste esta pantalla. Actualiza y vuelve a intentarlo.',
     verification_required:'Antes de continuar debes verificar la matrícula.',
@@ -37,34 +37,9 @@
     provider_not_configured:'La verificación automática no está disponible temporalmente. Vuelve a intentarlo en unos minutos.',
     network_error:'No hay conexión suficiente con el sistema. Comprueba Internet y vuelve a intentarlo.'
   };
-  function normalize(value){
-    if(value==null)return '';
-    if(typeof value==='object'&&value.message)value=value.message;
-    return String(value).trim();
-  }
-  function friendly(value){
-    const raw=normalize(value);
-    if(!raw)return 'No se pudo completar la operación. Vuelve a intentarlo.';
-    if(MAP[raw])return MAP[raw];
-    const lower=raw.toLowerCase();
-    if(lower==='not authorized'||lower==='unauthorized'||lower.includes('access denied'))return 'Tu acceso a ParkingMartin-G está desactivado actualmente. Si crees que se trata de un error, contacta con un administrador.';
-    if(lower.includes('failed to fetch')||lower.includes('networkerror')||lower.includes('network request failed')||lower.includes('load failed'))return 'No hemos podido conectar con el sistema. Comprueba tu conexión a Internet y vuelve a intentarlo.';
-    if(lower.includes('timeout')||lower.includes('timed out'))return 'La operación está tardando demasiado. Comprueba la conexión y vuelve a intentarlo.';
-    if(lower.includes('permission denied')||lower.includes('not allowed'))return 'No tienes permisos para completar esta acción.';
-    if(lower.includes('camera')&&lower.includes('permission'))return 'ParkingMartin-G necesita permiso para usar la cámara. Actívalo en los ajustes del teléfono y vuelve a intentarlo.';
-    if(lower.includes('geolocation')&&lower.includes('permission'))return 'ParkingMartin-G necesita acceso a tu ubicación. Activa el permiso de ubicación y vuelve a intentarlo.';
-    if(TECHNICAL_PATTERNS.some(r=>r.test(raw))||/^[a-z0-9]+(?:_[a-z0-9]+)+$/.test(raw))return 'No se pudo completar la operación. Actualiza la pantalla y vuelve a intentarlo. Si continúa ocurriendo, avisa a un administrador.';
-    return raw;
-  }
-  window.PMGFriendlyError=friendly;
-  window.PMGTechnicalErrorMap=MAP;
-  const NativeError=window.Error;
-  function FriendlyError(message,options){
-    const e=new NativeError(friendly(message),options);
-    Object.setPrototypeOf(e,FriendlyError.prototype);
-    return e;
-  }
-  FriendlyError.prototype=NativeError.prototype;
-  Object.setPrototypeOf(FriendlyError,NativeError);
-  window.Error=FriendlyError;
+  function normalize(value){if(value==null)return '';if(typeof value==='object'&&value.message)value=value.message;return String(value).trim()}
+  function friendly(value){const raw=normalize(value);if(!raw)return 'No se pudo completar la operación. Vuelve a intentarlo.';if(MAP[raw])return MAP[raw];const lower=raw.toLowerCase();if(lower==='not authorized'||lower==='unauthorized'||lower.includes('access denied'))return 'Tu acceso a ParkingMartin-G está desactivado actualmente. Si crees que se trata de un error, contacta con un administrador.';if(lower.includes('failed to fetch')||lower.includes('networkerror')||lower.includes('network request failed')||lower.includes('load failed'))return 'No hemos podido conectar con el sistema. Comprueba tu conexión a Internet y vuelve a intentarlo.';if(lower.includes('timeout')||lower.includes('timed out'))return 'La operación está tardando demasiado. Comprueba la conexión y vuelve a intentarlo.';if(lower.includes('permission denied')||lower.includes('not allowed'))return 'No tienes permisos para completar esta acción.';if(lower.includes('camera')&&lower.includes('permission'))return 'ParkingMartin-G necesita permiso para usar la cámara. Actívalo en los ajustes del teléfono y vuelve a intentarlo.';if(lower.includes('geolocation')&&lower.includes('permission'))return 'ParkingMartin-G necesita acceso a tu ubicación. Activa el permiso de ubicación y vuelve a intentarlo.';if(TECHNICAL_PATTERNS.some(r=>r.test(raw))||/^[a-z0-9]+(?:_[a-z0-9]+)+$/.test(raw))return 'No se pudo completar la operación. Actualiza la pantalla y vuelve a intentarlo. Si continúa ocurriendo, avisa a un administrador.';return raw}
+  window.PMGFriendlyError=friendly;window.PMGTechnicalErrorMap=MAP;
+  const NativeError=window.Error;function FriendlyError(message,options){const e=new NativeError(friendly(message),options);Object.setPrototypeOf(e,FriendlyError.prototype);return e}FriendlyError.prototype=NativeError.prototype;Object.setPrototypeOf(FriendlyError,NativeError);window.Error=FriendlyError;
+  if(!window.__PMG_ACCESS_RUNTIME__&&document.readyState==='loading'){document.write('<script src="access-runtime.js?v=4"><\/script>')}
 })();
