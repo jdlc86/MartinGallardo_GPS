@@ -1,4 +1,6 @@
 (function(){
+  if(!document.querySelector('link[data-pmg-theme]')){const l=document.createElement('link');l.rel='stylesheet';l.href='theme.css?v=1';l.dataset.pmgTheme='1';document.head.appendChild(l)}
+  if(!document.querySelector('script[data-pmg-theme]')){const s=document.createElement('script');s.src='theme.js?v=1';s.dataset.pmgTheme='1';document.head.appendChild(s)}
   const TECHNICAL_PATTERNS=[/^HTTP\s+\d+/i,/^telegram_/i,/^vision_/i,/^PGRST/i,/^42[A-Z0-9]{3}/i,/^JS ERROR:/i,/^Respuesta no JSON/i,/^Unauthorized$/i,/^Not authorized$/i,/^Access denied$/i];
   const MAP={
     expired_init_data:'Tu sesión de ParkingMartin-G ha caducado. Cierra esta pantalla y vuelve a abrir la aplicación desde Telegram.',
