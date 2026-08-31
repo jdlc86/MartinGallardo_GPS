@@ -5,6 +5,8 @@ html[data-pmg-theme],html[data-pmg-theme] body{background:var(--pmg-bg)!importan
 /* Pulido común: profundidad sutil, estados accesibles y controles consistentes. */
 :root,html[data-pmg-theme="dark"]{--pmg-card-shadow:0 14px 34px #00000024;--pmg-control-shadow:0 8px 20px #00000038;--pmg-focus:#60a5fa;--pmg-hover:#ffffff0a}
 html[data-pmg-theme="light"]{--pmg-card-shadow:0 12px 30px #23344d12;--pmg-control-shadow:0 8px 20px #23344d20;--pmg-focus:#2563eb;--pmg-hover:#15304d0a}
+html[data-pmg-theme="light"] body #appContent .grid>.card>b{color:var(--pmg-text)!important}
+html[data-pmg-theme="light"] body #appContent .grid>.card>span{color:var(--pmg-muted)!important}
 body .card,body .note,body .quick,body .state,body .event,body .item,body .result,body .current,body .mapcard,body .listCard,body .media{box-shadow:var(--pmg-card-shadow)}
 body .stat,body .metric,body .mini,body .counter,body .s{box-shadow:none}
 body button,body a,body input,body textarea,body select{transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease,color .16s ease,opacity .16s ease,transform .16s ease,filter .16s ease}
