@@ -2,7 +2,7 @@
 
 Sistema de gestión de parking basado en **Telegram + Telegram Mini App + Supabase/PostgreSQL + Supabase Storage + GitHub Pages**.
 
-La interfaz operativa de producción es la **Mini App ParkingMartin-G**. El chat privado del bot se utiliza como punto de entrada, canal de ubicación en vivo y canal de informes automáticos. La antigua interfaz operativa por botones ya no forma parte del producto visible.
+La interfaz operativa de producción es la **Mini App ParkingMartin-G**. El chat privado del bot se utiliza como punto de entrada, canal de ubicación en vivo, notificaciones de acceso/rol e informes automáticos. La antigua interfaz operativa por botones ya no forma parte del producto visible.
 
 Volumen inicial de diseño: **un parking y ~150 vehículos/día**.
 
@@ -53,6 +53,37 @@ Telegram también tiene configurado el botón permanente de menú **Abrir Parkin
 
 Los callbacks antiguos no reactivan los flujos por botones. Si se pulsa un botón histórico, el gateway orienta al usuario hacia la Mini App.
 
+### Notificaciones automáticas de acceso y rol
+
+`telegram-modern-action` notifica al usuario por chat cuando cambia su situación de acceso:
+
+- **aprobación inicial** -> bienvenida completa, rol asignado y botón para abrir la Mini App;
+- **reactivación tras bloqueo** -> bienvenida de regreso, rol vigente y acceso directo;
+- **promoción a Admin** -> aviso de cambio de rol;
+- **degradación a Operario** -> aviso de cambio de rol.
+
+Los nombres visibles son **Root, Admin y Operario**. El valor interno `owner` nunca se expone como etiqueta de producto.
+
+### Sesión de la Mini App administrativa
+
+`telegram-modern-action` valida criptográficamente `initData` de Telegram y acepta `auth_date` de hasta **24 horas**. En cada petición administrativa vuelve a comprobar que el usuario siga activo y conserve rol Root/Admin.
+
+La ampliación a 24 h evita que un panel de administración abierto durante el turno falle a los 15 minutos, sin eliminar la validación HMAC ni las comprobaciones de autorización en base de datos.
+
+### Política de errores de usuario
+
+Los códigos técnicos se reservan para backend, logs y depuración. La interfaz no debe mostrar directamente valores como `expired_init_data`, `not_admin`, `invalid_action`, códigos HTTP, respuestas SQL ni mensajes JavaScript internos.
+
+Las pantallas de producción deben traducirlos a mensajes en español que indiquen **qué ocurrió y qué debe hacer el usuario**. Ejemplos:
+
+- sesión caducada -> cerrar y volver a abrir ParkingMartin-G desde Telegram;
+- falta de permisos -> indicar que se necesita Root/Admin;
+- fallo de red -> comprobar conexión y reintentar;
+- estado cambiado -> actualizar y volver a intentar;
+- GPS insuficiente -> mejorar señal o aportar la referencia requerida.
+
+`docs/preview-modern/ux-errors.js` contiene el traductor común de errores para las pantallas modernas que lo integren.
+
 ### Protección de grupos
 
 ParkingMartin-G funciona en chat privado. Si el bot es añadido accidentalmente a un `group` o `supergroup`:
@@ -68,16 +99,12 @@ ParkingMartin-G funciona en chat privado. Si el bot es añadido accidentalmente 
 
 ### Recogida
 
-Flujo moderno:
-
 1. matrícula;
 2. fotos del estado según `evidence_requirements`;
 3. foto de matrícula + OCR;
 4. si no coincide: repetir o ignorar con override auditado;
 5. documentación requerida (imagen o PDF);
 6. finalizar -> vehículo `in_transit` + evento `pickup`.
-
-Fotos de estado y documentación se muestran como miniaturas y pueden eliminarse individualmente antes de finalizar. La eliminación borra metadato y objeto de Storage.
 
 ### Aparcar
 
@@ -107,100 +134,44 @@ Fotos de estado y documentación se muestran como miniaturas y pueden eliminarse
 5. confirmar entrega al cliente;
 6. vehículo -> `retrieved` + evento `retrieve`.
 
-El estado no cambia hasta la confirmación final.
-
 ## Expediente 360º
 
-Consulta informativa con:
-
-- matrícula y estado;
-- ubicación y navegación si sigue `parked`;
-- evidencias agrupadas por día/etapa;
-- OCR y overrides;
-- historial operativo;
-- compartir mediante enlace temporal;
-- informe PDF.
-
-Storage es privado y las imágenes se sirven con URLs firmadas temporales.
+Consulta informativa con matrícula/estado, ubicación, evidencias, OCR, historial, compartir mediante enlace temporal e informe PDF. Los nombres internos de operaciones se traducen al español en la interfaz y los estados se presentan de forma legible. Storage es privado y las imágenes se sirven con URLs firmadas temporales.
 
 ## Equipo en vivo
 
 Los usuarios pueden compartir **ubicación en tiempo real de Telegram** con el bot.
 
-Diseño:
-
 - una fila por usuario en `worker_live_locations`;
 - no se almacena trayectoria;
-- se actualiza si han pasado ~10 s, se movió ~5 m o mejoró claramente la precisión;
+- actualización aproximada cada 10 s / 5 m o por mejora de precisión;
 - al pulsar **Dejar de compartir**, la fila se elimina cuando Telegram emite la actualización correspondiente;
-- `modern-live-team-api` devuelve ubicaciones recientes;
-- `team-live.html` refresca aproximadamente cada 10 s;
-- todos los usuarios activos pueden ver el mapa.
-
-Estados visuales aproximados:
-
-- hasta 45 s: **EN VIVO**;
-- hasta 3 min: **RETRASADA**;
-- después: **ÚLTIMA POSICIÓN**;
-- las posiciones con más de 30 min dejan de devolverse como fallback de seguridad.
+- todos los usuarios activos pueden ver el mapa;
+- posiciones de más de 30 min dejan de mostrarse como fallback de seguridad.
 
 `worker_daily_presence` conserva únicamente que el usuario compartió ubicación en ese día; no guarda recorrido.
 
 ## Informes de desempeño
 
-`performance-report-sender` envía informes por Telegram en zona horaria **Europe/Madrid**:
+`performance-report-sender` envía informes por Telegram en zona horaria **Europe/Madrid** a las **04:00**, **13:00** y **20:00**.
 
-- **04:00** -> cierre del día anterior;
-- **13:00** -> acumulado del día;
-- **20:00** -> acumulado del día.
-
-Cada operario recibe su resumen individual con:
-
-- recogidas;
-- aparcados;
-- búsquedas;
-- entregas;
-- OCR ignorados;
-- primera/última actividad;
-- si compartió ubicación durante el turno.
-
-Root/Admin reciben además un resumen global con desglose por operario. `performance_report_dispatches` deduplica los envíos.
+Cada operario recibe resumen individual. Root/Admin reciben además un resumen global con desglose por operario. `performance_report_dispatches` deduplica los envíos.
 
 ## Roles
 
-El valor técnico almacenado en `telegram_users.role` sigue siendo:
+Valores internos en `telegram_users.role`: `owner`, `admin`, `operario`.
 
-- `owner`
-- `admin`
-- `operario`
+En la interfaz, `owner` se presenta como **Root**.
 
-En la interfaz, **`owner` se presenta como Root**.
-
-### Root (`owner` interno)
-
-- máximo nivel;
-- siempre activo;
-- protegido en PostgreSQL;
-- ningún usuario puede degradarlo, bloquearlo ni eliminarlo.
-
-### Admin
-
-Gestiona solicitudes, altas/bajas, promociones y degradaciones, excepto Root. No puede modificar sus propios permisos desde el panel.
-
-### Operario
-
-Ejecuta operaciones, consulta vehículos, Expediente 360º, GPS diagnóstico y Equipo en vivo. **No ve Equipo & Accesos** y la API administrativa también rechaza su acceso directo.
+- **Root**: máximo nivel, protegido contra baja/degradación.
+- **Admin**: gestión delegada de usuarios y accesos, excepto Root/self-change.
+- **Operario**: operaciones normales; no ve ni puede usar Equipo & Accesos.
 
 ## Solicitudes de acceso
 
-`telegram_access_requests.status`:
+`telegram_access_requests.status`: `pending`, `approved`, `rejected`, `expired`.
 
-- `pending` -> caduca a las 72 h;
-- `approved` -> usuario autorizado;
-- `rejected` -> rechazo temporal;
-- `expired` -> solicitud pendiente vencida.
-
-Un rechazado sin cuenta puede volver a `pending` si vuelve a contactar. Un usuario bloqueado (`telegram_users.active=false`) no vuelve a pendiente automáticamente.
+Un rechazado sin cuenta puede volver a `pending` al contactar de nuevo. Un usuario bloqueado (`telegram_users.active=false`) no vuelve a pendiente automáticamente.
 
 ## Tablas principales
 
@@ -218,31 +189,30 @@ Un rechazado sin cuenta puede volver a `pending` si vuelve a contactar. Un usuar
 - `worker_daily_presence`
 - `performance_report_dispatches`
 
-`telegram_conversation_sessions` permanece por compatibilidad con el backend de acceso/legado, pero los usuarios activos no usan ya los flujos operativos conversacionales clásicos.
+`telegram_conversation_sessions` permanece por compatibilidad con backend heredado, pero los usuarios activos no usan ya los flujos operativos conversacionales clásicos.
 
-Tablas legacy que no deben reutilizarse sin migración deliberada: `app_users`, `vehicle_photos`, `parking_sectors`, `config_audit`, `audit_events`.
+Tablas legacy que no deben reutilizarse sin migración deliberada: `app_users`, `vehicle_photos`, `parking_sectors`, `config_audit`, `audit_events`. La existencia de `parking_sectors` **no implica que exista configuración funcional del terreno**; esa funcionalidad no está implementada.
 
 ## Seguridad y deuda abierta
 
 Protecciones actuales:
 
 - secreto del webhook;
-- validación de Telegram `initData` en APIs de Mini App;
+- validación HMAC de Telegram `initData`;
+- ventana de `auth_date` de 24 h en `telegram-modern-action`;
+- autorización de rol/estado comprobada en cada acción administrativa;
 - service-role solo en backend;
 - Storage privado;
 - Root protegido en DB;
-- comprobación de rol para administración;
 - aislamiento de grupos;
-- RLS habilitado en las nuevas tablas de live/reporting sin políticas cliente (backend-only).
+- RLS en tablas nuevas de live/reporting sin políticas cliente.
 
 Hallazgos abiertos del advisor de Supabase:
 
-1. **`plate_verifications` tiene RLS desactivado** y está expuesta por PostgREST.
-2. La vista `telegram_access_requests_visible_rejected` figura como `SECURITY DEFINER`.
+1. `plate_verifications` tiene RLS desactivado.
+2. `telegram_access_requests_visible_rejected` figura como `SECURITY DEFINER`.
 3. Varias funciones históricas de acceso tienen `search_path` mutable.
-4. `expire_pending_access_requests()` sigue marcado como `SECURITY DEFINER` ejecutable por roles cliente y debe endurecerse.
-
-Las funciones nuevas de informes `get_daily_performance_report(date)` y `mark_worker_daily_presence()` ya tienen `search_path` fijado y `EXECUTE` revocado para `anon/authenticated`.
+4. `expire_pending_access_requests()` sigue siendo `SECURITY DEFINER` ejecutable por roles cliente y debe endurecerse.
 
 ## Documentación
 
