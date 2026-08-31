@@ -1,38 +1,50 @@
 # Roadmap técnico vigente
 
-Este documento contiene únicamente trabajo pendiente del sistema actual.
+Este documento contiene solo trabajo pendiente del sistema de producción actual.
 
-## Prioridad 0 — Seguridad
+## Prioridad 0 — Seguridad de base de datos
 
-### RLS de `plate_verifications`
+### 1. `plate_verifications` sin RLS
 
-Supabase reporta RLS desactivado.
+Supabase sigue marcándola como error porque está en `public` y RLS está desactivado.
 
-Antes de habilitarlo:
+Antes de habilitar RLS:
 
-1. confirmar cómo accede `telegram-entry`/`vehicle-consult-api` a la tabla;
-2. decidir si será backend-only;
-3. definir políticas mínimas necesarias;
+1. inventariar todas las Edge Functions que leen/escriben la tabla;
+2. confirmar que el acceso debe ser exclusivamente backend;
+3. definir política o estrategia backend-only;
 4. habilitar RLS;
-5. verificar OCR, consulta de expediente y overrides.
+5. probar Recogida, Aparcar, Entrega, Expediente e informes OCR.
 
-No aplicar `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` sin esa revisión.
+### 2. Vista `telegram_access_requests_visible_rejected`
 
-## Prioridad 1 — Consolidar webhook e interfaz
+El advisor la marca como `SECURITY DEFINER`.
 
-Objetivo: que ninguna función legacy pueda volver a cambiar el webhook ni generar UI global antigua.
+Revisar si realmente necesita ese comportamiento. Preferir `SECURITY INVOKER` si es compatible con el flujo actual.
 
-Tareas:
+### 3. Funciones históricas con `search_path` mutable
 
-- webhook de producción -> `telegram-gateway`;
-- retirar/neutralizar `?setup=1` de `telegram-bot`, `telegram-router`, `telegram-router3`, `telegram-entry` y utilidades antiguas;
-- mantener menús globales solo en gateway;
-- comprobar que `menu:close` antiguo siempre vuelve al menú vigente;
-- eliminar funciones de prueba/diagnóstico cuando ya no tengan dependencias.
+Endurecer, tras revisar dependencias:
 
-## Prioridad 2 — Versionar backend en GitHub
+- `protect_owner_telegram_user`;
+- `sync_access_request_when_user_exists`;
+- `set_access_request_expiry`;
+- `set_access_request_rejected_at`;
+- `reopen_rejected_access_request_on_new_contact`;
+- `sync_access_request_with_active_user`;
+- `enforce_access_request_user_state`.
 
-Hoy las Edge Functions y muchas migraciones están desplegadas directamente en Supabase.
+### 4. `expire_pending_access_requests()`
+
+El advisor indica que es `SECURITY DEFINER` y ejecutable por `anon/authenticated`.
+
+Revocar permisos cliente si solo lo usa backend/cron.
+
+Las funciones nuevas de informes ya fueron endurecidas y no forman parte de esta deuda.
+
+## Prioridad 1 — Versionar backend
+
+Las Edge Functions activas siguen desplegadas principalmente desde Supabase y no están reproducidas completas en GitHub.
 
 Objetivo:
 
@@ -40,73 +52,136 @@ Objetivo:
 supabase/
   functions/
     telegram-gateway/
-    telegram-entry/
-    telegram-location-submit/
+    telegram-modern-action/
+    modern-pickup-api/
+    modern-parking-api/
+    modern-search-api/
+    modern-delivery-api/
+    modern-live-team-api/
     vehicle-consult-api/
+    vehicle-share-api/
+    vehicle-report-api/
+    performance-report-sender/
     ...
   migrations/
 ```
 
-Añadir instrucciones de despliegue reproducibles y `.env.example` sin valores secretos.
+Añadir:
 
-## Prioridad 3 — Idempotencia Telegram
+- despliegue reproducible;
+- `.env.example` sin secretos;
+- documentación de variables requeridas;
+- migraciones de live locations e informes;
+- smoke test posterior al despliegue.
 
-Implementar deduplicación persistente por `update_id` o identificador equivalente.
+## Prioridad 2 — Retirar backend operativo clásico
 
-Debe cubrir como mínimo:
+La UI por botones ya está retirada, pero siguen desplegadas funciones antiguas.
 
-- solicitudes;
-- cambios admin;
-- fotos;
-- aparcado;
-- entrega;
-- overrides OCR.
+Tareas:
 
-## Prioridad 4 — Identidad
+- inventariar dependencias reales de `telegram-entry`, `telegram-router3`, `telegram-bot`, routers auxiliares, reset y diagnostics;
+- conservar únicamente la lógica todavía necesaria para altas/acceso;
+- neutralizar cualquier endpoint legacy capaz de cambiar el webhook;
+- borrar funciones antiguas solo después de pruebas de acceso de usuario nuevo/rechazado/bloqueado.
+
+No confundir "no visible" con "sin dependencias".
+
+## Prioridad 3 — Idempotencia
+
+Implementar deduplicación persistente por `update_id`/clave de dominio en las rutas que todavía puedan recibir reintentos.
+
+Cubrir como mínimo:
+
+- solicitudes de acceso;
+- cambios administrativos;
+- evidencia subida;
+- OCR/override;
+- `pickup`;
+- `park`;
+- `retrieve`;
+- recepción de ubicación Telegram.
+
+Los informes ya tienen deduplicación propia mediante `performance_report_dispatches`.
+
+## Prioridad 4 — Revisar OCR y nomenclatura interna
+
+OCR está activo en Recogida, Aparcar y Salida/Entrega.
+
+Pendientes:
+
+- centralizar la función de extracción/normalización de matrícula para evitar tres implementaciones casi iguales;
+- centralizar subida de `plate_photo`;
+- eliminar en nuevos eventos/metadatos nombres históricos como `modern_parking_beta`;
+- definir mejor el criterio de selección OCR cuando Google Vision devuelve varios candidatos.
+
+## Prioridad 5 — Identidad
 
 Coexisten `telegram_users` y `workers`.
 
-Objetivo: reducir duplicidad sin perder FKs ni historial.
+Objetivo: reducir duplicidad sin romper referencias de eventos/evidencias.
 
-No eliminar ninguna tabla hasta conocer todas sus referencias.
+No eliminar ni fusionar hasta conocer todas las FKs y actualizar las APIs modernas.
 
-`app_users` está vacío y puede evaluarse para retirada cuando las migraciones estén versionadas.
+## Prioridad 6 — Equipo en vivo
 
-## Prioridad 5 — Limpieza de legado de datos
+La primera versión usa polling de ~10 s y una sola posición por usuario.
 
-Evaluar y retirar, solo si no tienen dependencias:
+Mejoras posibles, no urgentes:
 
-- `parking_sectors`;
-- `vehicle_photos`;
-- `config_audit`;
-- `audit_events`;
-- columnas de sector que hayan quedado sin uso.
+- confirmar mediante pruebas reales que Telegram siempre emite una edición detectable al pulsar "Dejar de compartir" en Android/iOS;
+- si hiciera falta, usar `live_until` como expiración anticipada además del timeout de 30 min;
+- valorar Supabase Realtime solo si el polling deja de ser suficiente;
+- no introducir histórico/trayectorias salvo cambio explícito de producto.
 
-La limpieza debe ser mediante migraciones y nunca mezclada con cambios funcionales grandes.
+## Prioridad 7 — Informes de desempeño
 
-## Prioridad 6 — Pruebas automáticas
+Validar durante varios días reales:
 
-Implementar fixtures de updates Telegram y pruebas de integración para:
+- zona horaria Europe/Madrid y cambio horario;
+- cierre de las 04:00 sobre el día anterior;
+- informes de 13:00 y 20:00;
+- ausencia de duplicados tras reintentos del cron;
+- administradores reciben individual + global según lo esperado;
+- presencia diaria sigue marcada aunque el usuario deje de compartir antes del informe.
 
-- roles/owner;
-- estados de solicitudes;
-- TTL pending/rejected;
-- OCR solo al aparcar;
-- GPS;
-- navegación solo parked;
-- expediente;
-- idempotencia;
-- seguridad/RLS.
+## Prioridad 8 — Rendimiento
+
+El advisor informa varias FKs sin índice. Priorizar solo tablas activas y consultas frecuentes:
+
+- `plate_verifications.worker_id`;
+- `plate_verifications.evidence_id`;
+- `vehicle_evidence.uploaded_by`;
+- `vehicles.last_updated_by`;
+- `worker_live_locations.worker_id`.
+
+No crear índices solo porque aparezcan en el advisor: medir primero consultas y volumen.
+
+## Prioridad 9 — Pruebas automáticas
+
+Crear fixtures/integración para:
+
+- Mini App por rol;
+- flujos Recogida/Aparcar/Buscar/Entrega;
+- OCR en las tres etapas correctas;
+- override;
+- `normalized_plate` generado;
+- GPS y precisión;
+- Equipo en vivo;
+- stop sharing;
+- group guard;
+- informes 04/13/20;
+- RLS/seguridad;
+- idempotencia.
 
 Ver `TEST_PLAN.md`.
 
-## Fuera de alcance actual
-
-No introducir sin decisión explícita:
+## Fuera de alcance salvo decisión explícita
 
 - sectores de parking;
-- panel web administrativo completo;
+- configuración de terreno por sectores;
+- trayectoria histórica de operarios;
 - app móvil nativa;
 - multi-parking;
-- OCR en recogida/entrega;
+- reintroducir operaciones por botones en el chat;
 - navegación para vehículos no aparcados.
