@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Validar ParkingMartin-G tal como funciona hoy: Mini App como interfaz principal, Telegram como acceso/ubicación/informes y Supabase como backend.
+Validar ParkingMartin-G tal como funciona hoy: Mini App como interfaz principal, Telegram como acceso/ubicación/notificaciones/informes y Supabase como backend.
 
 ## 1. Entrada Telegram
 
@@ -29,18 +29,9 @@ Probar `group` y `supergroup`:
 
 ### Operario
 
-Debe ver:
+Debe ver Centro de Operaciones, Vehículos, Actividad reciente, Equipo en vivo, GPS Pro Diagnóstico y Expediente 360º. No debe ver **Equipo & Accesos**.
 
-- Centro de Operaciones;
-- Vehículos;
-- Actividad reciente;
-- Equipo en vivo;
-- GPS Pro Diagnóstico;
-- Expediente 360º.
-
-No debe ver **Equipo & Accesos**.
-
-Acceder manualmente a `team-v4.html` debe terminar en rechazo backend (`not_admin`).
+Acceso directo a Equipo & Accesos debe ser rechazado por backend, pero la UI **no debe mostrar `not_admin`**: debe explicar que no tiene permisos.
 
 ### Admin
 
@@ -50,7 +41,7 @@ Debe ver Equipo & Accesos y poder administrar excepto Root/self-change.
 
 Valor interno `owner`, etiqueta visible **Root**. Debe estar protegido frente a baja/degradación/modificación destructiva.
 
-## 4. Solicitudes de acceso
+## 4. Solicitudes, altas y cambios de rol
 
 | Caso | Resultado esperado |
 |---|---|
@@ -58,217 +49,198 @@ Valor interno `owner`, etiqueta visible **Root**. Debe estar protegido frente a 
 | pending <72 h | sigue pending |
 | pending vencido | `expired` |
 | rejected vuelve a contactar | vuelve a `pending` si no existe cuenta |
-| aprobado activo | acceso Mini App |
-| bloqueado | sin acceso, no vuelve a pending |
-| aprobar operario | usuario activo `operario` |
-| aprobar admin | usuario activo `admin` |
+| aprobar operario | activo `operario` + bienvenida automática + rol Operario |
+| aprobar admin | activo `admin` + bienvenida automática + rol Admin |
 | dar de baja | `active=false` |
-| reactivar | `active=true` |
-| promover | admin |
-| degradar | operario |
+| reactivar | `active=true` + bienvenida de regreso + rol actual |
+| promover | admin + aviso automático de nuevo rol Admin |
+| degradar | operario + aviso automático de nuevo rol Operario |
 | tocar Root | rechazado |
 | admin se modifica a sí mismo | rechazado |
 
-Invariante: usuario existente en `telegram_users` no debe aparecer pendiente/rechazado/expirado.
+Verificar que todos los mensajes incluyen botón **ABRIR PARKINGMARTIN-G** cuando corresponde y que nunca muestran `owner` al usuario; debe verse **Root**.
 
-## 5. Recogida
+## 5. Sesión administrativa e `initData`
+
+- `initData` con firma inválida -> rechazado;
+- `auth_date` válido dentro de 24 h -> aceptado;
+- panel abierto >15 min y <24 h -> sigue funcionando;
+- `auth_date` >24 h -> rechazado;
+- usuario que pierde rol Admin mientras tiene pantalla abierta -> siguiente acción rechazada;
+- usuario desactivado mientras tiene pantalla abierta -> siguiente acción rechazada;
+- sesión caducada debe mostrarse como mensaje amigable: cerrar y reabrir ParkingMartin-G desde Telegram;
+- nunca mostrar literalmente `expired_init_data`, `invalid_init_data` o `not_admin`.
+
+## 6. Política de errores UX
+
+Probar en las pantallas de producción:
+
+- sin Internet;
+- timeout/fallo 5xx;
+- respuesta no JSON;
+- sesión caducada;
+- usuario no autorizado;
+- permisos insuficientes;
+- estado de vehículo cambiado;
+- matrícula inválida;
+- foto/archivo inválido;
+- GPS insuficiente.
+
+Resultado esperado: mensaje en español, comprensible y accionable. No mostrar:
+
+- `ERROR:`;
+- `JS ERROR:`;
+- stack traces;
+- SQL/PostgREST crudo;
+- códigos HTTP como explicación principal;
+- códigos internos (`expired_init_data`, `state_changed`, etc.).
+
+El detalle técnico puede permanecer en consola/logs.
+
+## 7. Recogida
 
 - matrícula válida;
-- requisitos dinámicos desde `evidence_requirements`;
-- cámara integrada para fotos de estado;
+- requisitos dinámicos;
+- cámara para fotos de estado;
 - miniaturas visibles;
-- borrar una foto reduce contador y elimina Storage/DB;
-- documentación imagen;
-- documentación PDF;
-- borrar documento pendiente;
-- foto matrícula + OCR coincide;
-- OCR mismatch;
-- OCR failed;
-- repetir foto;
-- override auditado;
+- borrado individual de evidencia;
+- documentación imagen/PDF;
+- foto matrícula + OCR;
+- mismatch/failed/repetir/override;
 - no finalizar si falta evidencia;
-- finalizar -> `vehicles.status='in_transit'`;
-- un solo evento `pickup`;
-- evidencias finalizadas vinculadas al evento.
+- finalizar -> `in_transit` + un solo `pickup`.
 
-## 6. Aparcar
+## 8. Aparcar
 
 - vehículo nuevo/existente válido;
-- `normalized_plate` no se envía en INSERT/UPDATE;
-- OCR coincide;
-- OCR mismatch/failed;
-- repetir foto;
-- override queda en `plate_verifications`;
-- no intenta insertar operación OCR inválida en `parking_events`;
+- `normalized_plate` no se escribe;
+- OCR coincide/mismatch/failed;
+- repetir/override;
 - GPS Pro visible con precisión/calidad;
-- precisión bajo umbral -> referencia opcional;
 - precisión sobre umbral -> referencia obligatoria;
 - confirmar -> `parked` + `park`;
-- ubicación/accuracy/parked_at/worker correctos;
-- no duplicar aparcado en retry.
+- no duplicar en retry.
 
-## 7. Buscar coche
+## 9. Buscar coche
 
 - solo `parked` devuelve resultado;
 - navegación solo con coordenadas válidas;
-- `requested/in_transit/retrieved` no son navegables;
+- otros estados no navegables;
 - muestra precisión/referencia/operario/fecha;
-- registra `lookup`;
-- no cambia estado;
-- matrícula inexistente controlada.
+- registra `lookup` sin cambiar estado;
+- matrícula inexistente controlada con mensaje amigable.
 
-## 8. Entrega
+## 10. Entrega
 
-- solo parte de vehículo `parked`;
-- navegación disponible si hay GPS;
-- botón inicial dice **Foto Matrícula**;
-- después de foto pasa a **Repetir Foto**;
-- OCR `parking_exit` coincide;
-- mismatch/failed;
-- override auditado;
-- no cambia estado antes de confirmación final;
-- finalizar sin verificación aceptada -> rechazado;
-- finalizar -> `retrieved` + evento `retrieve`;
-- después no aparece navegación activa.
+- parte de `parked`;
+- navegación si hay GPS;
+- botón **Foto Matrícula** -> **Repetir Foto**;
+- OCR `parking_exit`;
+- mismatch/failed/override;
+- no cambia estado antes de confirmación;
+- finalizar -> `retrieved` + `retrieve`.
 
-## 9. Expediente 360º
+## 11. Expediente 360º
 
 - vehículo sin evidencias;
 - múltiples etapas/días;
-- miniaturas y ampliación;
+- miniaturas/ampliación;
 - OCR/overrides visibles;
-- historial correcto;
+- historial en español (`pickup`, `park`, `lookup`, `retrieve` no deben aparecer como textos crudos);
+- estados visibles en español y pill centrado;
 - navegación solo `parked`;
-- compartir genera enlace temporal;
-- WhatsApp/copia/Telegram funcionan;
-- correo abre Gmail correctamente;
-- informe PDF con tildes/ortografía;
+- compartir temporal;
+- WhatsApp/copia/Telegram/correo;
+- PDF con tildes/ortografía;
 - URLs firmadas caducan.
 
-## 10. GPS Pro Diagnóstico
+## 12. GPS Pro Diagnóstico
 
 - obtiene geolocalización;
 - muestra precisión/calidad;
 - permite repetir;
-- no crea eventos;
-- no escribe `vehicles`;
-- no escribe tablas GPS operativas.
+- no crea eventos ni modifica vehículos.
 
-## 11. Equipo en vivo
+## 13. Equipo en vivo
 
-### Inicio
+- primera `message` crea/actualiza fila;
+- `edited_message` actualiza posición;
+- cambios insignificantes pueden omitirse;
+- una sola fila por usuario;
+- **Dejar de compartir** elimina fila al recibir edición de fin;
+- fallback >30 min deja de mostrar;
+- `worker_daily_presence` conserva presencia diaria;
+- visible para cualquier usuario activo;
+- no existe trayectoria histórica.
 
-- usuario activo comparte ubicación en vivo con el bot;
-- primera `message` crea/actualiza una fila en `worker_live_locations`;
-- mapa la muestra.
+## 14. Informes automáticos
 
-### Actualizaciones
+Zona horaria Europe/Madrid:
 
-- `edited_message` mueve el punto;
-- cambio insignificante <10 s + <5 m + sin mejora de precisión puede omitirse;
-- cambio relevante actualiza fila;
-- sigue existiendo una sola fila por usuario.
+- 04 -> día anterior;
+- 13 -> día actual;
+- 20 -> día actual;
+- otra hora -> skipped;
+- informe individual por operario;
+- Root/Admin global además del individual cuando corresponda;
+- conteos y OCR correctos;
+- primera/última actividad;
+- presencia diaria;
+- retry sin duplicado.
 
-### Fin
-
-- pulsar **Dejar de compartir** y recibir edición de fin -> fila eliminada;
-- marcador desaparece en el siguiente refresco;
-- si Telegram no informa el final, posiciones >30 min dejan de mostrarse;
-- `worker_daily_presence` conserva el `sí` diario aunque la fila live se elimine.
-
-### Visibilidad
-
-- operario activo puede ver mapa;
-- admin puede ver mapa;
-- Root puede ver mapa;
-- usuario inactivo/no autorizado no obtiene datos.
-
-No debe existir historial de trayectoria.
-
-## 12. Informes automáticos
-
-Zona horaria: Europe/Madrid.
-
-Probar mediante ejecución controlada:
-
-- hora 04 -> día anterior;
-- hora 13 -> día actual;
-- hora 20 -> día actual;
-- otra hora -> `skipped`;
-- cada operario recibe resumen individual;
-- Root/Admin reciben global además del individual si tienen actividad como worker;
-- conteos pickup/park/lookup/retrieve correctos;
-- OCR overrides correctos;
-- primera/última actividad correctas;
-- presencia diaria correcta;
-- retry mismo slot -> sin duplicado por `performance_report_dispatches`;
-- fallo de Telegram -> reserva se elimina para permitir reintento.
-
-## 13. Seguridad
+## 15. Seguridad
 
 - webhook rechaza secret incorrecto;
-- Mini App rechaza `initData` inválido/expirado;
+- Mini App rechaza firma `initData` inválida;
+- vigencia administrativa máxima 24 h;
 - service-role no está en HTML/JS;
 - Storage no es público;
 - operario no ejecuta admin actions;
 - Root protegido en DB;
 - grupo no ejecuta lógica privada;
-- `get_daily_performance_report` no ejecutable por `anon/authenticated`;
-- `mark_worker_daily_presence` no ejecutable por `anon/authenticated`.
+- funciones de reporting no ejecutables por cliente.
 
-### Deuda que debe mantenerse visible
+### Deuda visible
 
 - `plate_verifications` sin RLS;
 - vista `telegram_access_requests_visible_rejected` security-definer;
-- `expire_pending_access_requests()` con permisos/security-definer a revisar;
-- funciones históricas de acceso con search_path mutable.
+- `expire_pending_access_requests()` a revisar;
+- funciones históricas con search_path mutable.
 
-## 14. Integridad de datos
-
-Consultas periódicas:
+## 16. Integridad de datos
 
 - usuarios activos con solicitud != approved = 0;
 - bloqueados con pending = 0;
 - más de un `owner` = 0;
-- `normalized_plate` consistente con `plate`;
-- evidencias sin vehículo = 0;
-- verificaciones sin vehículo = 0;
-- navegación activa de vehículo no parked = 0;
+- `normalized_plate` consistente;
+- evidencias/verificaciones sin vehículo = 0;
+- navegación activa de no parked = 0;
 - más de una fila live por usuario = 0;
-- dispatch duplicado por fecha/hora/destinatario/scope = 0.
+- dispatch duplicado = 0.
 
-## 15. Carga
+## 17. Carga
 
-Escenario mínimo:
+Escenario mínimo: ~150 vehículos/día, 30 días, múltiples evidencias, varios usuarios compartiendo ubicación y mapa abierto durante turnos.
 
-- ~150 vehículos/día;
-- 30 días;
-- múltiples evidencias por recogida;
-- varios usuarios compartiendo ubicación;
-- mapa abierto durante turnos.
+Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Accesos, Equipo en vivo e informes.
 
-Medir:
-
-- búsqueda por matrícula;
-- listado parked;
-- Expediente 360º;
-- panel Equipo & Accesos;
-- API Equipo en vivo;
-- generación informe diario.
-
-## 16. Smoke test de release
+## 18. Smoke test de release
 
 1. Root `/start` -> única entrada Mini App;
 2. operario `/start` -> misma entrada;
 3. operario no ve Equipo & Accesos;
 4. Root ve Equipo & Accesos con etiqueta Root;
-5. Recogida completa con evidencias/OCR;
-6. Aparcar con OCR + GPS;
-7. Buscar + navegación;
-8. Entrega + OCR salida;
-9. Expediente 360º;
-10. compartir ubicación y verla en Equipo en vivo;
-11. dejar de compartir y comprobar desaparición;
-12. prueba group guard;
-13. prueba controlada de informe;
-14. comprobar advisors de seguridad.
+5. aprobar usuario -> recibe bienvenida y rol automáticamente;
+6. reactivar usuario -> recibe bienvenida de regreso;
+7. promover/degradar -> recibe aviso de rol;
+8. dejar panel abierto >15 min y comprobar que sigue administrando;
+9. forzar error conocido y comprobar mensaje amigable sin código técnico;
+10. Recogida completa;
+11. Aparcar con OCR + GPS;
+12. Buscar + navegación;
+13. Entrega + OCR salida;
+14. Expediente 360º en español;
+15. Equipo en vivo + dejar de compartir;
+16. group guard;
+17. informe controlado;
+18. advisors de seguridad.
