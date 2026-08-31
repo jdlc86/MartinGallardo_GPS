@@ -1,10 +1,14 @@
 (function(){
-  const TECHNICAL_PATTERNS=[/^HTTP\s+\d+/i,/^telegram_/i,/^vision_/i,/^PGRST/i,/^42[A-Z0-9]{3}/i,/^JS ERROR:/i,/^Respuesta no JSON/i];
+  const TECHNICAL_PATTERNS=[/^HTTP\s+\d+/i,/^telegram_/i,/^vision_/i,/^PGRST/i,/^42[A-Z0-9]{3}/i,/^JS ERROR:/i,/^Respuesta no JSON/i,/^Unauthorized$/i,/^Not authorized$/i,/^Access denied$/i];
   const MAP={
     expired_init_data:'Tu sesión de ParkingMartin-G ha caducado. Cierra esta pantalla y vuelve a abrir la aplicación desde Telegram.',
     invalid_init_data:'No hemos podido validar tu sesión de Telegram. Cierra esta pantalla y vuelve a abrir ParkingMartin-G desde el bot.',
     missing_user:'No hemos podido identificar tu usuario de Telegram. Vuelve al chat del bot y abre ParkingMartin-G de nuevo.',
-    not_authorized:'Tu usuario no tiene acceso activo a ParkingMartin-G. Si crees que es un error, contacta con un administrador.',
+    not_authorized:'Tu acceso a ParkingMartin-G está desactivado actualmente. Si crees que se trata de un error, contacta con un administrador.',
+    unauthorized:'Tu acceso a ParkingMartin-G está desactivado actualmente. Si crees que se trata de un error, contacta con un administrador.',
+    'Not authorized':'Tu acceso a ParkingMartin-G está desactivado actualmente. Si crees que se trata de un error, contacta con un administrador.',
+    'Unauthorized':'Tu acceso a ParkingMartin-G está desactivado actualmente. Si crees que se trata de un error, contacta con un administrador.',
+    'Access denied':'No tienes acceso a esta sección. Si crees que se trata de un error, contacta con un administrador.',
     not_admin:'No tienes permisos para realizar esta acción. Se necesita rol Root o Admin.',
     self_change_not_allowed:'No puedes modificar tus propios permisos desde este panel.',
     owner_protected:'La cuenta Root está protegida y no puede modificarse desde este panel.',
@@ -43,6 +47,7 @@
     if(!raw)return 'No se pudo completar la operación. Vuelve a intentarlo.';
     if(MAP[raw])return MAP[raw];
     const lower=raw.toLowerCase();
+    if(lower==='not authorized'||lower==='unauthorized'||lower.includes('access denied'))return 'Tu acceso a ParkingMartin-G está desactivado actualmente. Si crees que se trata de un error, contacta con un administrador.';
     if(lower.includes('failed to fetch')||lower.includes('networkerror')||lower.includes('network request failed')||lower.includes('load failed'))return 'No hemos podido conectar con el sistema. Comprueba tu conexión a Internet y vuelve a intentarlo.';
     if(lower.includes('timeout')||lower.includes('timed out'))return 'La operación está tardando demasiado. Comprueba la conexión y vuelve a intentarlo.';
     if(lower.includes('permission denied')||lower.includes('not allowed'))return 'No tienes permisos para completar esta acción.';
