@@ -1,204 +1,274 @@
-# Plan de pruebas actual
+# Plan de pruebas de producción
 
 ## Objetivo
 
-Validar el sistema vigente sin depender de múltiples personas reales ni reintroducir flujos antiguos.
+Validar ParkingMartin-G tal como funciona hoy: Mini App como interfaz principal, Telegram como acceso/ubicación/informes y Supabase como backend.
 
-## 1. Entrada Telegram y menús
+## 1. Entrada Telegram
 
-Casos obligatorios:
+- usuario activo `/start` -> bienvenida + único botón **ABRIR PARKINGMARTIN-G**;
+- mensaje normal de usuario activo -> orientación breve + acceso a Mini App;
+- no aparece menú antiguo Recogida/Aparcar/Buscar/Entrega;
+- callback histórico -> no inicia flujo clásico; orienta a Mini App;
+- botón permanente de menú Telegram abre ParkingMartin-G;
+- webhook de producción apunta a `telegram-gateway`.
 
-- `/start` de operario activo -> menú base;
-- `/start` de admin/owner -> mismo menú base;
-- `OTRAS OPCIONES` operario -> sin administración;
-- `OTRAS OPCIONES` admin/owner -> incluye `GESTIONAR OPERARIOS`;
-- callback antiguo `menu:close` -> no deja pantalla muerta; vuelve a UI vigente;
-- ningún flujo nuevo genera botón `CERRAR`;
-- el webhook de producción apunta a `telegram-gateway`.
+## 2. Protección de grupos
 
-## 2. Solicitudes y permisos
+Probar `group` y `supergroup`:
 
-Matriz mínima:
+- mensaje normal -> ignorado;
+- ubicación -> ignorada;
+- `/start` -> no inicia flujo privado;
+- callback histórico -> aviso neutro sin acción de dominio;
+- no se crea sesión;
+- no se crea/actualiza `worker_live_locations`;
+- no se reenvía al backend operativo.
 
-| Caso | Estado inicial | Acción | Resultado |
-|---|---|---|---|
-| desconocido | sin usuario | escribe | `pending` |
-| pending | pendiente <72 h | escribe | sigue pending |
-| pending vencido | expires_at pasado | job/trigger | `expired` |
-| rejected | sin usuario | vuelve a escribir | nuevo `pending` |
-| approved activo | usuario activo | escribe | acceso |
-| approved bloqueado | active=false | escribe | sin acceso, no pending |
-| alta operario | pending | aprobar | approved + active=true |
-| alta admin | pending | aprobar admin | approved + admin activo |
-| bloquear | approved activo | dar de baja | approved + active=false |
-| reactivar | approved bloqueado | reactivar | approved + active=true |
-| promover | operario activo | hacer admin | admin activo |
-| degradar | admin activo | quitar admin | operario activo |
-| modificar owner | owner | cualquier acción destructiva | rechazado |
-| admin self-change | admin | cambiarse rol/estado | rechazado |
+## 3. Roles y acceso a Mini App
 
-Invariante: ningún usuario existente en `telegram_users` puede quedar `pending/rejected/expired`.
+### Operario
 
-## 3. Recogida aeropuerto
+Debe ver:
 
-Probar:
+- Centro de Operaciones;
+- Vehículos;
+- Actividad reciente;
+- Equipo en vivo;
+- GPS Pro Diagnóstico;
+- Expediente 360º.
+
+No debe ver **Equipo & Accesos**.
+
+Acceder manualmente a `team-v4.html` debe terminar en rechazo backend (`not_admin`).
+
+### Admin
+
+Debe ver Equipo & Accesos y poder administrar excepto Root/self-change.
+
+### Root
+
+Valor interno `owner`, etiqueta visible **Root**. Debe estar protegido frente a baja/degradación/modificación destructiva.
+
+## 4. Solicitudes de acceso
+
+| Caso | Resultado esperado |
+|---|---|
+| desconocido contacta | `pending` |
+| pending <72 h | sigue pending |
+| pending vencido | `expired` |
+| rejected vuelve a contactar | vuelve a `pending` si no existe cuenta |
+| aprobado activo | acceso Mini App |
+| bloqueado | sin acceso, no vuelve a pending |
+| aprobar operario | usuario activo `operario` |
+| aprobar admin | usuario activo `admin` |
+| dar de baja | `active=false` |
+| reactivar | `active=true` |
+| promover | admin |
+| degradar | operario |
+| tocar Root | rechazado |
+| admin se modifica a sí mismo | rechazado |
+
+Invariante: usuario existente en `telegram_users` no debe aparecer pendiente/rechazado/expirado.
+
+## 5. Recogida
 
 - matrícula válida;
-- fotos de estado requeridas;
-- foto de matrícula guardada sin OCR;
-- documentación obligatoria;
-- cancelar en cada paso;
-- evidencias vinculadas al vehículo/operario;
-- finalizar solo con requisitos completos.
-
-## 4. Aparcar + OCR
-
-Casos:
-
-- matrícula nueva;
-- matrícula existente;
-- foto OCR coincide;
-- OCR detecta otra matrícula;
-- OCR no puede leer;
+- requisitos dinámicos desde `evidence_requirements`;
+- cámara integrada para fotos de estado;
+- miniaturas visibles;
+- borrar una foto reduce contador y elimina Storage/DB;
+- documentación imagen;
+- documentación PDF;
+- borrar documento pendiente;
+- foto matrícula + OCR coincide;
+- OCR mismatch;
+- OCR failed;
 - repetir foto;
-- override y continuar;
-- override genera auditoría;
-- cancelar;
-- Google Vision no disponible -> feedback controlado;
-- retry de foto no debe duplicar evidencia/evento cuando se implemente dedupe.
+- override auditado;
+- no finalizar si falta evidencia;
+- finalizar -> `vehicles.status='in_transit'`;
+- un solo evento `pickup`;
+- evidencias finalizadas vinculadas al evento.
 
-OCR no debe ejecutarse en ninguna otra etapa.
+## 6. Aparcar
 
-## 5. GPS Mini App
+- vehículo nuevo/existente válido;
+- `normalized_plate` no se envía en INSERT/UPDATE;
+- OCR coincide;
+- OCR mismatch/failed;
+- repetir foto;
+- override queda en `plate_verifications`;
+- no intenta insertar operación OCR inválida en `parking_events`;
+- GPS Pro visible con precisión/calidad;
+- precisión bajo umbral -> referencia opcional;
+- precisión sobre umbral -> referencia obligatoria;
+- confirmar -> `parked` + `park`;
+- ubicación/accuracy/parked_at/worker correctos;
+- no duplicar aparcado en retry.
 
-Probar:
+## 7. Buscar coche
 
-- captura de GPS;
-- precisión disponible;
-- precisión no disponible;
-- usuario acepta ubicación;
-- ubicación llega al backend;
-- Mini App muestra confirmación;
-- cierre tras ~2 s;
-- regreso al chat;
-- cancelación/reintento;
-- sin flujo de sectores.
+- solo `parked` devuelve resultado;
+- navegación solo con coordenadas válidas;
+- `requested/in_transit/retrieved` no son navegables;
+- muestra precisión/referencia/operario/fecha;
+- registra `lookup`;
+- no cambia estado;
+- matrícula inexistente controlada.
 
-No inventar precisión cuando el dispositivo/Telegram no la informa.
+## 8. Entrega
 
-## 6. Buscar vehículo
+- solo parte de vehículo `parked`;
+- navegación disponible si hay GPS;
+- botón inicial dice **Foto Matrícula**;
+- después de foto pasa a **Repetir Foto**;
+- OCR `parking_exit` coincide;
+- mismatch/failed;
+- override auditado;
+- no cambia estado antes de confirmación final;
+- finalizar sin verificación aceptada -> rechazado;
+- finalizar -> `retrieved` + evento `retrieve`;
+- después no aparece navegación activa.
 
-- matrícula `parked` -> resultado correcto;
-- navegación visible solo para `parked` con coordenadas válidas;
-- vehículo `retrieved/in_transit/requested` -> sin navegación;
-- matrícula inexistente;
-- GPS histórico puede mostrarse como histórico pero no como destino activo;
-- evento de consulta auditado cuando corresponda.
-
-## 7. Entrega aeropuerto
-
-- vehículo válido;
-- confirmar entrega;
-- cambio de estado;
-- historial intacto;
-- no ejecutar OCR;
-- doble confirmación no debe duplicar entrega.
-
-## 8. Consultar vehículo
-
-Probar expediente con:
+## 9. Expediente 360º
 
 - vehículo sin evidencias;
-- múltiples días/etapas;
-- fotos ordenadas de nuevas a antiguas;
-- agrupación día + etapa;
-- hora y operario visibles;
-- URLs firmadas válidas;
-- URL expirada;
-- OCR y overrides;
-- historial traducido a nombres operativos;
-- botón Navegar solo si `parked`.
+- múltiples etapas/días;
+- miniaturas y ampliación;
+- OCR/overrides visibles;
+- historial correcto;
+- navegación solo `parked`;
+- compartir genera enlace temporal;
+- WhatsApp/copia/Telegram funcionan;
+- correo abre Gmail correctamente;
+- informe PDF con tildes/ortografía;
+- URLs firmadas caducan.
 
-## 9. Estado conversacional
+## 10. GPS Pro Diagnóstico
 
-- sesión persistente entre invocaciones;
-- sesión expirada;
-- cancelar limpia/neutraliza estado;
-- `/start` devuelve a UI consistente;
-- no depender de memoria RAM de Edge Function.
+- obtiene geolocalización;
+- muestra precisión/calidad;
+- permite repetir;
+- no crea eventos;
+- no escribe `vehicles`;
+- no escribe tablas GPS operativas.
 
-## 10. Idempotencia
+## 11. Equipo en vivo
 
-Simular el mismo `update_id` dos veces para operaciones con escritura:
+### Inicio
 
-- solicitud de acceso;
-- aprobación/rechazo;
-- foto;
-- OCR override;
-- aparcado;
-- entrega.
+- usuario activo comparte ubicación en vivo con el bot;
+- primera `message` crea/actualiza una fila en `worker_live_locations`;
+- mapa la muestra.
 
-Objetivo: máximo un efecto de dominio.
+### Actualizaciones
 
-La deduplicación explícita por `update_id` sigue siendo deuda técnica y debe tener pruebas antes de declararse resuelta.
+- `edited_message` mueve el punto;
+- cambio insignificante <10 s + <5 m + sin mejora de precisión puede omitirse;
+- cambio relevante actualiza fila;
+- sigue existiendo una sola fila por usuario.
 
-## 11. Seguridad
+### Fin
 
-Automatizar/verificar:
+- pulsar **Dejar de compartir** y recibir edición de fin -> fila eliminada;
+- marcador desaparece en el siguiente refresco;
+- si Telegram no informa el final, posiciones >30 min dejan de mostrarse;
+- `worker_daily_presence` conserva el `sí` diario aunque la fila live se elimine.
 
-- ningún secreto en GitHub;
+### Visibilidad
+
+- operario activo puede ver mapa;
+- admin puede ver mapa;
+- Root puede ver mapa;
+- usuario inactivo/no autorizado no obtiene datos.
+
+No debe existir historial de trayectoria.
+
+## 12. Informes automáticos
+
+Zona horaria: Europe/Madrid.
+
+Probar mediante ejecución controlada:
+
+- hora 04 -> día anterior;
+- hora 13 -> día actual;
+- hora 20 -> día actual;
+- otra hora -> `skipped`;
+- cada operario recibe resumen individual;
+- Root/Admin reciben global además del individual si tienen actividad como worker;
+- conteos pickup/park/lookup/retrieve correctos;
+- OCR overrides correctos;
+- primera/última actividad correctas;
+- presencia diaria correcta;
+- retry mismo slot -> sin duplicado por `performance_report_dispatches`;
+- fallo de Telegram -> reserva se elimina para permitir reintento.
+
+## 13. Seguridad
+
 - webhook rechaza secret incorrecto;
-- usuario no admin no puede ejecutar callbacks admin;
-- owner no puede modificarse;
-- Storage no permite acceso público permanente;
-- Mini Apps requieren contexto Telegram válido;
-- service-role no aparece en HTML/JS cliente;
-- `telegram_user_id` se obtiene de `from.id`;
-- RLS activo en tablas expuestas.
+- Mini App rechaza `initData` inválido/expirado;
+- service-role no está en HTML/JS;
+- Storage no es público;
+- operario no ejecuta admin actions;
+- Root protegido en DB;
+- grupo no ejecuta lógica privada;
+- `get_daily_performance_report` no ejecutable por `anon/authenticated`;
+- `mark_worker_daily_presence` no ejecutable por `anon/authenticated`.
 
-### `plate_verifications`
+### Deuda que debe mantenerse visible
 
-Actualmente RLS está desactivado. Debe existir una prueba específica una vez definida la política y habilitado RLS.
+- `plate_verifications` sin RLS;
+- vista `telegram_access_requests_visible_rejected` security-definer;
+- `expire_pending_access_requests()` con permisos/security-definer a revisar;
+- funciones históricas de acceso con search_path mutable.
 
-## 12. Integridad de datos
+## 14. Integridad de datos
 
-Comprobar periódicamente:
+Consultas periódicas:
 
-- usuarios activos con solicitud distinta de approved = 0;
-- usuarios bloqueados con solicitud pending = 0;
-- más de un owner = 0;
-- evidencias sin vehicle_id = 0;
-- plate_verifications sin vehicle válido = 0;
-- navegación ofrecida a vehículo no parked = 0.
+- usuarios activos con solicitud != approved = 0;
+- bloqueados con pending = 0;
+- más de un `owner` = 0;
+- `normalized_plate` consistente con `plate`;
+- evidencias sin vehículo = 0;
+- verificaciones sin vehículo = 0;
+- navegación activa de vehículo no parked = 0;
+- más de una fila live por usuario = 0;
+- dispatch duplicado por fecha/hora/destinatario/scope = 0.
 
-## 13. Carga razonable
+## 15. Carga
 
-Dataset sintético aproximado:
+Escenario mínimo:
 
-- 150 vehículos/día;
+- ~150 vehículos/día;
 - 30 días;
-- múltiples eventos y evidencias.
+- múltiples evidencias por recogida;
+- varios usuarios compartiendo ubicación;
+- mapa abierto durante turnos.
 
 Medir:
 
 - búsqueda por matrícula;
-- vehículos parked;
-- historial de vehículo;
-- expediente con evidencias;
-- listados administrativos.
+- listado parked;
+- Expediente 360º;
+- panel Equipo & Accesos;
+- API Equipo en vivo;
+- generación informe diario.
 
-## 14. Smoke test de release
+## 16. Smoke test de release
 
-1. owner `/start`;
-2. operario `/start`;
-3. comparar menús base;
-4. solicitud nueva -> aprobar/rechazar;
-5. Recogida con vehículo TEST;
-6. Aparcar con OCR;
-7. GPS Mini App;
-8. Buscar + navegación;
-9. Consultar vehículo;
-10. Entrega;
-11. verificar auditoría y estados finales.
-
-Usar datos TEST y no borrar auditoría necesaria.
+1. Root `/start` -> única entrada Mini App;
+2. operario `/start` -> misma entrada;
+3. operario no ve Equipo & Accesos;
+4. Root ve Equipo & Accesos con etiqueta Root;
+5. Recogida completa con evidencias/OCR;
+6. Aparcar con OCR + GPS;
+7. Buscar + navegación;
+8. Entrega + OCR salida;
+9. Expediente 360º;
+10. compartir ubicación y verla en Equipo en vivo;
+11. dejar de compartir y comprobar desaparición;
+12. prueba group guard;
+13. prueba controlada de informe;
+14. comprobar advisors de seguridad.
