@@ -1,6 +1,4 @@
 (function(){
-  if(!document.querySelector('link[data-pmg-theme]')){const l=document.createElement('link');l.rel='stylesheet';l.href='theme.css?v=1';l.dataset.pmgTheme='1';document.head.appendChild(l)}
-  if(!document.querySelector('script[data-pmg-theme]')){const s=document.createElement('script');s.src='theme.js?v=1';s.dataset.pmgTheme='1';document.head.appendChild(s)}
   if(window.__PMG_ACCESS_RUNTIME__)return;
   window.__PMG_ACCESS_RUNTIME__=true;
   const BLOCK_CODES=new Set(['not_authorized','unauthorized','not authorized','access denied','user_inactive','inactive_user']);

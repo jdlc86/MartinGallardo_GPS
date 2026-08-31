@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">ParkingMartin-G</title>
+  <defs>
+    <linearGradient id="brand" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="#08111f"/>
+  <rect x="5" y="5" width="54" height="54" rx="15" fill="url(#brand)"/>
+  <path fill="#fff" d="M20 49V15h14c8 0 13 4.6 13 12s-5 12-13 12h-6v10h-8Zm8-17h6c3.4 0 5.5-1.8 5.5-5s-2.1-5-5.5-5h-6v10Z"/>
+</svg>

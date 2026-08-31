@@ -1,1 +1,44 @@
-(function(){if(window.__PMG_THEME__)return;window.__PMG_THEME__=true;const KEY='pmg-theme-mode';const valid=new Set(['auto','light','dark']);function mode(){const v=localStorage.getItem(KEY)||'auto';return valid.has(v)?v:'auto'}function autoTheme(){const h=new Date().getHours();if(h>=8&&h<20)return'light';try{return matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}catch{return'dark'}}function resolved(m=mode()){return m==='auto'?autoTheme():m}function syncTelegram(t){try{const tg=window.Telegram?.WebApp;if(!tg)return;const c=t==='light'?'#f4f7fb':'#08111f';tg.setHeaderColor?.(c);tg.setBackgroundColor?.(c);tg.setBottomBarColor?.(c)}catch{}}function apply(){const m=mode(),t=resolved(m);document.documentElement.dataset.pmgTheme=t;document.documentElement.dataset.pmgThemeMode=m;syncTelegram(t);document.querySelectorAll('.pmg-theme-option').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));const ctl=document.querySelector('.pmg-theme-control');if(ctl)ctl.textContent=t==='light'?'☀️ Día':'🌙 Noche'}function set(m){if(!valid.has(m))m='auto';localStorage.setItem(KEY,m);apply()}function ui(){if(document.querySelector('.pmg-theme-control'))return;const b=document.createElement('button');b.type='button';b.className='pmg-theme-control';b.setAttribute('aria-label','Cambiar tema');const p=document.createElement('div');p.className='pmg-theme-panel';p.innerHTML='<div class="pmg-theme-caption">APARIENCIA</div><button class="pmg-theme-option" data-mode="auto">◐ Automático</button><button class="pmg-theme-option" data-mode="light">☀️ Día</button><button class="pmg-theme-option" data-mode="dark">🌙 Noche</button>';b.onclick=()=>p.classList.toggle('on');p.querySelectorAll('[data-mode]').forEach(x=>x.onclick=()=>{set(x.dataset.mode);p.classList.remove('on')});document.body.append(b,p);document.addEventListener('click',e=>{if(e.target!==b&&!p.contains(e.target))p.classList.remove('on')});apply()}apply();document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ui):ui();setInterval(()=>{if(mode()==='auto')apply()},60000);try{matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=>{if(mode()==='auto')apply()})}catch{}window.PMGTheme={set,apply,mode,resolved};})();
+(function(){
+  if(window.__PMG_THEME__)return;
+  window.__PMG_THEME__=true;
+  const KEY='pmg-theme-mode';
+  const MODES=new Set(['auto','light','dark']);
+  let lastTheme='';
+  function readMode(){try{const value=localStorage.getItem(KEY)||'auto';return MODES.has(value)?value:'auto'}catch{return'auto'}}
+  function writeMode(value){try{localStorage.setItem(KEY,value)}catch{}}
+  function autoTheme(){const hour=new Date().getHours();if(hour>=8&&hour<20)return'light';try{return matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}catch{return'dark'}}
+  function resolved(value=readMode()){return value==='auto'?autoTheme():value}
+  function syncChrome(theme){const color=theme==='light'?'#eef3f8':'#08111f';const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=color;try{const tg=window.Telegram?.WebApp;if(!tg)return;tg.setHeaderColor?.(color);tg.setBackgroundColor?.(color);tg.setBottomBarColor?.(color)}catch{}}
+  function syncControl(mode,theme){document.querySelectorAll('.pmg-theme-option').forEach(button=>{const active=button.dataset.mode===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});const control=document.querySelector('.pmg-theme-control');if(!control)return;control.textContent=mode==='auto'?'◐ Auto':theme==='light'?'☀️ Día':'🌙 Noche';control.title='Tema: '+(mode==='auto'?'Automático':theme==='light'?'Día':'Noche')}
+  function apply(){const mode=readMode(),theme=resolved(mode),changed=theme!==lastTheme;document.documentElement.dataset.pmgTheme=theme;document.documentElement.dataset.pmgThemeMode=mode;syncChrome(theme);syncControl(mode,theme);lastTheme=theme;if(changed)window.dispatchEvent(new CustomEvent('pmg-themechange',{detail:{mode,theme}}));return theme}
+  function set(mode){const next=MODES.has(mode)?mode:'auto';writeMode(next);return apply()}
+  function mountControl(){
+    if(document.querySelector('.pmg-theme-control'))return;
+    const control=document.createElement('button');
+    control.type='button';
+    control.className='pmg-theme-control';
+    control.setAttribute('aria-label','Cambiar tema');
+    control.setAttribute('aria-expanded','false');
+    control.setAttribute('aria-haspopup','dialog');
+    control.setAttribute('aria-controls','pmg-theme-panel');
+    const panel=document.createElement('div');
+    panel.id='pmg-theme-panel';
+    panel.className='pmg-theme-panel';
+    panel.setAttribute('role','dialog');
+    panel.setAttribute('aria-label','Apariencia');
+    panel.innerHTML='<div class="pmg-theme-caption">APARIENCIA</div><button type="button" class="pmg-theme-option" data-mode="auto">◐ Automático</button><button type="button" class="pmg-theme-option" data-mode="light">☀️ Día</button><button type="button" class="pmg-theme-option" data-mode="dark">🌙 Noche</button>';
+    function closePanel(returnFocus=false){panel.classList.remove('on');control.setAttribute('aria-expanded','false');if(returnFocus)control.focus({preventScroll:true})}
+    control.addEventListener('click',()=>{const open=panel.classList.toggle('on');control.setAttribute('aria-expanded',String(open))});
+    panel.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{set(button.dataset.mode);closePanel(true)}));
+    document.body.prepend(control,panel);
+    document.addEventListener('click',event=>{if(event.target!==control&&!panel.contains(event.target))closePanel()});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('on'))closePanel(true)});
+    apply();
+  }
+  apply();
+  document.readyState==='loading'?document.addEventListener('DOMContentLoaded',mountControl):mountControl();
+  setInterval(()=>{if(readMode()==='auto')apply()},60000);
+  window.addEventListener('storage',event=>{if(event.key===KEY)apply()});
+  try{matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=>{if(readMode()==='auto')apply()})}catch{}
+  window.PMGTheme={set,apply,mode:readMode,resolved};
+})();

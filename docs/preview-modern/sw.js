@@ -9,8 +9,8 @@ self.addEventListener('fetch',event=>{
       const type=res.headers.get('content-type')||'';
       if(!type.includes('text/html'))return res;
       let html=await res.text();
-      if(!html.includes('access-runtime.js')){
-        html=html.replace('</head>','<script src="access-runtime.js?v=1"></script></head>');
+      if(!html.includes('access-runtime.js')&&!html.includes('ux-errors.js')){
+        html=html.replace('</head>','<script src="access-runtime.js?v=5"></script></head>');
       }
       const headers=new Headers(res.headers);
       headers.set('content-type','text/html; charset=utf-8');
