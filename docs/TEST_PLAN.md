@@ -313,6 +313,8 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - la campana recibe la señal Realtime y no mantiene temporizadores de consulta periódica;
 - el listado operativo reutiliza el evento `pmg:reservation-task-change` y no abre un segundo canal Realtime;
 - abrir la Mini App, recuperar Internet o volver al primer plano reconcilia los avisos una sola vez;
+- una desconexión real muestra una nota compacta que cambia a “Conexión restablecida” y desaparece automáticamente al volver la red;
+- un fallo puntual de red con el dispositivo aún conectado muestra “Conexión inestable” de forma temporal y una petición posterior exitosa retira el estado de desconexión en cualquier vista;
 - la gestión de reservas se recarga por eventos y no mantiene el antiguo sondeo de 20 segundos;
 - el aviso ofrece acceso directo a Mis tareas y permite marcar todo como leído de forma explícita;
 - Telegram registra `telegram_sent_at` cuando acepta el mensaje y conserva `telegram_error` cuando falla;
@@ -322,6 +324,7 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - insertar un aviso activa una única llamada asíncrona al repartidor, autenticada mediante Vault;
 - dos ejecuciones simultáneas del repartidor no duplican entregas por el bloqueo `skip locked`;
 - desactivar a un responsable devuelve sus tareas pendientes a Sin asignar y crea el aviso correspondiente.
+- al seleccionar la última tarea en móvil, la barra de asignación reserva su altura real y mantiene la fila seleccionada completamente visible por encima del panel.
 
 ### Importación con IA
 
