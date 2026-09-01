@@ -81,6 +81,6 @@
   window.PMGFriendlyError=friendly;window.PMGTechnicalErrorMap=MAP;
   const NativeError=window.Error;function FriendlyError(message,options){const e=new NativeError(friendly(message),options);Object.setPrototypeOf(e,FriendlyError.prototype);return e}FriendlyError.prototype=NativeError.prototype;Object.setPrototypeOf(FriendlyError,NativeError);window.Error=FriendlyError;
   if(document.readyState==='loading')document.write('<script src="guide-image.js?v=1"><\/script>');
-  if(location.pathname.endsWith('/reservations-admin.html')&&document.readyState==='loading')document.write('<script src="reservation-operational-runtime.js?v=1"><\/script>');
+  if(location.pathname.endsWith('/reservations-admin.html')&&document.readyState==='loading')document.write('<script src="reservation-operational-runtime.js?v=2"><\/script>');
   if(!window.__PMG_ACCESS_RUNTIME__&&document.readyState==='loading'){document.write('<script src="access-runtime.js?v=5"><\/script>')}
 })();
