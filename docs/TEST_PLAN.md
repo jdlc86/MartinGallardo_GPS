@@ -109,6 +109,9 @@ El detalle técnico puede permanecer en consola/logs.
 - matrícula válida;
 - requisitos dinámicos;
 - cámara para fotos de estado;
+- «Ver guía de fotos» abre un diálogo centrado y muestra completa la guía SVG sin deformación;
+- la guía cabe en móvil vertical y horizontal, permite cerrar con botón, fondo o Escape y respeta Día/Noche;
+- la guía queda disponible desde la caché offline del shell;
 - miniaturas visibles;
 - borrado individual de evidencia;
 - documentación imagen/PDF;
