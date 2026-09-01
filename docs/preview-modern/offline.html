@@ -1,1 +1,33 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#08111f"><title>Sin conexión · ParkingMartin-G</title><style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#08111f;color:#e8f1fb;font-family:Inter,system-ui,-apple-system,sans-serif}body{display:grid;place-items:center;padding:24px}.card{width:min(100%,480px);padding:30px 24px;border-radius:28px;background:linear-gradient(145deg,#172554,#0b1424 58%,#08111f);border:1px solid #ffffff16;box-shadow:0 24px 90px #0009;text-align:center}.icon{width:70px;height:70px;margin:0 auto 18px;border-radius:23px;display:grid;place-items:center;background:#f59e0b18;border:1px solid #f59e0b33;font-size:32px}h1{font-size:27px;margin:0 0 10px}p{margin:0;color:#a9bad0;line-height:1.55;font-size:14px}.note{margin-top:17px;padding:13px 14px;border-radius:15px;background:#ffffff09;color:#c9d5e5;font-size:12px;line-height:1.45}button{width:100%;margin-top:20px;border:0;border-radius:14px;padding:13px 18px;background:#2563eb;color:#fff;font:inherit;font-weight:850}</style></head><body><main class="card"><div class="icon">📡</div><h1>Sin conexión a Internet</h1><p>No podemos conectar con el sistema en este momento. Comprueba los datos móviles o el Wi‑Fi y vuelve a intentarlo.</p><div class="note">Por seguridad, las operaciones que necesitan guardar o consultar datos reales quedan detenidas mientras no haya conexión.</div><button onclick="location.reload()">Reintentar conexión</button></main></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08111f">
+  <title>Sin conexión · ParkingMartin-G</title>
+  <link rel="stylesheet" href="theme.css?v=9" data-pmg-theme>
+  <script src="theme.js?v=8" data-pmg-theme></script>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--pmg-bg);color:var(--pmg-text);font-family:Inter,system-ui,-apple-system,sans-serif}
+    body{display:grid;place-items:center;padding:76px 24px 24px}
+    .card{width:min(100%,480px);padding:30px 24px;border-radius:28px;background:var(--pmg-surface);border:1px solid var(--pmg-border);box-shadow:0 24px 90px var(--pmg-shadow);text-align:center}
+    .icon{width:70px;height:70px;margin:0 auto 18px;border-radius:23px;display:grid;place-items:center;background:var(--pmg-warning-soft);border:1px solid color-mix(in srgb,var(--pmg-warning) 30%,transparent);color:var(--pmg-warning-text);font-size:30px}
+    .ey{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--pmg-accent-text);font-weight:900;margin-bottom:7px}
+    h1{font-size:27px;letter-spacing:-.025em;margin:0 0 10px}
+    p{margin:0;color:var(--pmg-muted);line-height:1.55;font-size:14px}
+    .note{margin-top:17px;padding:13px 14px;border-radius:15px;background:var(--pmg-soft);color:var(--pmg-muted);border:1px solid var(--pmg-border);font-size:12px;line-height:1.45}
+    button{width:100%;margin-top:20px;border:0;border-radius:14px;padding:13px 18px;background:var(--pmg-accent);color:var(--pmg-on-accent);font:inherit;font-weight:850;box-shadow:var(--pmg-control-shadow)}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon" aria-hidden="true">⌁</div>
+    <div class="ey">Conexión pausada</div>
+    <h1>Sin conexión a Internet</h1>
+    <p>No podemos conectar con el sistema en este momento. Comprueba los datos móviles o el Wi‑Fi y vuelve a intentarlo.</p>
+    <div class="note">Por seguridad, las operaciones que necesitan guardar o consultar datos reales quedan detenidas mientras no haya conexión.</div>
+    <button type="button" onclick="location.reload()">Reintentar conexión</button>
+  </main>
+</body>
+</html>

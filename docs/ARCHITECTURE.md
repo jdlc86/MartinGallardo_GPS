@@ -36,6 +36,8 @@ telegram-gateway
 Otras APIs Mini App:
 - telegram-modern-action
 - reservation-admin-api
+- reservation-task-api
+- reservation-notification-sender
 - modern-live-team-api
 - vehicle-consult-api
 - vehicle-share-api
@@ -43,6 +45,7 @@ Otras APIs Mini App:
 
 Automatización:
 pg_cron -> pg_net -> performance-report-sender -> Telegram Bot API
+pg_cron -> pg_net -> reservation-notification-sender -> Telegram Bot API
 ```
 
 ## `telegram-gateway`
@@ -103,6 +106,25 @@ Responsabilidades:
 - analizar encabezados `.xlsx`, `.csv` y `.tsv` con Gemini antes de previsualizar la importación.
 
 Privacidad de la importación: Gemini recibe únicamente etiquetas de encabezado saneadas. Las filas con nombres, correos, teléfonos, matrículas, fechas y cobros se procesan dentro de la Edge Function y no se envían al proveedor de IA.
+
+## Programador de tareas
+
+`reservation-task-api` convierte las fechas de recogida y regreso de cada reserva en tareas asignables. Root y Admin pueden asignarlas o reasignarlas en bloque a cualquier Root, Admin u Operario activo que tenga identidad `worker` enlazada.
+
+La versión de cada tarea protege frente a asignaciones concurrentes. El historial queda en `reservation_task_assignment_history`; el estado operativo se completa desde los eventos reales de recogida y entrega.
+
+Cada asignación o reasignación crea primero un aviso persistente en `parking_booking_notifications`. La entrega por Telegram usa la misma cola transaccional que las solicitudes de escritura:
+
+- intento inmediato desde `reservation-task-api`;
+- recuperación automática cada minuto mediante `reservation-notification-sender`;
+- reclamación con bloqueo `skip locked` para evitar duplicados;
+- confirmación de éxito o error en la propia fila;
+- espera de cinco minutos antes de reintentar un fallo;
+- llamada de Cron autenticada con un secreto aleatorio guardado en Supabase Vault.
+
+La campana escucha el canal Realtime `reservation-notifications`, conserva un sondeo de respaldo cada 45 segundos y nunca consulta avisos de otros usuarios: cada lectura vuelve a validar `initData` y filtra por `telegram_user_id`.
+
+Los controles globales de apariencia, campana y conectividad comparten una franja superior sin solaparse. Los avisos de red y la pantalla sin conexión usan las variables del tema resuelto, por lo que respetan Día, Noche y Automático.
 
 ### Concurrencia administrativa
 

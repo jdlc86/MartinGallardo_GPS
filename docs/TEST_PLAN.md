@@ -88,6 +88,11 @@ Probar en las pantallas de producción:
 - foto/archivo inválido;
 - GPS insuficiente.
 
+Además:
+
+- repetir sin Internet en Día, Noche y Automático: el aviso debe usar el tema resuelto y no puede duplicarse;
+- en móvil, `Auto/Día/Noche`, campana y aviso de conectividad no se solapan.
+
 Resultado esperado: mensaje en español, comprensible y accionable. No mostrar:
 
 - `ERROR:`;
@@ -283,6 +288,21 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - `parking_booking_cleanup_notifications()` elimina avisos con más de 90 días;
 - el Cron diario `cleanup-reservation-notifications` está activo;
 - limpiar avisos no elimina `parking_booking_permission_requests` ni `parking_booking_admin_events`.
+
+### Programador y asignación de tareas
+
+- cada reserva activa genera una tarea de recogida y otra de entrega con horario `Europe/Madrid`;
+- Root/Admin puede filtrar, seleccionar un día completo y asignar en bloque a Root, Admin u Operario activo;
+- una versión desactualizada devuelve `task_assignment_conflict` sin sobrescribir la asignación nueva;
+- una reasignación conserva responsable anterior, nuevo responsable, actor y fecha en el historial;
+- asignar crea un único aviso persistente para el nuevo responsable y otro para cada responsable sustituido;
+- la campana recibe la señal Realtime y el sondeo de 45 segundos recupera una señal perdida;
+- el aviso ofrece acceso directo a Mis tareas y permite marcar todo como leído de forma explícita;
+- Telegram registra `telegram_sent_at` cuando acepta el mensaje y conserva `telegram_error` cuando falla;
+- un fallo no se reintenta antes de cinco minutos ni supera ocho intentos;
+- el Cron `deliver-reservation-notifications` está activo cada minuto y autentica el repartidor mediante Vault;
+- dos ejecuciones simultáneas del repartidor no duplican entregas por el bloqueo `skip locked`;
+- desactivar a un responsable devuelve sus tareas pendientes a Sin asignar y crea el aviso correspondiente.
 
 ### Importación con IA
 
