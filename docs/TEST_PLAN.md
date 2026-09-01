@@ -110,6 +110,8 @@ El detalle técnico puede permanecer en consola/logs.
 - requisitos dinámicos;
 - cámara para fotos de estado;
 - la vista previa solo habilita **Capturar** después de recibir un fotograma real;
+- el visor se abre sobre una superficie amplia 16:9, no recorta los laterales y bloquea el desplazamiento de la página;
+- en horizontal aprovecha la altura disponible y, si el dispositivo expone control de zoom, utiliza su apertura mínima;
 - si la cámara trasera con resolución preferida no inicia, reintenta con restricciones simples sin dejar una pantalla negra;
 - permiso denegado, cámara ocupada o ausencia de fotogramas muestran un mensaje claro y permiten reintentar;
 - cancelar o cambiar de intento detiene todas las pistas de vídeo activas;
