@@ -8,6 +8,6 @@
   if(location.pathname.endsWith('/pickup.html')&&document.readyState==='loading')document.write('<script src="guide-image.js?v=2"><\/script>');
   if(location.pathname.endsWith('/reservations-admin.html')&&document.readyState==='loading')document.write('<script src="reservation-operational-runtime.js?v=4"><\/script>');
   if((location.pathname.endsWith('/operations.html')||location.pathname.endsWith('/pickup.html')||location.pathname.endsWith('/delivery.html'))&&document.readyState==='loading')document.write('<script src="assignment-runtime.js?v=2"><\/script>');
-  if(document.readyState==='loading')document.write('<script src="offline-runtime.js?v=2"><\/script><script src="notification-runtime.js?v=6"><\/script>');
+  if(document.readyState==='loading')document.write('<script src="offline-runtime.js?v=2"><\/script><script src="notification-runtime.js?v=7"><\/script>');
   if(!window.__PMG_ACCESS_RUNTIME__&&document.readyState==='loading'){document.write('<script src="access-runtime.js?v=7"><\/script>')}
 })();

@@ -290,6 +290,7 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 
 ### Retención de notificaciones
 
+- Gestión de reservas muestra una sola campana global; al abrirla conserva las acciones de aceptar/rechazar solicitudes;
 - un aviso leído con más de 30 días no aparece en la campana;
 - un aviso no leído continúa visible hasta que se atiende o alcanza 90 días;
 - `parking_booking_cleanup_notifications()` elimina avisos con más de 90 días;
