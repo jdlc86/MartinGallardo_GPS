@@ -34,6 +34,11 @@
     invalid_image:'No hemos podido usar esa imagen. Haz una foto nueva o selecciónala de nuevo.',
     invalid_image_size:'La imagen no tiene un tamaño válido. Haz una foto nueva con la cámara del teléfono.',
     invalid_file_size:'El archivo no tiene un tamaño válido. Selecciona otro archivo o vuelve a capturarlo.',
+    invalid_photo_slot:'No se ha podido identificar qué vista del vehículo corresponde a esta foto. Vuelve a intentarlo desde la sección de fotoverificación.',
+    photo_slot_already_filled:'Esa vista del vehículo ya tiene una foto. Si quieres repetirla, elimina primero la foto actual con la ✕.',
+    max_extra_photos_reached:'Ya has añadido las 10 fotos adicionales permitidas para este vehículo.',
+    max_state_photos_reached:'Ya has alcanzado el máximo de 20 fotos de estado del vehículo.',
+    missing_evidence:'Todavía faltan evidencias obligatorias. Completa las fotos o documentos marcados antes de finalizar la recogida.',
     provider_not_configured:'La verificación automática no está disponible temporalmente. Vuelve a intentarlo en unos minutos.',
     network_error:'No hay conexión suficiente con el sistema. Comprueba Internet y vuelve a intentarlo.'
   };
