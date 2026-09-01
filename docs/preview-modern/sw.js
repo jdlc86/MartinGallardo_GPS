@@ -1,4 +1,4 @@
-const CACHE='pmg-shell-v14';
+const CACHE='pmg-shell-v13';
 const CORE=['./','./index.html','./operations.html','./vehicles.html','./recent.html','./task-dispatch.html','./team-live.html','./gps-diagnostic.html','./vehicle-v7.html','./pickup.html','./delivery.html','./legal.html','./theme.css?v=9','./theme.js?v=8','./ux-errors.js?v=11','./access-runtime.js?v=7','./assignment-runtime.js?v=2','./guide-image.js?v=2','./notification-runtime.js?v=6','./offline-runtime.js?v=2','./offline.html','./assets/favicon.svg?v=1','./assets/martin-gallardo-logo.svg?v=3','./assets/fotoverificacion-guia.svg?v=4'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{const c=await caches.open(CACHE);await Promise.allSettled(CORE.map(u=>c.add(u)));await self.skipWaiting()})()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('pmg-shell-')&&k!==CACHE).map(k=>caches.delete(k)));await self.clients.claim()})()));
