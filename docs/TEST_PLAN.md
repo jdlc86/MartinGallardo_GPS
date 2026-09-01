@@ -41,6 +41,8 @@ Debe ver Equipo & Accesos y poder administrar excepto Root/self-change.
 
 Valor interno `owner`, etiqueta visible **Root**. Debe estar protegido frente a baja/degradación/modificación destructiva.
 
+Gestión de reservas debe permanecer oculta para Operario. Un acceso directo a la página o API debe ser rechazado por backend.
+
 ## 4. Solicitudes, altas y cambios de rol
 
 | Caso | Resultado esperado |
@@ -244,3 +246,45 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 16. group guard;
 17. informe controlado;
 18. advisors de seguridad.
+
+## 19. Gestión administrativa de reservas
+
+### Roles y permisos
+
+- Operario no ve la tarjeta y la API devuelve acceso denegado;
+- Root/Admin con Lectura puede consultar y buscar, pero no crear, editar, importar ni eliminar;
+- el titular ve **Lectura / Escritura** y puede mutar;
+- cada petición vuelve a comprobar rol activo, titular y época de escritura.
+
+### CRUD y búsqueda
+
+- alta manual con todos los campos;
+- modificación incrementa `version`;
+- actualización con versión antigua -> conflicto sin sobrescritura;
+- búsqueda por usuario, e-mail, teléfono, matrícula, marca/modelo, terminal o fecha;
+- borrado individual lógico conserva auditoría;
+- borrado masivo de hasta 200 filas es atómico;
+- reintento con la misma clave idempotente no duplica efectos.
+
+### Escritura exclusiva
+
+- Root es titular inicial;
+- Admin de Lectura solicita escritura y el titular recibe campana + Telegram;
+- aceptar transfiere el permiso, incrementa `epoch` e invalida pantallas antiguas;
+- rechazar conserva el titular;
+- el titular ofrece una transferencia y el destinatario debe aceptar/rechazar;
+- solicitudes pendientes caducan al cambiar el titular;
+- degradar o bloquear al titular recupera el permiso para otro administrador activo.
+
+### Importación con IA
+
+- acepta `.xlsx`, `.csv` y `.tsv` hasta 6 MB;
+- Gemini recibe solo encabezados saneados, nunca filas con datos personales;
+- fechas Mes-Día-Año se normalizan a fecha ISO;
+- Efectivo/Tarjeta se normalizan sin inventar valores;
+- previsualiza filas válidas e incidencias antes de guardar;
+- permite excluir filas válidas;
+- análisis caduca a las 2 horas;
+- reimportar exactamente el mismo archivo no duplica reservas;
+- commit comprueba de nuevo titular y `epoch`;
+- sin IA configurada, la importación se bloquea y el alta manual sigue disponible.

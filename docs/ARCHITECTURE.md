@@ -35,6 +35,7 @@ telegram-gateway
 
 Otras APIs Mini App:
 - telegram-modern-action
+- reservation-admin-api
 - modern-live-team-api
 - vehicle-consult-api
 - vehicle-share-api
@@ -85,6 +86,33 @@ Notificaciones:
 
 El valor interno `owner` se presenta siempre como **Root** en UI/mensajes.
 
+## `reservation-admin-api`
+
+Backend exclusivo de Root/Admin para la gestión de reservas y clientes.
+
+Responsabilidades:
+
+- validar `initData` de Telegram y volver a comprobar rol/estado en cada petición;
+- exponer consulta y búsqueda a todos los administradores activos;
+- permitir mutaciones solo al titular actual de **Lectura/Escritura**;
+- ejecutar altas, modificaciones, importaciones y borrados lógicos mediante funciones PostgreSQL transaccionales;
+- comprobar una época global de escritura y una versión por reserva;
+- gestionar solicitudes y transferencias de escritura con aceptación/rechazo;
+- crear avisos persistentes para la campana y entregarlos también por Telegram con reintentos;
+- analizar encabezados `.xlsx`, `.csv` y `.tsv` con Gemini antes de previsualizar la importación.
+
+Privacidad de la importación: Gemini recibe únicamente etiquetas de encabezado saneadas. Las filas con nombres, correos, teléfonos, matrículas, fechas y cobros se procesan dentro de la Edge Function y no se envían al proveedor de IA.
+
+### Concurrencia administrativa
+
+`parking_booking_write_state` mantiene un único titular y una `epoch` creciente.
+
+- una pantalla con una época antigua no puede escribir;
+- una transferencia no cambia el titular hasta que el destinatario acepta;
+- actualizar o borrar exige además la `version` vigente de la reserva;
+- el borrado masivo es atómico y lógico, preservando auditoría;
+- si el titular deja de ser Root/Admin activo, un trigger recupera el permiso para otro administrador activo e invalida las solicitudes pendientes.
+
 ## Backend heredado
 
 `telegram-entry`, `telegram-router3`, `telegram-bot`, routers/reset/diagnostics antiguos siguen desplegados por compatibilidad y por lógica histórica de acceso.
@@ -103,6 +131,7 @@ Centro inteligente con:
 - Vehículos;
 - Actividad reciente;
 - Equipo & Accesos **solo Root/Admin**;
+- Gestión de reservas **solo Root/Admin**;
 - Equipo en vivo;
 - GPS Pro · Diagnóstico;
 - Expediente 360º.
@@ -260,6 +289,14 @@ Identidad de dominio usada por eventos/evidencias. Coexiste con `telegram_users`
 - `worker_live_locations`
 - `worker_daily_presence`
 - `performance_report_dispatches`
+- `parking_bookings`
+- `parking_booking_write_state`
+- `parking_booking_permission_requests`
+- `parking_booking_notifications`
+- `parking_booking_import_analyses`
+- `parking_booking_import_batches`
+- `parking_booking_admin_events`
+- `parking_booking_command_dedup`
 
 `telegram_conversation_sessions` queda como compatibilidad de backend.
 

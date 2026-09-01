@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08111f">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=1">
+  <link rel="stylesheet" href="theme.css?v=9" data-pmg-theme>
+  <script src="theme.js?v=8" data-pmg-theme></script>
+  <script src="ux-errors.js?v=6"></script>
+  <title>Gestión de reservas · ParkingMartin-G</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:var(--pmg-bg);color:var(--pmg-text);font-family:Inter,system-ui,-apple-system,sans-serif}
+    button,input,select{font:inherit}
+    button{border:0}
+    .app{width:min(100%,1180px);margin:auto;padding:calc(24px + env(safe-area-inset-top)) 18px calc(44px + env(safe-area-inset-bottom))}
+    .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-right:104px}
+    .ey{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--pmg-accent-text);font-weight:900}
+    h1{font-size:clamp(28px,5vw,42px);line-height:1;margin:7px 0 8px;letter-spacing:-.045em}
+    .lead{max-width:700px;color:var(--pmg-muted);font-size:14px;line-height:1.5}
+    .head-actions{display:flex;gap:9px;align-items:center;margin-top:10px}
+    .icon-btn{position:relative;width:44px;height:44px;display:grid;place-items:center;border-radius:14px;background:var(--pmg-surface);color:var(--pmg-text);border:1px solid var(--pmg-border);font-size:20px}
+    .bell-count{position:absolute;right:-5px;top:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;display:grid;place-items:center;background:var(--pmg-danger);color:#fff;font-size:10px;font-weight:950;border:2px solid var(--pmg-bg)}
+    .permission-card{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:20px;padding:15px 17px;border-radius:20px;background:var(--pmg-surface);border:1px solid var(--pmg-border);box-shadow:var(--pmg-card-shadow)}
+    .permission-main{display:flex;align-items:center;gap:12px;min-width:0}
+    .permission-icon{width:42px;height:42px;flex:0 0 auto;border-radius:14px;display:grid;place-items:center;background:var(--pmg-soft);font-size:20px}
+    .permission-copy{min-width:0}
+    .permission-copy b{display:block;font-size:14px}
+    .permission-copy span{display:block;margin-top:3px;color:var(--pmg-muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .permission-badge{flex:0 0 auto;padding:8px 10px;border-radius:999px;font-size:10px;font-weight:950;letter-spacing:.04em}
+    .permission-badge.write{background:var(--pmg-success-soft);color:var(--pmg-success-text)}
+    .permission-badge.read{background:var(--pmg-info-soft);color:var(--pmg-info-text)}
+    .dashboard{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+    .metric{padding:16px;border-radius:18px;background:var(--pmg-surface);border:1px solid var(--pmg-border)}
+    .metric b{display:block;font-size:24px;line-height:1}
+    .metric span{display:block;margin-top:6px;color:var(--pmg-muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:800}
+    .toolbar{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;gap:9px;margin-top:18px}
+    .searchbox{position:relative}
+    .searchbox input{width:100%;height:48px;padding:0 46px 0 16px;border-radius:15px;border:1px solid var(--pmg-border);background:var(--pmg-input);color:var(--pmg-text)}
+    .searchbox span{position:absolute;right:16px;top:50%;transform:translateY(-50%);opacity:.66}
+    .btn{min-height:46px;padding:0 16px;border-radius:14px;background:var(--pmg-accent);color:#fff;font-weight:900;font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+    .btn.secondary{background:var(--pmg-soft);color:var(--pmg-text);border:1px solid var(--pmg-border)}
+    .btn.danger{background:#7f1d1d;color:#fff}
+    .btn.small{min-height:36px;padding:0 11px;border-radius:11px;font-size:10px}
+    .bulkbar{display:none;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:12px 14px;border-radius:16px;background:var(--pmg-info-soft);border:1px solid var(--pmg-info-border)}
+    .bulkbar.on{display:flex}
+    .bulkbar b{font-size:12px}
+    .bulk-actions{display:flex;gap:7px}
+    .state{margin-top:16px;padding:18px;border-radius:18px;background:var(--pmg-surface);border:1px solid var(--pmg-border);color:var(--pmg-muted);text-align:center}
+    .state.err{color:var(--pmg-danger-text);background:var(--pmg-danger-soft);border-color:color-mix(in srgb,var(--pmg-danger) 36%,transparent)}
+    .list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 1px 10px}
+    .list-head h2{font-size:15px;margin:0}
+    .list-head span{color:var(--pmg-muted);font-size:11px}
+    .booking-list{display:grid;gap:9px}
+    .booking{display:grid;grid-template-columns:34px minmax(175px,1.25fr) minmax(160px,1fr) minmax(130px,.85fr) minmax(105px,.65fr) auto;gap:13px;align-items:center;padding:15px;border-radius:19px;background:var(--pmg-surface);border:1px solid var(--pmg-border);box-shadow:var(--pmg-card-shadow)}
+    .check{width:22px;height:22px;accent-color:var(--pmg-accent)}
+    .cell{min-width:0}
+    .cell-label{display:block;color:var(--pmg-muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:850;margin-bottom:4px}
+    .cell b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cell small{display:block;color:var(--pmg-muted);font-size:10px;line-height:1.35;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .plate{font-size:16px!important;letter-spacing:.04em}
+    .price{font-size:16px!important}
+    .row-actions{display:flex;gap:6px}
+    .action-btn{width:36px;height:36px;border-radius:11px;background:var(--pmg-soft);color:var(--pmg-text);border:1px solid var(--pmg-border)}
+    .empty{padding:34px 18px;border-radius:20px;background:var(--pmg-surface);border:1px dashed var(--pmg-border);text-align:center;color:var(--pmg-muted)}
+    .back{width:100%;margin-top:20px;min-height:46px;border-radius:14px;border:1px solid var(--pmg-border);background:var(--pmg-surface);color:var(--pmg-text);font-weight:850}
+    .overlay{position:fixed;inset:0;z-index:50;display:none;align-items:flex-end;background:var(--pmg-overlay);padding-top:env(safe-area-inset-top)}
+    .overlay.on{display:flex}
+    .modal{width:min(100%,760px);max-height:94vh;overflow:auto;margin:0 auto;background:var(--pmg-surface);border:1px solid var(--pmg-border);border-radius:26px 26px 0 0;padding:20px 18px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -22px 70px var(--pmg-shadow)}
+    .modal.wide{width:min(100%,940px)}
+    .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:17px}
+    .modal-head h2{font-size:22px;margin:4px 0 0}
+    .close{width:38px;height:38px;border-radius:12px;background:var(--pmg-soft);color:var(--pmg-text);font-size:20px;border:1px solid var(--pmg-border)}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .field{min-width:0}
+    .field.full{grid-column:1/-1}
+    .field label{display:block;margin:0 0 6px;color:var(--pmg-muted);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}
+    .field input,.field select{width:100%;height:46px;border-radius:13px;border:1px solid var(--pmg-border);background:var(--pmg-input);color:var(--pmg-text);padding:0 12px}
+    .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:17px}
+    .permission-box{padding:16px;border-radius:18px;background:var(--pmg-soft);border:1px solid var(--pmg-border)}
+    .permission-box p{margin:6px 0 0;color:var(--pmg-muted);font-size:12px;line-height:1.5}
+    .transfer-grid{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:14px}
+    .transfer-grid select{height:46px;border-radius:13px;border:1px solid var(--pmg-border);background:var(--pmg-input);color:var(--pmg-text);padding:0 12px}
+    .notice-list{display:grid;gap:9px}
+    .notice{padding:14px;border-radius:17px;background:var(--pmg-soft);border:1px solid var(--pmg-border)}
+    .notice.unread{border-color:var(--pmg-info-border);background:var(--pmg-info-soft)}
+    .notice b{display:block;font-size:13px}
+    .notice p{margin:5px 0 0;color:var(--pmg-muted);font-size:11px;line-height:1.45}
+    .notice time{display:block;margin-top:7px;color:var(--pmg-muted);font-size:9px}
+    .request-card{padding:15px;border-radius:18px;background:var(--pmg-warning-soft);border:1px solid color-mix(in srgb,var(--pmg-warning) 28%,transparent);margin-bottom:10px}
+    .request-card b{font-size:13px}
+    .request-card p{margin:5px 0 10px;color:var(--pmg-muted);font-size:11px}
+    .request-actions{display:flex;gap:7px}
+    .upload{padding:24px 16px;border-radius:19px;border:1px dashed var(--pmg-border);background:var(--pmg-soft);text-align:center}
+    .upload-icon{font-size:34px}
+    .upload b{display:block;margin-top:8px}
+    .upload p{margin:5px auto 13px;max-width:520px;color:var(--pmg-muted);font-size:11px;line-height:1.5}
+    .file-name{margin-top:9px;color:var(--pmg-accent-text);font-size:11px;font-weight:800}
+    .ai-note{margin-top:12px;padding:12px 14px;border-radius:15px;background:var(--pmg-info-soft);color:var(--pmg-info-text);font-size:11px;line-height:1.5}
+    .import-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+    .import-stat{padding:12px;border-radius:15px;background:var(--pmg-soft);text-align:center}
+    .import-stat b{display:block;font-size:19px}.import-stat span{display:block;color:var(--pmg-muted);font-size:9px;margin-top:4px}
+    .preview-list{display:grid;gap:7px;margin-top:12px;max-height:330px;overflow:auto}
+    .preview-row{display:grid;grid-template-columns:26px 52px 1fr 100px;gap:9px;align-items:center;padding:11px;border-radius:14px;background:var(--pmg-soft);border:1px solid var(--pmg-border)}
+    .preview-row b{font-size:11px}.preview-row small{display:block;color:var(--pmg-muted);font-size:9px;margin-top:2px}.preview-row .price{text-align:right}
+    .issues{margin-top:12px;padding:13px;border-radius:15px;background:var(--pmg-danger-soft);color:var(--pmg-danger-text);font-size:10px;line-height:1.5}
+    .warnings{margin-top:12px;padding:13px;border-radius:15px;background:var(--pmg-warning-soft);color:var(--pmg-warning-text);font-size:10px;line-height:1.5}
+    .toast{position:fixed;z-index:90;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,18px);opacity:0;pointer-events:none;max-width:calc(100% - 32px);padding:12px 15px;border-radius:14px;background:var(--pmg-toast-bg);color:var(--pmg-toast-text);font-size:11px;box-shadow:0 10px 34px var(--pmg-shadow);transition:.2s}
+    .toast.on{opacity:1;transform:translate(-50%,0)}
+    .busy{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;background:var(--pmg-overlay);padding:20px}
+    .busy.on{display:flex}
+    .busy-card{width:min(100%,360px);padding:24px;border-radius:22px;background:var(--pmg-surface);border:1px solid var(--pmg-border);text-align:center;box-shadow:0 24px 80px var(--pmg-shadow)}
+    .spinner{width:34px;height:34px;margin:0 auto 12px;border:3px solid var(--pmg-track);border-top-color:var(--pmg-accent);border-radius:50%;animation:spin .8s linear infinite}
+    .busy-card b{font-size:14px}.busy-card p{margin:6px 0 0;color:var(--pmg-muted);font-size:11px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:900px){.booking{grid-template-columns:30px 1.25fr 1fr .8fr auto}.booking .payment-cell{display:none}.dashboard{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:640px){.app{padding-top:calc(54px + env(safe-area-inset-top));padding-left:13px;padding-right:13px}.topbar{padding-right:0;align-items:flex-start}.lead{font-size:12px}.head-actions{margin-top:0}.permission-card{align-items:flex-start}.permission-badge{margin-top:3px}.toolbar{grid-template-columns:1fr 1fr}.searchbox{grid-column:1/-1}.toolbar .btn{width:100%}.booking{grid-template-columns:27px minmax(0,1fr) auto;gap:10px;padding:14px}.booking .customer-cell,.booking .vehicle-cell,.booking .payment-cell{grid-column:2/-1}.booking .row-actions{grid-column:3;grid-row:1/3;flex-direction:column}.booking .trip-cell{grid-column:2}.booking .customer-cell{grid-row:3}.booking .vehicle-cell{grid-row:4}.booking .payment-cell{display:block;grid-row:5}.booking .check{grid-column:1;grid-row:1}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.modal-actions{flex-direction:column-reverse}.modal-actions .btn{width:100%}.transfer-grid{grid-template-columns:1fr}.preview-row{grid-template-columns:24px 42px 1fr}.preview-row .price{grid-column:3;text-align:left}.bulkbar{align-items:flex-start;flex-direction:column}.bulk-actions{width:100%}.bulk-actions .btn{flex:1}.import-summary{grid-template-columns:1fr 1fr}.import-summary .import-stat:last-child{grid-column:1/-1}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <div class="ey">Administración · Reservas</div>
+        <h1>Gestión de reservas</h1>
+        <div class="lead">Entradas, clientes, vehículos y cobros en una vista protegida frente a cambios simultáneos.</div>
+      </div>
+      <div class="head-actions">
+        <button id="bell" class="icon-btn" aria-label="Notificaciones">🔔<span id="bellCount" class="bell-count" hidden>0</span></button>
+      </div>
+    </header>
+
+    <section id="permissionCard" class="permission-card" hidden>
+      <div class="permission-main">
+        <div id="permissionIcon" class="permission-icon">👁️</div>
+        <div class="permission-copy"><b id="permissionTitle">Lectura</b><span id="permissionSubtitle">Consultando permiso actual…</span></div>
+      </div>
+      <button id="permissionButton" class="permission-badge read">LECTURA</button>
+    </section>
+
+    <section class="dashboard">
+      <div class="metric"><b id="statActive">—</b><span>Reservas activas</span></div>
+      <div class="metric"><b id="statToday">—</b><span>Recogidas hoy</span></div>
+      <div class="metric"><b id="statUpcoming">—</b><span>Próximas</span></div>
+      <div class="metric"><b id="statImported">—</b><span>Importadas con IA</span></div>
+    </section>
+
+    <section class="toolbar">
+      <label class="searchbox"><input id="search" type="search" placeholder="Buscar usuario, matrícula, teléfono, e-mail…" autocomplete="off"><span>⌕</span></label>
+      <button id="importButton" class="btn secondary">✨ Importar Excel</button>
+      <button id="createButton" class="btn">＋ Nueva entrada</button>
+    </section>
+
+    <section id="bulkbar" class="bulkbar">
+      <b><span id="selectedCount">0</span> entradas seleccionadas</b>
+      <div class="bulk-actions"><button id="clearSelection" class="btn secondary small">Cancelar</button><button id="deleteSelected" class="btn danger small">Eliminar</button></div>
+    </section>
+
+    <div id="state" class="state">Cargando reservas…</div>
+    <section id="content" hidden>
+      <div class="list-head"><h2>Reservas</h2><span id="resultCount">0 resultados</span></div>
+      <div id="bookingList" class="booking-list"></div>
+      <button id="back" class="back">← Volver al inicio</button>
+    </section>
+  </main>
+
+  <div id="formOverlay" class="overlay" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+      <div class="modal-head"><div><div class="ey">Entrada individual</div><h2 id="formTitle">Nueva reserva</h2></div><button class="close" data-close="formOverlay" aria-label="Cerrar">×</button></div>
+      <form id="bookingForm">
+        <div class="form-grid">
+          <div class="field"><label for="pickupDate">Fecha recogida</label><input id="pickupDate" name="pickup_date" type="date" required></div>
+          <div class="field"><label for="pickupTime">Hora recogida</label><input id="pickupTime" name="pickup_time" type="time" required></div>
+          <div class="field full"><label for="pickupTerminal">Terminal de recogida</label><input id="pickupTerminal" name="pickup_terminal" list="terminals" maxlength="120" required></div>
+          <div class="field"><label for="returnDate">Fecha de regreso</label><input id="returnDate" name="return_date" type="date" required></div>
+          <div class="field"><label for="returnTime">Hora regreso</label><input id="returnTime" name="return_time" type="time" required></div>
+          <div class="field full"><label for="returnTerminal">Terminal de regreso</label><input id="returnTerminal" name="return_terminal" list="terminals" maxlength="120" required></div>
+          <div class="field"><label for="customerName">Usuario</label><input id="customerName" name="customer_name" maxlength="180" required></div>
+          <div class="field"><label for="customerEmail">E-mail</label><input id="customerEmail" name="customer_email" type="email" maxlength="254"></div>
+          <div class="field"><label for="customerPhone">Teléfono</label><input id="customerPhone" name="customer_phone" type="tel" maxlength="80"></div>
+          <div class="field"><label for="vehiclePlate">Matrícula</label><input id="vehiclePlate" name="vehicle_plate" maxlength="24" autocapitalize="characters" required></div>
+          <div class="field full"><label for="vehicleModel">Marca y modelo</label><input id="vehicleModel" name="vehicle_make_model" maxlength="180"></div>
+          <div class="field"><label for="price">Precio € · IVA incluido</label><input id="price" name="price_eur" type="number" min="0" step="0.01" inputmode="decimal" required></div>
+          <div class="field"><label for="payment">Forma de pago</label><select id="payment" name="payment_method" required><option value="cash">Efectivo</option><option value="credit_card">Tarjeta de crédito</option></select></div>
+        </div>
+        <div class="modal-actions"><button type="button" class="btn secondary" data-close="formOverlay">Cancelar</button><button id="saveBooking" type="submit" class="btn">Guardar entrada</button></div>
+      </form>
+      <datalist id="terminals"><option value="Terminal 1"><option value="Terminal 2"><option value="Terminal 3"><option value="Terminal 4"><option value="Terminal 4S"></datalist>
+    </section>
+  </div>
+
+  <div id="permissionOverlay" class="overlay" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="permissionModalTitle">
+      <div class="modal-head"><div><div class="ey">Control de concurrencia</div><h2 id="permissionModalTitle">Permiso de gestión</h2></div><button class="close" data-close="permissionOverlay" aria-label="Cerrar">×</button></div>
+      <div id="permissionModalBody"></div>
+    </section>
+  </div>
+
+  <div id="notificationOverlay" class="overlay" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
+      <div class="modal-head"><div><div class="ey">Centro de avisos</div><h2 id="notificationTitle">Notificaciones</h2></div><button class="close" data-close="notificationOverlay" aria-label="Cerrar">×</button></div>
+      <div id="pendingRequestList"></div>
+      <div class="modal-actions" style="margin:0 0 12px"><button id="markRead" class="btn secondary small">Marcar todo como leído</button></div>
+      <div id="notificationList" class="notice-list"></div>
+    </section>
+  </div>
+
+  <div id="importOverlay" class="overlay" aria-hidden="true">
+    <section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+      <div class="modal-head"><div><div class="ey">Importación asistida</div><h2 id="importTitle">Importar con IA</h2></div><button class="close" data-close="importOverlay" aria-label="Cerrar">×</button></div>
+      <div class="upload">
+        <div class="upload-icon">📊</div><b>Selecciona el archivo de reservas</b>
+        <p>La IA identifica las columnas del Excel. Después podrás revisar y excluir filas antes de guardar.</p>
+        <button id="chooseFile" class="btn secondary" type="button">Elegir .xlsx, .csv o .tsv</button>
+        <input id="importFile" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values" hidden>
+        <div id="fileName" class="file-name"></div>
+      </div>
+      <div class="ai-note">✨ Privacidad: Gemini recibe únicamente los nombres de las columnas. Las filas con clientes, teléfonos, matrículas y pagos se procesan dentro del backend y no se envían a la IA. Nada se guarda hasta que confirmes.</div>
+      <div id="importResult" hidden>
+        <div class="import-summary"><div class="import-stat"><b id="validCount">0</b><span>FILAS VÁLIDAS</span></div><div class="import-stat"><b id="invalidCount">0</b><span>CON INCIDENCIAS</span></div><div class="import-stat"><b id="importSelectedCount">0</b><span>SELECCIONADAS</span></div></div>
+        <div id="importWarnings" class="warnings" hidden></div>
+        <div id="importPreview" class="preview-list"></div>
+        <div id="importIssues" class="issues" hidden></div>
+        <div class="modal-actions"><button id="cancelImport" type="button" class="btn secondary">Cancelar</button><button id="commitImport" type="button" class="btn">Importar seleccionadas</button></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <div id="busy" class="busy"><div class="busy-card"><div class="spinner"></div><b id="busyTitle">Procesando…</b><p id="busyText">Espera un momento.</p></div></div>
+
+  <script>
+    (function(){
+      var tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
+      var API='https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservation-admin-api';
+      var data=null,selected=new Map(),editing=null,analysis=null,searchTimer=null,refreshTimer=null,toastTimer=null;
+      var $=function(id){return document.getElementById(id)};
+      function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+      function friendly(value){return window.PMGFriendlyError?window.PMGFriendlyError(value):String(value||'No se pudo completar la operación.')}
+      function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').classList.add('on');toastTimer=setTimeout(function(){$('toast').classList.remove('on')},2800)}
+      function busy(on,title,text){$('busy').classList.toggle('on',on);if(title)$('busyTitle').textContent=title;if(text)$('busyText').textContent=text}
+      function uuid(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();return'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&3|8);return v.toString(16)})}
+      function pulse(type){try{if(type)tg&&tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred(type);else tg&&tg.HapticFeedback&&tg.HapticFeedback.selectionChanged()}catch(e){}}
+      async function api(action,extra){
+        if(!tg||!tg.initData)throw new Error('missing_user');
+        var body={initData:tg.initData,action:action};if(extra)Object.keys(extra).forEach(function(key){body[key]=extra[key]});
+        var response;try{response=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}catch(error){throw new Error('network_error')}
+        var text=await response.text(),payload;try{payload=JSON.parse(text)}catch(error){throw new Error('invalid_server_response')}
+        if(!response.ok||!payload.ok)throw new Error(payload.error||'network_error');return payload;
+      }
+      function canWrite(){return !!(data&&data.permission&&data.permission.can_write)}
+      function epoch(){return Number(data&&data.permission?data.permission.epoch:0)}
+      function formatDate(value){if(!value)return'—';var parts=String(value).slice(0,10).split('-');return parts.length===3?parts[2]+'/'+parts[1]+'/'+parts[0]:value}
+      function formatTime(value){return value?String(value).slice(0,5):'—'}
+      function money(value){return Number(value||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'})}
+      function dateTime(value){return value?new Date(value).toLocaleString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—'}
+      function paymentLabel(value){return value==='cash'?'Efectivo':'Tarjeta de crédito'}
+      function setState(message,error){$('state').hidden=false;$('state').className=error?'state err':'state';$('state').textContent=error?friendly(message):message}
+      function openOverlay(id){$(id).classList.add('on');$(id).setAttribute('aria-hidden','false')}
+      function closeOverlay(id){$(id).classList.remove('on');$(id).setAttribute('aria-hidden','true')}
+      function renderPermission(){
+        var permission=data.permission,write=permission.can_write;
+        $('permissionCard').hidden=false;$('permissionIcon').textContent=write?'✍️':'👁️';
+        $('permissionTitle').textContent=write?'Lectura / Escritura':'Solo lectura';
+        $('permissionSubtitle').textContent=write?'Tienes el control exclusivo de los cambios.':'Escribe ahora: '+(permission.holder_name||'Sin titular');
+        $('permissionButton').textContent=write?'LECTURA / ESCRITURA':'LECTURA';$('permissionButton').className='permission-badge '+(write?'write':'read');
+        $('createButton').disabled=!write;$('importButton').disabled=!write||!data.ai_import_available;$('importButton').title=data.ai_import_available?'Importar Excel con IA':'La importación con IA no está configurada';
+      }
+      function renderStats(){var stats=data.stats||{};$('statActive').textContent=stats.active||0;$('statToday').textContent=stats.today||0;$('statUpcoming').textContent=stats.upcoming||0;$('statImported').textContent=stats.imported||0}
+      function bookingHtml(item){
+        var checked=selected.has(item.id)?' checked':'',disabled=canWrite()?'':' disabled';
+        return '<article class="booking" data-id="'+esc(item.id)+'"><input class="check row-check" type="checkbox" aria-label="Seleccionar reserva"'+checked+disabled+'>'+
+          '<div class="cell trip-cell"><span class="cell-label">Recogida → regreso</span><b>'+esc(formatDate(item.pickup_date))+' · '+esc(formatTime(item.pickup_time))+' · '+esc(item.pickup_terminal)+'</b><small>'+esc(formatDate(item.return_date))+' · '+esc(formatTime(item.return_time))+' · '+esc(item.return_terminal)+'</small></div>'+
+          '<div class="cell customer-cell"><span class="cell-label">Usuario</span><b>'+esc(item.customer_name)+'</b><small>'+esc(item.customer_phone||item.customer_email||'Sin contacto')+'</small></div>'+
+          '<div class="cell vehicle-cell"><span class="cell-label">Vehículo</span><b class="plate">'+esc(item.vehicle_plate)+'</b><small>'+esc(item.vehicle_make_model||'Marca/modelo sin indicar')+'</small></div>'+
+          '<div class="cell payment-cell"><span class="cell-label">Cobro</span><b class="price">'+esc(money(item.price_eur))+'</b><small>'+esc(paymentLabel(item.payment_method))+'</small></div>'+
+          '<div class="row-actions"><button class="action-btn edit-btn" aria-label="Editar" title="Editar"'+disabled+'>✎</button><button class="action-btn delete-btn" aria-label="Eliminar" title="Eliminar"'+disabled+'>⌫</button></div></article>';
+      }
+      function renderList(){
+        var rows=data.reservations||[];$('resultCount').textContent=(data.total||0)+' resultado'+(Number(data.total)===1?'':'s');
+        $('bookingList').innerHTML=rows.length?rows.map(bookingHtml).join(''):'<div class="empty">No hay reservas que coincidan con la búsqueda.</div>';
+        Array.prototype.forEach.call(document.querySelectorAll('.booking'),function(card){
+          var id=card.getAttribute('data-id'),item=rows.find(function(row){return row.id===id});
+          var check=card.querySelector('.row-check');if(check)check.onchange=function(){if(this.checked)selected.set(id,{id:id,version:Number(item.version)});else selected.delete(id);renderBulk()};
+          var edit=card.querySelector('.edit-btn');if(edit)edit.onclick=function(){openForm(item)};
+          var del=card.querySelector('.delete-btn');if(del)del.onclick=function(){deleteItems([{id:item.id,version:Number(item.version)}])};
+        });
+        renderBulk();
+      }
+      function renderBulk(){var count=selected.size;$('selectedCount').textContent=count;$('bulkbar').classList.toggle('on',count>0)}
+      function renderNotifications(){
+        var unread=Number(data.unread_count||0);$('bellCount').hidden=unread<1;$('bellCount').textContent=unread>99?'99+':unread;
+        var pending=data.pending_requests||[];$('pendingRequestList').innerHTML=pending.map(function(request){
+          var copy=request.request_kind==='transfer'?'<b>Transferencia pendiente</b><p>'+esc(request.requester_name)+' quiere transferirte Lectura/Escritura.</p>':'<b>Solicitud pendiente</b><p>'+esc(request.requester_name)+' solicita Lectura/Escritura.</p>';
+          return '<div class="request-card" data-request="'+esc(request.id)+'">'+copy+'<div class="request-actions"><button class="btn small accept-request">Aceptar</button><button class="btn secondary small reject-request">Rechazar</button></div></div>';
+        }).join('');
+        Array.prototype.forEach.call(document.querySelectorAll('[data-request]'),function(card){var id=card.getAttribute('data-request');card.querySelector('.accept-request').onclick=function(){respondPermission(id,'accept')};card.querySelector('.reject-request').onclick=function(){respondPermission(id,'reject')}});
+        var notices=data.notifications||[];$('notificationList').innerHTML=notices.length?notices.map(function(notice){return '<div class="notice '+(notice.read_at?'':'unread')+'"><b>'+esc(notice.title)+'</b><p>'+esc(notice.body)+'</p><time>'+esc(dateTime(notice.created_at))+'</time></div>'}).join(''):'<div class="empty">No tienes notificaciones.</div>';
+      }
+      function render(){renderPermission();renderStats();renderList();renderNotifications();$('state').hidden=true;$('content').hidden=false}
+      async function load(silent){
+        try{if(!silent)setState('Cargando reservas…',false);var response=await api('dashboard',{query:$('search').value.trim(),limit:200,offset:0});data=response;if(!silent)selected.clear();else Array.from(selected.keys()).forEach(function(id){if(!(data.reservations||[]).some(function(row){return row.id===id}))selected.delete(id)});render()}
+        catch(error){if(!silent)setState(error.message,true);else toast(friendly(error.message))}
+      }
+      function formEntry(){var form=new FormData($('bookingForm')),entry={};form.forEach(function(value,key){entry[key]=String(value).trim()});entry.vehicle_plate=entry.vehicle_plate.toUpperCase();entry.price_eur=Number(entry.price_eur);return entry}
+      function openForm(item){
+        if(!canWrite())return openPermission();editing=item||null;$('bookingForm').reset();$('payment').value='cash';
+        if(item){$('formTitle').textContent='Editar reserva';$('saveBooking').textContent='Actualizar entrada';['pickup_date','pickup_time','pickup_terminal','return_date','return_time','return_terminal','customer_name','customer_email','customer_phone','vehicle_plate','vehicle_make_model','price_eur','payment_method'].forEach(function(key){var input=$('bookingForm').elements[key];if(input)input.value=item[key]==null?'':String(item[key]).slice(0,key.indexOf('time')>=0?5:999)})}
+        else{$('formTitle').textContent='Nueva reserva';$('saveBooking').textContent='Guardar entrada'}openOverlay('formOverlay');setTimeout(function(){$('pickupDate').focus()},80);
+      }
+      async function saveForm(event){
+        event.preventDefault();if(!canWrite())return openPermission();var entry=formEntry();
+        try{busy(true,editing?'Actualizando reserva…':'Guardando reserva…','El cambio se registrará con tu identidad.');
+          if(editing)await api('update',{writer_epoch:epoch(),idempotency_key:uuid(),booking_id:editing.id,expected_version:Number(editing.version),entry:entry});
+          else await api('create',{writer_epoch:epoch(),idempotency_key:uuid(),entry:entry});
+          closeOverlay('formOverlay');editing=null;pulse('success');toast('Reserva guardada');await load(true)
+        }catch(error){pulse('error');toast(friendly(error.message));if(/permission|conflict/.test(error.message))await load(true)}finally{busy(false)}
+      }
+      async function deleteItems(items){
+        if(!canWrite())return openPermission();if(!window.confirm('¿Eliminar '+items.length+' entrada'+(items.length===1?'':'s')+'? Se conservará el historial de auditoría.'))return;
+        try{busy(true,'Eliminando entradas…','La operación es atómica: se elimina todo o no se cambia nada.');await api('delete_many',{writer_epoch:epoch(),idempotency_key:uuid(),items:items});selected.clear();pulse('success');toast(items.length===1?'Entrada eliminada':'Entradas eliminadas');await load(true)}
+        catch(error){pulse('error');toast(friendly(error.message));await load(true)}finally{busy(false)}
+      }
+      function openPermission(){
+        if(!data)return;var permission=data.permission,html='';
+        if(permission.can_write){
+          var admins=(data.admins||[]).filter(function(admin){return Number(admin.telegram_user_id)!==Number(data.me.telegram_user_id)});
+          html='<div class="permission-box"><b>Ahora tienes Lectura / Escritura</b><p>Eres la única persona que puede crear, actualizar, importar o eliminar. La transferencia solo se completa cuando el otro administrador la acepta.</p></div>';
+          if(admins.length)html+='<div class="transfer-grid"><select id="transferTarget">'+admins.map(function(admin){return'<option value="'+admin.telegram_user_id+'">'+esc(admin.name)+(admin.is_root?' · Root':' · Admin')+'</option>'}).join('')+'</select><button id="transferButton" class="btn">Transferir permiso</button></div>';
+        }else{
+          var outgoing=data.outgoing_requests||[];
+          html='<div class="permission-box"><b>Tu permiso actual es Lectura</b><p>Puedes consultar y buscar. Para modificar datos, '+esc(permission.holder_name)+' debe aceptar tu solicitud.</p></div>';
+          html+=outgoing.length?'<div class="state">Solicitud enviada a '+esc(outgoing[0].recipient_name)+'. Esperando respuesta.</div>':'<div class="modal-actions"><button id="requestWriteButton" class="btn">Solicitar Lectura / Escritura</button></div>';
+        }
+        $('permissionModalBody').innerHTML=html;openOverlay('permissionOverlay');
+        var request=$('requestWriteButton');if(request)request.onclick=requestWrite;var transfer=$('transferButton');if(transfer)transfer.onclick=offerTransfer;
+      }
+      async function requestWrite(){try{busy(true,'Enviando solicitud…','El titular recibirá un aviso en Telegram y en la campana.');await api('request_write',{idempotency_key:uuid()});closeOverlay('permissionOverlay');pulse('success');toast('Solicitud enviada');await load(true)}catch(error){pulse('error');toast(friendly(error.message))}finally{busy(false)}}
+      async function offerTransfer(){var target=Number($('transferTarget').value);if(!target)return;try{busy(true,'Enviando transferencia…','El otro administrador deberá aceptarla.');await api('offer_transfer',{writer_epoch:epoch(),target_telegram_user_id:target,idempotency_key:uuid()});closeOverlay('permissionOverlay');pulse('success');toast('Transferencia enviada');await load(true)}catch(error){pulse('error');toast(friendly(error.message));await load(true)}finally{busy(false)}}
+      async function respondPermission(requestId,decision){try{busy(true,decision==='accept'?'Aceptando permiso…':'Rechazando solicitud…','Actualizando el control de escritura.');var response=await api('respond_permission',{request_id:requestId,decision:decision,idempotency_key:uuid()});if(response.error)throw new Error(response.error);pulse('success');toast(decision==='accept'?'Permiso actualizado':'Solicitud rechazada');await load(true);renderNotifications()}catch(error){pulse('error');toast(friendly(error.message));await load(true)}finally{busy(false)}}
+      async function markRead(){var ids=(data.notifications||[]).filter(function(item){return!item.read_at}).map(function(item){return Number(item.id)});if(!ids.length)return toast('No hay avisos sin leer');try{await api('mark_notifications_read',{notification_ids:ids});await load(true);renderNotifications()}catch(error){toast(friendly(error.message))}}
+      function resetImport(){analysis=null;$('importFile').value='';$('fileName').textContent='';$('importResult').hidden=true;$('importPreview').innerHTML='';$('importWarnings').hidden=true;$('importIssues').hidden=true}
+      function fileBase64(file){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=function(){var bytes=new Uint8Array(reader.result),chunk=0x8000,binary='';for(var i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));resolve(btoa(binary))};reader.onerror=function(){reject(new Error('invalid_import_file'))};reader.readAsArrayBuffer(file)})}
+      async function analyzeFile(file){
+        if(!canWrite())return openPermission();if(!file)return;if(file.size>6000000)return toast(friendly('invalid_import_file_size'));
+        $('fileName').textContent=file.name;try{busy(true,'La IA está leyendo el Excel…','Identificando encabezados, fechas, clientes, matrículas y forma de pago.');var base64=await fileBase64(file);analysis=await api('analyze_import',{writer_epoch:epoch(),file_name:file.name,mime_type:file.type||'application/octet-stream',file_base64:base64});renderImport();pulse('success')}
+        catch(error){analysis=null;pulse('error');toast(friendly(error.message));if(/permission/.test(error.message))await load(true)}finally{busy(false)}
+      }
+      function renderImport(){
+        var valid=analysis.valid_rows||[],invalid=analysis.invalid_rows||[];$('importResult').hidden=false;$('validCount').textContent=valid.length;$('invalidCount').textContent=invalid.length;$('importSelectedCount').textContent=valid.length;
+        $('importPreview').innerHTML=valid.length?valid.map(function(row){return'<label class="preview-row"><input class="check import-check" type="checkbox" value="'+row.source_row+'" checked><b>Fila '+row.source_row+'</b><span><b>'+esc(row.customer_name)+' · '+esc(row.vehicle_plate)+'</b><small>'+esc(formatDate(row.pickup_date))+' '+esc(formatTime(row.pickup_time))+' → '+esc(formatDate(row.return_date))+'</small></span><b class="price">'+esc(money(row.price_eur))+'</b></label>'}).join(''):'<div class="empty">No se encontraron filas válidas.</div>';
+        Array.prototype.forEach.call(document.querySelectorAll('.import-check'),function(check){check.onchange=updateImportSelected});
+        var warnings=analysis.warnings||[];$('importWarnings').hidden=!warnings.length;$('importWarnings').innerHTML=warnings.length?'<b>Observaciones de la IA</b><br>'+warnings.map(esc).join('<br>'):'';
+        $('importIssues').hidden=!invalid.length;$('importIssues').innerHTML=invalid.length?'<b>Filas no importables</b><br>'+invalid.slice(0,30).map(function(row){return'Fila '+row.source_row+': '+esc((row.issues||[]).join(', '))}).join('<br>'):'';
+        $('commitImport').disabled=!valid.length;updateImportSelected();
+      }
+      function updateImportSelected(){var checks=Array.prototype.slice.call(document.querySelectorAll('.import-check')),count=checks.filter(function(check){return check.checked}).length;$('importSelectedCount').textContent=count;$('commitImport').disabled=count<1}
+      async function commitImport(){var selectedRows=Array.prototype.slice.call(document.querySelectorAll('.import-check:checked')).map(function(check){return Number(check.value)});if(!analysis||!selectedRows.length)return;try{busy(true,'Importando reservas…','La base comprobará de nuevo el permiso y guardará todo en una sola operación.');var response=await api('commit_import',{writer_epoch:epoch(),idempotency_key:uuid(),analysis_id:analysis.analysis_id,selected_source_rows:selectedRows});closeOverlay('importOverlay');pulse('success');toast(response.duplicate?'Ese archivo ya estaba importado':response.count+' reservas importadas');resetImport();await load(true)}catch(error){pulse('error');toast(friendly(error.message));if(/permission/.test(error.message))await load(true)}finally{busy(false)}}
+      function bind(){
+        $('permissionButton').onclick=openPermission;$('bell').onclick=function(){renderNotifications();openOverlay('notificationOverlay')};$('createButton').onclick=function(){openForm(null)};$('importButton').onclick=function(){if(!canWrite())return openPermission();resetImport();openOverlay('importOverlay')};
+        $('bookingForm').onsubmit=saveForm;$('clearSelection').onclick=function(){selected.clear();renderList()};$('deleteSelected').onclick=function(){deleteItems(Array.from(selected.values()))};$('markRead').onclick=markRead;
+        $('chooseFile').onclick=function(){$('importFile').click()};$('importFile').onchange=function(){var file=this.files&&this.files[0];if(file)analyzeFile(file)};$('commitImport').onclick=commitImport;$('cancelImport').onclick=function(){closeOverlay('importOverlay');resetImport()};
+        $('search').oninput=function(){clearTimeout(searchTimer);searchTimer=setTimeout(function(){load(false)},320)};$('back').onclick=function(){location.href='./?v=20260901R1'};
+        Array.prototype.forEach.call(document.querySelectorAll('[data-close]'),function(button){button.onclick=function(){closeOverlay(this.getAttribute('data-close'))}});
+        Array.prototype.forEach.call(document.querySelectorAll('.overlay'),function(overlay){overlay.addEventListener('click',function(event){if(event.target===overlay)closeOverlay(overlay.id)})});
+        document.addEventListener('keydown',function(event){if(event.key==='Escape')Array.prototype.forEach.call(document.querySelectorAll('.overlay.on'),function(overlay){closeOverlay(overlay.id)})});
+      }
+      async function start(){
+        bind();try{if(tg){tg.ready();tg.expand();window.PMGTheme&&window.PMGTheme.apply()}if(!tg||!tg.initData)throw new Error('missing_user');await load(false);refreshTimer=setInterval(function(){if(!document.querySelector('.overlay.on')&&!document.hidden)load(true)},20000)}catch(error){setState(error.message,true)}
+      }
+      document.addEventListener('visibilitychange',function(){if(!document.hidden&&data&&!document.querySelector('.overlay.on'))load(true)});
+      window.addEventListener('pagehide',function(){if(refreshTimer)clearInterval(refreshTimer)});start();
+    })();
+  </script>
+</body>
+</html>
