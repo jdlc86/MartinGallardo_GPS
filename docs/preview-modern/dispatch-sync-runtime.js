@@ -1,0 +1,1 @@
+(function(){if(!location.pathname.endsWith('/task-dispatch.html'))return;window.addEventListener('pmg:reservation-task-change',()=>{const b=document.getElementById('refresh');if(b&&!document.hidden)b.click()})})();
