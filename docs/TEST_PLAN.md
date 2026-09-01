@@ -296,11 +296,15 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - una versión desactualizada devuelve `task_assignment_conflict` sin sobrescribir la asignación nueva;
 - una reasignación conserva responsable anterior, nuevo responsable, actor y fecha en el historial;
 - asignar crea un único aviso persistente para el nuevo responsable y otro para cada responsable sustituido;
-- la campana recibe la señal Realtime y el sondeo de 45 segundos recupera una señal perdida;
+- la campana recibe la señal Realtime y no mantiene temporizadores de consulta periódica;
+- abrir la Mini App, recuperar Internet o volver al primer plano reconcilia los avisos una sola vez;
+- la gestión de reservas se recarga por eventos y no mantiene el antiguo sondeo de 20 segundos;
 - el aviso ofrece acceso directo a Mis tareas y permite marcar todo como leído de forma explícita;
 - Telegram registra `telegram_sent_at` cuando acepta el mensaje y conserva `telegram_error` cuando falla;
+- una respuesta temporal de Telegram se reintenta hasta tres veces dentro de la ejecución activada por el aviso;
 - un fallo no se reintenta antes de cinco minutos ni supera ocho intentos;
-- el Cron `deliver-reservation-notifications` está activo cada minuto y autentica el repartidor mediante Vault;
+- no existe el Cron `deliver-reservation-notifications`;
+- insertar un aviso activa una única llamada asíncrona al repartidor, autenticada mediante Vault;
 - dos ejecuciones simultáneas del repartidor no duplican entregas por el bloqueo `skip locked`;
 - desactivar a un responsable devuelve sus tareas pendientes a Sin asignar y crea el aviso correspondiente.
 

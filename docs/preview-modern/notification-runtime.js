@@ -8,7 +8,7 @@
   let notices = [];
   let client;
   let channels = [];
-  let pollTimer;
+  let eventRefreshTimer;
   let previousOverflow = "";
 
   const telegram = () => window.Telegram?.WebApp;
@@ -246,6 +246,11 @@
     }
   }
 
+  function refreshFromEvent(delay = 120) {
+    clearTimeout(eventRefreshTimer);
+    eventRefreshTimer = setTimeout(refresh, delay);
+  }
+
   function loadRealtimeLibrary() {
     if (window.supabase?.createClient) return Promise.resolve();
     return new Promise((resolve, reject) => {
@@ -263,17 +268,20 @@
       client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
       });
-      const onNotification = () => setTimeout(refresh, 120);
+      const onNotification = () => {
+        window.dispatchEvent(new CustomEvent("pmg:reservation-notification-change"));
+        refreshFromEvent(120);
+      };
       const onTask = () => {
         window.dispatchEvent(new CustomEvent("pmg:reservation-task-change"));
-        setTimeout(refresh, 250);
+        refreshFromEvent(180);
       };
       channels = [
         client.channel("reservation-notifications").on("broadcast", { event: "changed" }, onNotification).subscribe(),
         client.channel("reservation-tasks").on("broadcast", { event: "changed" }, onTask).subscribe(),
       ];
     } catch {
-      // The periodic refresh below remains active as a fallback.
+      // Opening the app, restoring connectivity or returning to it will reconcile state.
     }
   }
 
@@ -281,18 +289,15 @@
     mountBell();
     refresh();
     connectRealtime();
-    setTimeout(refresh, 500);
-    setTimeout(refresh, 1500);
-    pollTimer = setInterval(refresh, 45_000);
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) refresh();
+      if (!document.hidden) refreshFromEvent(0);
     });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && document.getElementById("pmg-notice-panel")) closePanel(true);
     });
-    window.addEventListener("pmg:online", refresh);
+    window.addEventListener("pmg:online", () => refreshFromEvent(0));
     window.addEventListener("pagehide", () => {
-      clearInterval(pollTimer);
+      clearTimeout(eventRefreshTimer);
       if (client) channels.forEach((channel) => client.removeChannel(channel).catch(() => {}));
     });
   }

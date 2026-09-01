@@ -45,20 +45,31 @@ async function rpc(name: string, body: unknown) {
 }
 
 async function telegram(method: string, payload: unknown) {
-  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  let parsed: { ok?: boolean; description?: string } | null = null;
-  try {
-    parsed = await response.json();
-  } catch {
-    // The response status below still records the failed attempt.
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      let parsed: { ok?: boolean; description?: string } | null = null;
+      try {
+        parsed = await response.json();
+      } catch {
+        // The response status below still records the failed attempt.
+      }
+      if (response.ok && parsed?.ok !== false) return;
+      lastError = new Error(`telegram_${method}_${response.status}_${parsed?.description || "unknown"}`);
+      const permanentClientError = response.status >= 400 && response.status < 500 && response.status !== 429;
+      if (permanentClientError) throw lastError;
+    } catch (error) {
+      lastError = error as Error;
+      if (String(lastError.message).match(/telegram_[^_]+_4(?!29)\d{2}_/)) throw lastError;
+    }
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 500));
   }
-  if (!response.ok || parsed?.ok === false) {
-    throw new Error(`telegram_${method}_${response.status}_${parsed?.description || "unknown"}`);
-  }
+  throw lastError || new Error(`telegram_${method}_failed`);
 }
 
 function keyboard(notificationType: string) {

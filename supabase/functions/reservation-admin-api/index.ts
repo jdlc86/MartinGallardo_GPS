@@ -8,7 +8,6 @@ const SECRET_KEYS_JSON = Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_AI_API_KEY") || Deno.env.get("GOOGLE_API_KEY") || Deno.env.get("GOOGLE_VISION_API_KEY") || null;
 const ALLOW_ORIGIN = "https://jdlc86.github.io";
-const APP_URL = "https://jdlc86.github.io/MartinGallardo_GPS/preview-modern/reservations-admin.html?v=20260901R1";
 const INIT_DATA_MAX_AGE_SECONDS = 86400;
 const MAX_FILE_BYTES = 6_000_000;
 const MAX_IMPORT_ROWS = 1000;
@@ -75,7 +74,11 @@ function hexToBytes(value: string) {
 
 async function hmac(key: Uint8Array | string, message: string) {
   const keyBytes = typeof key === "string" ? new TextEncoder().encode(key) : key;
-  const imported = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const rawKey = keyBytes.buffer.slice(
+    keyBytes.byteOffset,
+    keyBytes.byteOffset + keyBytes.byteLength,
+  ) as ArrayBuffer;
+  const imported = await crypto.subtle.importKey("raw", rawKey, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return new Uint8Array(await crypto.subtle.sign("HMAC", imported, new TextEncoder().encode(message)));
 }
 
@@ -156,63 +159,6 @@ async function requireAdmin(telegramUserId: number) {
   return user;
 }
 
-async function telegram(method: string, body: unknown) {
-  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  let parsed: any = null;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    // Handled below.
-  }
-  if (!response.ok || parsed?.ok === false) throw new Error(`telegram_${method}_${response.status}`);
-  return parsed;
-}
-
-function appKeyboard() {
-  return { inline_keyboard: [[{ text: "📋 ABRIR GESTIÓN DE RESERVAS", web_app: { url: APP_URL } }]] };
-}
-
-async function flushTelegramNotifications() {
-  let claimed: any[] = [];
-  try {
-    claimed = await rpc("parking_booking_claim_telegram_notifications", { p_limit: 15 });
-    if (!Array.isArray(claimed)) claimed = [];
-  } catch (error) {
-    console.error("claim_notifications", error);
-    return;
-  }
-  for (const notification of claimed) {
-    try {
-      await telegram("sendMessage", {
-        chat_id: Number(notification.recipient_telegram_user_id),
-        text: `🔔 ${notification.title}\n\n${notification.body}`,
-        reply_markup: appKeyboard(),
-      });
-      await rpc("parking_booking_finish_telegram_notification", {
-        p_notification_id: Number(notification.id),
-        p_success: true,
-        p_error: null,
-      });
-    } catch (error) {
-      console.error("send_booking_notification", error);
-      try {
-        await rpc("parking_booking_finish_telegram_notification", {
-          p_notification_id: Number(notification.id),
-          p_success: false,
-          p_error: String((error as Error)?.message || error),
-        });
-      } catch (finishError) {
-        console.error("finish_booking_notification", finishError);
-      }
-    }
-  }
-}
-
 function decodeBase64(value: string) {
   const clean = value.replace(/^data:[^;]+;base64,/, "");
   if (!clean || clean.length > Math.ceil(MAX_FILE_BYTES * 4 / 3) + 16) throw new AppError("invalid_import_file");
@@ -229,7 +175,8 @@ function decodeBase64(value: string) {
 }
 
 async function sha256Hex(bytes: Uint8Array) {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const rawBytes = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", rawBytes));
   return [...digest].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
@@ -288,7 +235,7 @@ async function extractRows(bytes: Uint8Array, fileName: string, mimeType: string
   if (!lowerName.endsWith(".xlsx") && !mimeType.includes("spreadsheetml")) throw new AppError("unsupported_import_format");
   const workbook = new ExcelJS.Workbook();
   try {
-    await workbook.xlsx.load(Buffer.from(bytes));
+    await workbook.xlsx.load(Buffer.from(bytes) as any);
   } catch (error) {
     console.error("xlsx_load", error);
     throw new AppError("invalid_import_file");
@@ -655,7 +602,6 @@ Deno.serve(async (request: Request) => {
       throw new AppError("invalid_action");
     }
 
-    await flushTelegramNotifications();
     return json({ ok: true, ...data });
   } catch (error) {
     console.error(error);

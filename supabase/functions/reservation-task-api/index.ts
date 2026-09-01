@@ -400,8 +400,7 @@ Deno.serve(async (request) => {
         status: "in.(unassigned,assigned)",
         "parking_bookings.deleted_at": "is.null",
       })).map(mapTask);
-      const delivery = await flushTelegramNotifications();
-      return json({ ok: true, tasks, workers: await activeWorkers(), notification_delivery: delivery });
+      return json({ ok: true, tasks, workers: await activeWorkers() });
     }
 
     if (action === "mine") {
@@ -412,8 +411,7 @@ Deno.serve(async (request) => {
         status: "eq.assigned",
         "parking_bookings.deleted_at": "is.null",
       })).map(mapTask);
-      const delivery = await flushTelegramNotifications();
-      return json({ ok: true, tasks, worker, notification_delivery: delivery });
+      return json({ ok: true, tasks, worker });
     }
 
     if (action === "assign") {
@@ -449,8 +447,7 @@ Deno.serve(async (request) => {
       });
       const tasks = (await taskRows({ id: filter })).map(mapTask);
       const queued = await enqueueAssignmentNotifications(tasks, result, previous);
-      const delivery = await flushTelegramNotifications();
-      return json({ ok: true, result, tasks, notifications_queued: queued, notification_delivery: delivery });
+      return json({ ok: true, result, tasks, notifications_queued: queued });
     }
 
     if (action === "notifications") {

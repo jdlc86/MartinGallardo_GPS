@@ -45,7 +45,7 @@ Otras APIs Mini App:
 
 Automatización:
 pg_cron -> pg_net -> performance-report-sender -> Telegram Bot API
-pg_cron -> pg_net -> reservation-notification-sender -> Telegram Bot API
+INSERT de aviso -> pg_net -> reservation-notification-sender -> Telegram Bot API
 ```
 
 ## `telegram-gateway`
@@ -115,14 +115,14 @@ La versión de cada tarea protege frente a asignaciones concurrentes. El histori
 
 Cada asignación o reasignación crea primero un aviso persistente en `parking_booking_notifications`. La entrega por Telegram usa la misma cola transaccional que las solicitudes de escritura:
 
-- intento inmediato desde `reservation-task-api`;
-- recuperación automática cada minuto mediante `reservation-notification-sender`;
+- activación asíncrona de `reservation-notification-sender` únicamente al insertar avisos;
+- hasta tres intentos breves contra Telegram dentro de esa ejecución activada por el evento;
 - reclamación con bloqueo `skip locked` para evitar duplicados;
 - confirmación de éxito o error en la propia fila;
 - espera de cinco minutos antes de reintentar un fallo;
-- llamada de Cron autenticada con un secreto aleatorio guardado en Supabase Vault.
+- llamada autenticada con un secreto aleatorio guardado en Supabase Vault.
 
-La campana escucha el canal Realtime `reservation-notifications`, conserva un sondeo de respaldo cada 45 segundos y nunca consulta avisos de otros usuarios: cada lectura vuelve a validar `initData` y filtra por `telegram_user_id`.
+La campana escucha el canal Realtime `reservation-notifications` y no usa sondeo periódico. Reconcilia el estado únicamente al abrir la Mini App, recibir un evento, recuperar Internet o volver al primer plano. Cada lectura vuelve a validar `initData` y filtra por `telegram_user_id`. La gestión de reservas aplica el mismo patrón y ya no consulta el panel cada 20 segundos.
 
 Los controles globales de apariencia, campana y conectividad comparten una franja superior sin solaparse. Los avisos de red y la pantalla sin conexión usan las variables del tema resuelto, por lo que respetan Día, Noche y Automático.
 
