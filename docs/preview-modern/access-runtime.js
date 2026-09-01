@@ -13,7 +13,17 @@
   function showOnline(){networkBanner('Conexión restablecida',true,false);window.dispatchEvent(new CustomEvent('pmg:online'))}
   window.PMGShowAccessBlocked=showBlocked;window.PMGShowRelocate=showRelocate;window.PMGShowOffline=showOffline;
   const nativeFetch=window.fetch.bind(window);
-  window.fetch=async function(){const args=arguments;let response;try{response=await nativeFetch.apply(window,args)}catch(err){showOffline();throw new Error('network_error')}try{const url=String(args[0]?.url||args[0]||'');if(url.includes('supabase.co/functions/v1/')){const clone=response.clone();let data=null;try{data=await clone.json()}catch(e){}const err=data&&(data.error||data.code||data.message);if(response.status===401||isBlockedValue(err))showBlocked();if(String(err||'').toLowerCase()==='already_parked'){let plate='';try{plate=JSON.parse(args[1]?.body||'{}').plate||''}catch(e){}showRelocate(plate)}}}catch(e){}return response};
+  window.fetch=async function(){const args=arguments;let response;try{response=await nativeFetch.apply(window,args)}catch(err){showOffline();throw new Error('network_error')}try{const url=String(args[0]?.url||args[0]||'');
+    if(url.includes('/vehicle-consult-api')&&response.ok){
+      const clone=response.clone();let data=null;try{data=await clone.json()}catch(e){}
+      if(data&&data.ok&&data.vehicle){
+        const map={pickup:'RECOGIDO',park:'APARCADO',relocate:'REUBICADO',retrieve:'ENTREGADO'};
+        const latest=(data.events||[]).filter(e=>map[e&&e.operation]).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];
+        if(latest){if(latest.operation==='pickup')data.vehicle.status='RECOGIDO';else if(latest.operation==='park')data.vehicle.status='parked';else if(latest.operation==='relocate')data.vehicle.status='REUBICADO';else if(latest.operation==='retrieve')data.vehicle.status='retrieved';data.vehicle.operational_status=map[latest.operation];data.vehicle.operational_status_at=latest.created_at}
+        const headers=new Headers(response.headers);headers.set('content-type','application/json');headers.delete('content-length');response=new Response(JSON.stringify(data),{status:response.status,statusText:response.statusText,headers})
+      }
+    }
+    if(url.includes('supabase.co/functions/v1/')){const clone=response.clone();let data=null;try{data=await clone.json()}catch(e){}const err=data&&(data.error||data.code||data.message);if(response.status===401||isBlockedValue(err))showBlocked();if(String(err||'').toLowerCase()==='already_parked'){let plate='';try{plate=JSON.parse(args[1]?.body||'{}').plate||''}catch(e){}showRelocate(plate)}}}catch(e){}return response};
   window.addEventListener('offline',showOffline);window.addEventListener('online',showOnline);
   window.addEventListener('message',ev=>{if(ev.data?.type==='PMG_ACCESS_BLOCKED')showBlocked()});
   window.addEventListener('DOMContentLoaded',()=>{if(!navigator.onLine)showOffline();try{if(location.pathname.endsWith('/relocate.html')){const p=(new URLSearchParams(location.search).get('plate')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');const input=document.getElementById('plate');if(p&&input&&!input.value)input.value=p}}catch(e){}});
