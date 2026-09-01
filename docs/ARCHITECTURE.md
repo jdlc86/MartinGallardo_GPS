@@ -109,7 +109,7 @@ Privacidad de la importación: Gemini recibe únicamente etiquetas de encabezado
 
 ## Programador de tareas
 
-`reservation-task-api` convierte las fechas de recogida y regreso de cada reserva en tareas asignables. Root y Admin pueden asignarlas o reasignarlas en bloque a cualquier Root, Admin u Operario activo que tenga identidad `worker` enlazada.
+`reservation-task-api` convierte las fechas de recogida y regreso de cada reserva en tareas asignables. Antes de generar la recogida consulta el estado operativo del vehículo por su matrícula normalizada: una reserva pendiente (`requested` o sin vehículo actualmente bajo custodia) genera Recogida y Entrega; si el vehículo ya está `in_transit` o `parked`, genera o conserva únicamente la Entrega. Cuando una recogida anticipada cambia el vehículo a `in_transit`, la tarea de Recogida pendiente se completa automáticamente y desaparece de las asignaciones activas sin borrar su trazabilidad. Root y Admin pueden asignar o reasignar las tareas vigentes en bloque a cualquier Root, Admin u Operario activo que tenga identidad `worker` enlazada.
 
 La versión de cada tarea protege frente a asignaciones concurrentes. El historial queda en `reservation_task_assignment_history`; el estado operativo se completa desde los eventos reales de recogida y entrega.
 

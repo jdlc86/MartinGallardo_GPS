@@ -298,7 +298,10 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 
 ### Programador y asignación de tareas
 
-- cada reserva activa genera una tarea de recogida y otra de entrega con horario `Europe/Madrid`;
+- una reserva pendiente (`requested` o sin vehículo actualmente bajo custodia) genera Recogida y Entrega con horario `Europe/Madrid`;
+- una reserva cuyo vehículo ya está `in_transit` o `parked` genera o conserva únicamente la Entrega;
+- una recogida anticipada completa automáticamente la tarea de Recogida pendiente, mantiene la Entrega y conserva el registro completado para auditoría;
+- volver a sincronizar una reserva pendiente mantiene activas sus dos tareas sin duplicarlas;
 - Root/Admin puede filtrar, seleccionar un día completo y asignar en bloque a Root, Admin u Operario activo;
 - una versión desactualizada devuelve `task_assignment_conflict` sin sobrescribir la asignación nueva;
 - una reasignación conserva responsable anterior, nuevo responsable, actor y fecha en el historial;
