@@ -99,6 +99,7 @@ Responsabilidades:
 - comprobar una época global de escritura y una versión por reserva;
 - gestionar solicitudes y transferencias de escritura con aceptación/rechazo;
 - crear avisos persistentes para la campana y entregarlos también por Telegram con reintentos;
+- ocultar avisos leídos después de 30 días y eliminarlos automáticamente a los 90 mediante Supabase Cron, sin borrar solicitudes ni auditoría;
 - analizar encabezados `.xlsx`, `.csv` y `.tsv` con Gemini antes de previsualizar la importación.
 
 Privacidad de la importación: Gemini recibe únicamente etiquetas de encabezado saneadas. Las filas con nombres, correos, teléfonos, matrículas, fechas y cobros se procesan dentro de la Edge Function y no se envían al proveedor de IA.

@@ -89,6 +89,7 @@
     .notice b{display:block;font-size:13px}
     .notice p{margin:5px 0 0;color:var(--pmg-muted);font-size:11px;line-height:1.45}
     .notice time{display:block;margin-top:7px;color:var(--pmg-muted);font-size:9px}
+    .retention-note{margin-top:12px;color:var(--pmg-muted);font-size:10px;line-height:1.45;text-align:center}
     .request-card{padding:15px;border-radius:18px;background:var(--pmg-warning-soft);border:1px solid color-mix(in srgb,var(--pmg-warning) 28%,transparent);margin-bottom:10px}
     .request-card b{font-size:13px}
     .request-card p{margin:5px 0 10px;color:var(--pmg-muted);font-size:11px}
@@ -204,6 +205,7 @@
       <div id="pendingRequestList"></div>
       <div class="modal-actions" style="margin:0 0 12px"><button id="markRead" class="btn secondary small">Marcar todo como leído</button></div>
       <div id="notificationList" class="notice-list"></div>
+      <div class="retention-note">Las notificaciones leídas se ocultan a los 30 días y se eliminan automáticamente a los 90 días. El historial de auditoría se conserva.</div>
     </section>
   </div>
 
@@ -297,7 +299,7 @@
           return '<div class="request-card" data-request="'+esc(request.id)+'">'+copy+'<div class="request-actions"><button class="btn small accept-request">Aceptar</button><button class="btn secondary small reject-request">Rechazar</button></div></div>';
         }).join('');
         Array.prototype.forEach.call(document.querySelectorAll('[data-request]'),function(card){var id=card.getAttribute('data-request');card.querySelector('.accept-request').onclick=function(){respondPermission(id,'accept')};card.querySelector('.reject-request').onclick=function(){respondPermission(id,'reject')}});
-        var notices=data.notifications||[];$('notificationList').innerHTML=notices.length?notices.map(function(notice){return '<div class="notice '+(notice.read_at?'':'unread')+'"><b>'+esc(notice.title)+'</b><p>'+esc(notice.body)+'</p><time>'+esc(dateTime(notice.created_at))+'</time></div>'}).join(''):'<div class="empty">No tienes notificaciones.</div>';
+        var visibleAfter=Date.now()-30*24*60*60*1000;var notices=(data.notifications||[]).filter(function(notice){return !notice.read_at||Date.parse(notice.created_at)>=visibleAfter});$('notificationList').innerHTML=notices.length?notices.map(function(notice){return '<div class="notice '+(notice.read_at?'':'unread')+'"><b>'+esc(notice.title)+'</b><p>'+esc(notice.body)+'</p><time>'+esc(dateTime(notice.created_at))+'</time></div>'}).join(''):'<div class="empty">No tienes notificaciones.</div>';
       }
       function render(){renderPermission();renderStats();renderList();renderNotifications();$('state').hidden=true;$('content').hidden=false}
       async function load(silent){

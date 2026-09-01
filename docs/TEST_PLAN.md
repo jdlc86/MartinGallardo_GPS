@@ -276,6 +276,14 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - solicitudes pendientes caducan al cambiar el titular;
 - degradar o bloquear al titular recupera el permiso para otro administrador activo.
 
+### Retención de notificaciones
+
+- un aviso leído con más de 30 días no aparece en la campana;
+- un aviso no leído continúa visible hasta que se atiende o alcanza 90 días;
+- `parking_booking_cleanup_notifications()` elimina avisos con más de 90 días;
+- el Cron diario `cleanup-reservation-notifications` está activo;
+- limpiar avisos no elimina `parking_booking_permission_requests` ni `parking_booking_admin_events`.
+
 ### Importación con IA
 
 - acepta `.xlsx`, `.csv` y `.tsv` hasta 6 MB;
