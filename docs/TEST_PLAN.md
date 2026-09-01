@@ -295,8 +295,13 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - Root/Admin puede filtrar, seleccionar un día completo y asignar en bloque a Root, Admin u Operario activo;
 - una versión desactualizada devuelve `task_assignment_conflict` sin sobrescribir la asignación nueva;
 - una reasignación conserva responsable anterior, nuevo responsable, actor y fecha en el historial;
+- Centro de Operaciones muestra la cantidad y la próxima hora solo en Recogida aeropuerto y Entrega al cliente cuando el usuario tiene tareas asignadas;
+- Recogida y Entrega muestran exclusivamente las tareas `assigned` del usuario autenticado, ordenadas de menor a mayor por fecha y hora;
+- al abrir una tarea aparecen terminal, cliente, contacto, vehículo, precio, pago y la fecha relacionada de regreso o recogida;
+- iniciar una tarea precarga la matrícula y continúa por el botón y la API del flujo habitual, sin registrar todavía la tarea como completada;
 - asignar crea un único aviso persistente para el nuevo responsable y otro para cada responsable sustituido;
 - la campana recibe la señal Realtime y no mantiene temporizadores de consulta periódica;
+- el listado operativo reutiliza el evento `pmg:reservation-task-change` y no abre un segundo canal Realtime;
 - abrir la Mini App, recuperar Internet o volver al primer plano reconcilia los avisos una sola vez;
 - la gestión de reservas se recarga por eventos y no mantiene el antiguo sondeo de 20 segundos;
 - el aviso ofrece acceso directo a Mis tareas y permite marcar todo como leído de forma explícita;

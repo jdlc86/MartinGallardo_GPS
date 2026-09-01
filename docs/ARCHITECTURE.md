@@ -113,6 +113,8 @@ Privacidad de la importación: Gemini recibe únicamente etiquetas de encabezado
 
 La versión de cada tarea protege frente a asignaciones concurrentes. El historial queda en `reservation_task_assignment_history`; el estado operativo se completa desde los eventos reales de recogida y entrega.
 
+En la Mini App, Centro de Operaciones muestra el número de tareas asignadas en Recogida aeropuerto y Entrega al cliente. Cada pantalla operativa presenta únicamente las tareas `assigned` del usuario autenticado, ordenadas por `scheduled_at`. Al seleccionar una tarea se muestran los datos necesarios de reserva y el botón de inicio precarga la matrícula en el flujo operativo vigente; no crea un flujo paralelo ni completa la tarea antes del evento real.
+
 Cada asignación o reasignación crea primero un aviso persistente en `parking_booking_notifications`. La entrega por Telegram usa la misma cola transaccional que las solicitudes de escritura:
 
 - activación asíncrona de `reservation-notification-sender` únicamente al insertar avisos;
@@ -122,7 +124,7 @@ Cada asignación o reasignación crea primero un aviso persistente en `parking_b
 - espera de cinco minutos antes de reintentar un fallo;
 - llamada autenticada con un secreto aleatorio guardado en Supabase Vault.
 
-La campana escucha el canal Realtime `reservation-notifications` y no usa sondeo periódico. Reconcilia el estado únicamente al abrir la Mini App, recibir un evento, recuperar Internet o volver al primer plano. Cada lectura vuelve a validar `initData` y filtra por `telegram_user_id`. La gestión de reservas aplica el mismo patrón y ya no consulta el panel cada 20 segundos.
+La campana escucha el canal Realtime `reservation-notifications` y no usa sondeo periódico. Reconcilia el estado únicamente al abrir la Mini App, recibir un evento, recuperar Internet o volver al primer plano. Cada lectura vuelve a validar `initData` y filtra por `telegram_user_id`. La gestión de reservas aplica el mismo patrón y ya no consulta el panel cada 20 segundos. El listado operativo reutiliza el evento Realtime de tareas de la campana, evitando otra conexión y cualquier temporizador de sondeo.
 
 Los controles globales de apariencia, campana y conectividad comparten una franja superior sin solaparse. Los avisos de red y la pantalla sin conexión usan las variables del tema resuelto, por lo que respetan Día, Noche y Automático.
 

@@ -1,5 +1,5 @@
-const CACHE='pmg-shell-v10';
-const CORE=['./','./index.html','./operations.html','./vehicles.html','./recent.html','./task-dispatch.html','./team-live.html','./gps-diagnostic.html','./vehicle-v7.html','./pickup.html','./delivery.html','./legal.html','./theme.css?v=9','./theme.js?v=8','./ux-errors.js?v=9','./access-runtime.js?v=7','./assignment-runtime.js?v=1','./notification-runtime.js?v=6','./offline-runtime.js?v=2','./offline.html','./assets/favicon.svg?v=1','./assets/martin-gallardo-logo.svg?v=3'];
+const CACHE='pmg-shell-v11';
+const CORE=['./','./index.html','./operations.html','./vehicles.html','./recent.html','./task-dispatch.html','./team-live.html','./gps-diagnostic.html','./vehicle-v7.html','./pickup.html','./delivery.html','./legal.html','./theme.css?v=9','./theme.js?v=8','./ux-errors.js?v=10','./access-runtime.js?v=7','./assignment-runtime.js?v=2','./notification-runtime.js?v=6','./offline-runtime.js?v=2','./offline.html','./assets/favicon.svg?v=1','./assets/martin-gallardo-logo.svg?v=3'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{const c=await caches.open(CACHE);await Promise.allSettled(CORE.map(u=>c.add(u)));await self.skipWaiting()})()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('pmg-shell-')&&k!==CACHE).map(k=>caches.delete(k)));await self.clients.claim()})()));
 function cleanUrl(req){const u=new URL(req.url);u.search='';return u.toString()}

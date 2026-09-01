@@ -284,7 +284,7 @@ async function taskRows(filter: Record<string, string> = {}) {
   return table("reservation_tasks", {
     ...filter,
     select:
-      "id,booking_id,task_type,scheduled_at,assigned_worker_id,assigned_at,status,version,completed_at,parking_bookings!inner(id,pickup_date,pickup_time,pickup_terminal,return_date,return_time,return_terminal,price_eur,customer_name,customer_phone,vehicle_plate,vehicle_plate_normalized,vehicle_make_model,deleted_at),workers(id,telegram_user_id,full_name,role)",
+      "id,booking_id,task_type,scheduled_at,assigned_worker_id,assigned_at,status,version,completed_at,parking_bookings!inner(id,pickup_date,pickup_time,pickup_terminal,return_date,return_time,return_terminal,price_eur,customer_name,customer_email,customer_phone,vehicle_plate,vehicle_plate_normalized,vehicle_make_model,payment_method,deleted_at),workers(id,telegram_user_id,full_name,role)",
     order: "scheduled_at.asc",
   });
 }
@@ -298,10 +298,18 @@ function mapTask(task: Record<string, any>) {
     type: task.task_type,
     scheduled_at: task.scheduled_at,
     terminal: task.task_type === "pickup" ? booking.pickup_terminal : booking.return_terminal,
+    pickup_date: booking.pickup_date,
+    pickup_time: booking.pickup_time,
+    pickup_terminal: booking.pickup_terminal,
+    return_date: booking.return_date,
+    return_time: booking.return_time,
+    return_terminal: booking.return_terminal,
     plate: booking.vehicle_plate,
     customer_name: booking.customer_name,
+    customer_email: booking.customer_email,
     customer_phone: booking.customer_phone,
     price_eur: booking.price_eur,
+    payment_method: booking.payment_method,
     vehicle_make_model: booking.vehicle_make_model,
     status: task.status,
     version: task.version,
