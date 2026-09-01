@@ -109,6 +109,10 @@ El detalle técnico puede permanecer en consola/logs.
 - matrícula válida;
 - requisitos dinámicos;
 - cámara para fotos de estado;
+- la vista previa solo habilita **Capturar** después de recibir un fotograma real;
+- si la cámara trasera con resolución preferida no inicia, reintenta con restricciones simples sin dejar una pantalla negra;
+- permiso denegado, cámara ocupada o ausencia de fotogramas muestran un mensaje claro y permiten reintentar;
+- cancelar o cambiar de intento detiene todas las pistas de vídeo activas;
 - «Ver guía de fotos» abre un diálogo centrado y muestra completa la guía SVG sin deformación;
 - la guía cabe en móvil vertical y horizontal, permite cerrar con botón, fondo o Escape y respeta Día/Noche;
 - la guía queda disponible desde la caché offline del shell;
