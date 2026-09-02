@@ -1,6 +1,7 @@
 (function(){
   if(window.__PMG_THEME__)return;
   window.__PMG_THEME__=true;
+  if(location.pathname.endsWith('/ai-dispatch.html')&&document.readyState==='loading')document.write('<script src="ai-dispatch-runtime.js?v=1"><\/script>');
   const KEY='pmg-theme-mode';
   const MODES=new Set(['auto','light','dark']);
   let lastTheme='';
