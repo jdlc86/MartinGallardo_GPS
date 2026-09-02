@@ -94,6 +94,7 @@ Migraciones añadidas:
 - `ai_dispatch_session_handover_v1`
 - `secure_ai_dispatch_trigger_function`
 - `ai_dispatch_nodes`
+- `ai_dispatch_confirmation_guard`
 
 Tablas nuevas:
 
@@ -118,12 +119,12 @@ Las tablas nuevas tienen RLS habilitado y acceso directo revocado a `anon` y `au
 
 El backend intenta resolver los enlaces cortos de Google Maps y persiste `resolved_url` y coordenadas cuando puede extraerlas de forma fiable. **No se inventan coordenadas**. Si algún nodo no queda resuelto, la matriz Google se considera incompleta y se informa de ello.
 
-## 8. Google Routes — integración V3
+## 8. Google Routes — integración actual
 
 Edge Function:
 
 - `reservation-ai-planner`
-- versión actual desplegada: **v3**
+- versión actual desplegada: **v4**
 
 La función busca una clave en este orden:
 
@@ -158,23 +159,76 @@ La matriz se persiste mediante clave:
 - al optimizar se intenta refrescar automáticamente;
 - si Google no está configurado o un nodo no está resuelto, el fallo de refresco no modifica asignaciones y queda registrado en la propuesta.
 
-## 9. API del planificador
+## 9. Corrección crítica del modelo logístico
+
+Durante la revisión de la primera integración se detectó una simplificación incorrecta que **no debe llegar a producción**:
+
+Una tarea de aeropuerto no puede modelarse como si el operario terminara siempre en la propia terminal.
+
+El modelo correcto es:
+
+### `pickup` — Recogida al cliente que se va de viaje
+
+1. El operario debe estar en la terminal antes de la hora objetivo.
+2. Se ejecutan los `10 min` operativos.
+3. El operario conduce el coche del cliente **Terminal → Parking**.
+4. El operario vuelve a quedar disponible físicamente en `PARKING` una vez terminado ese trayecto.
+
+### `delivery` — Entrega al cliente que llega
+
+1. El coche y el operario parten de `PARKING`.
+2. El operario conduce el coche del cliente **Parking → Terminal** con salida calculada para cumplir la hora objetivo.
+3. Se ejecutan los `10 min` operativos de entrega.
+4. El operario queda físicamente disponible en la terminal correspondiente.
+
+Esto implica que **Parking↔terminal no es un traslado libre del operario**. No existe coche de empresa. Un operario solo puede cubrir ese movimiento mediante:
+
+- el propio coche de cliente asociado a una operación que conduce;
+- viajar como máximo como **un compañero** en otro coche de cliente compatible con la ruta y el límite de km;
+- para movimientos entre terminales, utilizar el Bus Tránsito/tren cuando corresponda.
+
+Por tanto, la logística de compañeros no es únicamente una mejora de eficiencia: es parte estructural de la factibilidad de determinados encadenamientos.
+
+## 10. Guardia de confirmación
+
+Hasta que el nuevo modelo de posición física y transporte Parking↔terminal esté implementado, `ai_dispatch_config` mantiene:
+
+- `confirmation_enabled = false`
+- `engine_status = logistics_model_in_progress`
+
+Consecuencias:
+
+- el Asistente puede generar propuestas de diagnóstico;
+- puede probar permisos, horizonte, refresco Google, inmutabilidad manual e interfaz;
+- **no puede aplicar las asignaciones a producción**;
+- la protección existe tanto en backend como en la Mini App.
+
+`reservation-ai-planner` devuelve `ai_planner_confirmation_disabled` si alguien intenta confirmar por API mientras la guarda está activa.
+
+La confirmación solo se habilitará cuando el motor represente correctamente el estado físico del operario y las dependencias de transporte.
+
+## 11. API del planificador
 
 Acciones actuales:
 
 - `status`
 - `refresh_routes`
 - `optimize`
-- `confirm`
+- `confirm` — protegida por `confirmation_enabled`
 - `reject`
 
-`status` devuelve también si Google Routes está configurado y qué nodos están resueltos.
+`status` devuelve:
 
-La confirmación **no escribe mediante una ruta paralela**: reutiliza `reservation-task-api` para materializar las asignaciones y conservar historial, control de versión y notificaciones existentes.
+- permiso/epoch;
+- horizonte por defecto;
+- disponibilidad de Google Routes;
+- nodos geográficos resueltos;
+- `confirmation_enabled`;
+- `engine_status`.
 
-Tras confirmar, además se crean los informes `ai_plan_report` para cada operario y copias `ai_plan_report_admin` para el Admin. Después se dispara el mecanismo existente de entrega Telegram.
+Cuando se habilite la confirmación, esta reutilizará `reservation-task-api` para conservar historial, versiones y notificaciones. También generará los informes `ai_plan_report` para cada operario y copias `ai_plan_report_admin` para el Admin.
 
-## 10. Mini App
+## 12. Mini App
 
 Archivo:
 
@@ -182,34 +236,46 @@ Archivo:
 
 `task-dispatch-runtime.js` inserta el botón `✨ IA` en Asignación de tareas sin sustituir el flujo manual.
 
-La pantalla IA permite:
+La pantalla IA permite actualmente:
 
 - comprobar el permiso actual;
 - solicitar Lectura/Escritura usando el mecanismo existente;
 - visualizar estado de Google Routes;
 - visualizar cuántos nodos geográficos están resueltos;
+- visualizar si la confirmación está habilitada;
 - forzar `Actualizar trayectos`;
 - elegir horizonte;
-- generar propuesta;
-- revisar todos los informes por operario;
-- confirmar de una vez;
-- rechazar;
-- solicitar una nueva optimización.
+- generar propuesta de diagnóstico;
+- revisar informes;
+- rechazar o recalcular.
 
-## 11. Estado del motor V1
+Mientras `confirmation_enabled=false`, el botón de confirmar permanece deshabilitado.
 
-El backend actual usa `deterministic_v1_routes`. Ya incorpora la matriz de carretera cuando está disponible, la incertidumbre inicial y la inmutabilidad de tareas manuales.
+## 13. Estado del motor
 
-**Aún no debe describirse como OR-Tools/CP-SAT.** La capa de contrato (`optimize → proposal → confirm`) se ha diseñado para permitir sustituir el motor sin cambiar permisos, UI ni workflow de confirmación.
+El backend actual sigue identificándose como `deterministic_v1_routes` y **no debe describirse como motor final** ni como OR-Tools/CP-SAT.
 
-## 12. Pendientes técnicos explícitos
+La capa contractual (`optimize → proposal → confirm`) se mantiene estable para que el motor pueda evolucionar sin rediseñar permisos, UI ni workflow de confirmación.
 
-Antes de considerar cerrada la optimización logística avanzada faltan:
+El siguiente motor debe representar al menos:
 
-1. Verificar en ejecución que los seis enlaces cortos de Maps se resuelven correctamente desde Supabase; cualquier nodo no resoluble se configurará con coordenadas/Place ID verificado, no aproximado.
-2. Confirmar que la clave Google existente tiene **Routes API habilitada**. Si devuelve `google_routes_not_enabled`, habilitar Routes API o proporcionar una clave específica.
-3. Incorporar al motor la optimización explícita de recogida/traslado de un compañero (máximo uno), incluyendo sincronización de los dos itinerarios y límite de km del vehículo de cliente.
-4. Evolucionar el motor determinista a OR-Tools/CP-SAT o servicio equivalente manteniendo el mismo contrato.
-5. Añadir la capa conversacional IA para instrucciones de reoptimización, siempre revalidando `writer_epoch` en cada mensaje.
+- posición física del operario en el tiempo;
+- fases internas de pickup/delivery;
+- trayectos de vehículo cliente;
+- lanzadera/tren entre terminales;
+- emparejamiento conductor/compañero con capacidad máxima 1;
+- restricción de km adicionales;
+- asignaciones manuales fijadas;
+- incertidumbre y ventanas de puntualidad;
+- balance de carga como objetivo secundario.
 
-Estos pendientes no modifican el modelo de permisos, confirmación ni conservación de asignaciones manuales ya implementados.
+## 14. Pendientes técnicos explícitos
+
+1. Ejecutar desde la Mini App `Actualizar trayectos` para verificar que Supabase puede resolver los seis enlaces de Maps y que la clave disponible tiene Routes API habilitada.
+2. Si algún enlace no es resoluble, registrar coordenadas/Place ID verificados, nunca aproximados.
+3. Implementar el nuevo motor logístico con estados físicos Parking/terminal y sincronización de compañeros.
+4. Una vez verificado, habilitar `confirmation_enabled` y realizar pruebas controladas antes de producción.
+5. Evolucionar a OR-Tools/CP-SAT o servicio equivalente manteniendo el contrato actual.
+6. Añadir la capa conversacional IA para instrucciones de reoptimización, revalidando `writer_epoch` en cada mensaje.
+
+Estos pendientes no alteran el modelo de permisos ni la regla de que las asignaciones manuales son inmutables.
