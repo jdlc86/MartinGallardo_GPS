@@ -1,6 +1,8 @@
 import ExcelJS from "npm:exceljs@4.4.0";
 import { Buffer } from "node:buffer";
 
+import { extractOpenXmlRows } from "./openxml-parser.ts";
+
 export const MAX_FILE_BYTES = 6_000_000;
 export const MAX_IMPORT_ROWS = 1000;
 export const MAX_IMPORT_COLUMNS = 40;
@@ -242,11 +244,18 @@ export async function extractImportRows(
         bytes.byteLength,
       );
       await workbook.xlsx.load(buffer as any);
-    } catch (error) {
-      throw new ImportFileError(
-        "xlsx_parse_failed",
-        (error as Error)?.message || error,
-      );
+    } catch (excelError) {
+      try {
+        return extractOpenXmlRows(bytes, MAX_IMPORT_ROWS, MAX_IMPORT_COLUMNS);
+      } catch (openXmlError) {
+        if (openXmlError instanceof ImportFileError) throw openXmlError;
+        throw new ImportFileError(
+          "xlsx_parse_failed",
+          `ExcelJS: ${(excelError as Error)?.message || excelError}; OOXML: ${
+            (openXmlError as Error)?.message || openXmlError
+          }`,
+        );
+      }
     }
     const worksheet = workbook.worksheets.find((sheet) =>
       sheet.actualRowCount > 0

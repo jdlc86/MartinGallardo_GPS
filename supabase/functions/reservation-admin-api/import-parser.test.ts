@@ -1,4 +1,5 @@
 import ExcelJS from "npm:exceljs@4.4.0";
+import { zipSync } from "npm:fflate@0.8.2";
 import {
   decodeImportBase64,
   extractImportRows,
@@ -52,6 +53,56 @@ const reservation = [
   "Seat Ibiza",
   "Tarjeta de crédito",
 ];
+
+function xmlEscape(value: unknown) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+function strictOpenXmlFixture() {
+  const encoder = new TextEncoder();
+  const row = (number: number, values: string[]) =>
+    `<row r="${number}">${
+      values.map((value, index) => {
+        let column = "";
+        for (
+          let current = index + 1;
+          current;
+          current = Math.floor((current - 1) / 26)
+        ) {
+          column = String.fromCharCode(65 + (current - 1) % 26) + column;
+        }
+        return `<c r="${column}${number}" t="inlineStr"><is><t>${
+          xmlEscape(value)
+        }</t></is></c>`;
+      }).join("")
+    }</row>`;
+  const strictSpreadsheet = "http://purl.oclc.org/ooxml/spreadsheetml/main";
+  const strictOfficeRelationships =
+    "http://purl.oclc.org/ooxml/officeDocument/relationships";
+  const strictPackageRelationships =
+    "http://purl.oclc.org/ooxml/package/relationships";
+  const parts: Record<string, Uint8Array> = {
+    "[Content_Types].xml": encoder.encode(
+      `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+    ),
+    "_rels/.rels": encoder.encode(
+      `<?xml version="1.0"?><Relationships xmlns="${strictPackageRelationships}"><Relationship Id="rId1" Type="${strictOfficeRelationships}/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    ),
+    "xl/workbook.xml": encoder.encode(
+      `<?xml version="1.0"?><workbook xmlns="${strictSpreadsheet}" xmlns:r="${strictOfficeRelationships}"><sheets><sheet name="Reservas Strict" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    ),
+    "xl/_rels/workbook.xml.rels": encoder.encode(
+      `<?xml version="1.0"?><Relationships xmlns="${strictPackageRelationships}"><Relationship Id="rId1" Type="${strictOfficeRelationships}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+    ),
+    "xl/worksheets/sheet1.xml": encoder.encode(
+      `<?xml version="1.0"?><worksheet xmlns="${strictSpreadsheet}"><sheetData>${
+        row(1, ["Listado de reservas"])
+      }${row(2, headers)}${row(3, reservation)}</sheetData></worksheet>`,
+    ),
+  };
+  return zipSync(parts, { level: 6 });
+}
 
 function verifyExtracted(
   rows: Array<{ source_row: number; cells: Array<string | number> }>,
@@ -172,5 +223,21 @@ Deno.test("XLSX Office Open XML válido se importa desde bytes completos", async
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   );
   assertEquals(extracted.format, "xlsx", "debe detectar XLSX por firma");
+  verifyExtracted(extracted.rows);
+});
+
+Deno.test("XLSX Strict generado fuera de ExcelJS se importa por OOXML", async () => {
+  const bytes = strictOpenXmlFixture();
+  const extracted = await extractImportRows(
+    bytes,
+    "reservas-strict.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  assertEquals(extracted.format, "xlsx", "debe admitir OOXML Strict válido");
+  assertEquals(
+    extracted.sheetName,
+    "Reservas Strict",
+    "debe conservar el nombre de hoja",
+  );
   verifyExtracted(extracted.rows);
 });
