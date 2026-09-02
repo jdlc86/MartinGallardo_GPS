@@ -35,7 +35,7 @@ La matriz es dirigida: `A → B` y `B → A` pueden tener distancia y duración 
 
 ### 18.3 Franjas horarias
 
-Inicialmente se utilizarán cinco franjas operativas, definidas por comportamiento esperado del tráfico y no únicamente por nombres convencionales del día:
+Inicialmente se utilizarán cinco franjas operativas:
 
 | Franja | Horario Europe/Madrid |
 | --- | --- |
@@ -45,130 +45,179 @@ Inicialmente se utilizarán cinco franjas operativas, definidas por comportamien
 | `PUNTA_TARDE` | 16:00–19:59 |
 | `NOCHE` | 20:00–23:59 |
 
-Estas franjas deben ser **configurables y persistentes**. No deben quedar codificadas de forma rígida dentro del solver. Si los datos reales de operación muestran que otra segmentación representa mejor el tráfico, el Admin/sistema podrá modificar los límites sin cambiar OR-Tools.
+Estas franjas deben ser **configurables y persistentes** y no quedar codificadas rígidamente dentro del solver.
 
 ### 18.4 Matriz por origen, destino y franja
 
-Para cada combinación válida de:
+Para cada combinación `origen × destino × franja` se almacenará como mínimo distancia estimada, duración actual, duración base/histórica, fecha de obtención, fuente, desviación e indicador de anomalía.
 
-`origen × destino × franja`
-
-se almacenará como mínimo:
-
-- distancia estimada;
-- duración estimada actual;
-- duración base/histórica de referencia;
-- fecha/hora de obtención;
-- fuente del dato;
-- desviación respecto al valor base;
-- indicador de anomalía cuando corresponda.
-
-Campos conceptuales:
-
-- `origin`
-- `destination`
-- `time_band`
-- `distance_m`
-- `baseline_duration_s`
-- `current_duration_s`
-- `deviation_pct`
-- `fetched_at`
-- `source`
-- `is_anomaly`
-
-Los nombres definitivos se decidirán al revisar el esquema real de Supabase antes de crear migraciones.
+Campos conceptuales: `origin`, `destination`, `time_band`, `distance_m`, `baseline_duration_s`, `current_duration_s`, `deviation_pct`, `fetched_at`, `source`, `is_anomaly`.
 
 ### 18.5 Actualización y caché
 
-No se harán llamadas a Google por cada reserva. Los resultados se agrupan y reutilizan por nodo y franja horaria.
+No se harán llamadas a Google por cada reserva. Los resultados se agrupan y reutilizan por nodo y franja horaria. Antes de una optimización, el backend comprobará la antigüedad y validez de la matriz y refrescará únicamente lo necesario.
 
-Antes de una optimización, el backend comprobará la antigüedad y validez de la matriz. Solo refrescará los datos que la política de vigencia determine necesarios.
-
-Debe existir caché para evitar repetir consultas equivalentes durante una misma planificación o mientras los datos sigan considerándose válidos.
-
-Con 6 nodos existen 30 trayectos dirigidos útiles si se excluyen los casos origen = destino. Con 5 franjas, una calibración completa representa como máximo 150 combinaciones origen-destino-franja, antes de aplicar optimizaciones adicionales de consulta/caché.
+Con 6 nodos existen 30 trayectos dirigidos útiles excluyendo origen=destino. Con 5 franjas, una calibración completa representa como máximo 150 combinaciones origen-destino-franja antes de aplicar caché u otras optimizaciones.
 
 ### 18.6 Detección de anomalías
 
-El sistema comparará el tiempo actualizado con el tiempo base esperado para ese trayecto y franja.
-
-Ejemplo conceptual:
-
-`Parking → T4 / PUNTA_MANANA`
-
-- tiempo base: 18 min
-- tiempo actualizado: 29 min
-- desviación: +61 %
-
-Una desviación relevante debe poder marcar el trayecto como anómalo y hacer que el optimizador utilice el valor actualizado para esa planificación.
-
-El umbral exacto de anomalía debe ser configurable; no debe fijarse arbitrariamente en esta fase de diseño.
+El sistema comparará el tiempo actualizado con el tiempo base esperado para ese trayecto y franja. Una desviación relevante debe poder marcar el trayecto como anómalo y hacer que el optimizador utilice el valor actualizado. El umbral de anomalía será configurable.
 
 ### 18.7 Distancia y kilometraje de coches de clientes
 
-Google puede actualizar tanto duración como distancia estimada del trayecto. La distancia alimenta las restricciones de kilometraje planificado de los coches de clientes.
-
-Se mantiene la regla ya definida en el documento principal:
+Google puede actualizar tanto duración como distancia estimada. Se mantiene:
 
 `km máximos planificables = km lógicos estimados del servicio + 4 km de margen operativo`
 
-El odómetro fotografiado durante la operación **no forma parte del cálculo del optimizador**. La planificación trabaja con distancias estimadas.
+El odómetro fotografiado durante la operación no forma parte del cálculo del optimizador.
 
-### 18.8 Relación con la matriz de lanzaderas
+## 19. Movilidad entre terminales
 
-La matriz de Google y la matriz de lanzaderas son fuentes distintas:
+### 19.1 Bus Tránsito gratuito T1/T2/T3/T4
 
-- Google Routes: desplazamientos por carretera.
-- Matriz de lanzaderas: movilidad entre terminales mediante lanzadera.
+La movilidad entre T1, T2, T3 y T4 utilizará como opción prioritaria el Bus Tránsito gratuito del aeropuerto cuando sea temporalmente viable.
 
-Para lanzadera se mantiene:
+Recorridos publicados:
 
-- acceso desde el punto operativo de la terminal hasta la lanzadera: **5 minutos por defecto**;
-- espera de lanzadera: **NO es un valor fijo**;
-- la espera se calcula dinámicamente según la hora a la que el operario llega a la parada y la siguiente salida válida de la matriz de horarios/frecuencias;
-- tiempo de viaje entre terminales: definido en la matriz de lanzaderas.
+- sentido hacia T4: `T1 → T2 → T4`;
+- sentido desde T4: `T4 → T3 → T2 → T1`.
 
-La lanzadera tiene prioridad cuando sea temporalmente viable y respete el resto de restricciones.
+Frecuencia operativa de referencia:
 
-### 18.9 Tiempo operativo de recogidas y entregas
+- 06:00–22:00: aproximadamente cada 5 minutos;
+- 22:00–06:00: aproximadamente cada 20 minutos.
 
-Cada `pickup` y cada `delivery` bloquean **10 minutos operativos** para la rutina del operario con el vehículo/cliente.
+Tiempos iniciales de trayecto para alimentar la matriz:
 
-Durante esos 10 minutos el operario no está disponible para iniciar otro desplazamiento o tarea.
+| Origen | Destino | Tiempo de bus aproximado |
+| --- | --- | ---: |
+| T1 | T2 | 2 min |
+| T1 | T4 | 10 min |
+| T2 | T4 | 8 min |
+| T4 | T3 | 8 min |
+| T4 | T2 | 10 min |
+| T4 | T1 | 15 min |
 
-Para una transición mediante lanzadera, conceptualmente:
+La matriz es dirigida y no se debe inventar simetría entre trayectos no publicados.
 
-`fin/inicio operativo de tarea + 10 min de rutina + 5 min de acceso a lanzadera + espera calculada + trayecto de lanzadera → llegada a siguiente terminal`
+### 19.2 Acceso y espera del Bus Tránsito
 
-La factibilidad se evalúa contra la ventana temporal de la siguiente tarea.
+Para T1/T2/T3/T4 se establece un tiempo de **5 minutos por defecto** desde el punto operativo de recogida/entrega hasta la parada de la lanzadera.
 
-### 18.10 Transporte de compañeros en vehículos de clientes
+La espera de la lanzadera **no se fija como constante**. Se deriva de la frecuencia/servicio disponible en el momento del desplazamiento. El modelo debe incorporar la incertidumbre asociada a dicha espera y no asumir una salida exacta inexistente.
 
-Se mantiene como **restricción dura**:
+### 19.3 T4 ↔ T4S: tren automático
+
+T4 ↔ T4S se trata como un medio de transporte diferente del Bus Tránsito.
+
+Reglas iniciales:
+
+- acceso desde el punto operativo de recogida/entrega hasta el tren: **10 minutos**;
+- este acceso sustituye los 5 minutos estándar utilizados para la lanzadera de T1/T2/T3/T4;
+- tiempo aproximado de trayecto en tren: 5 minutos;
+- espera: variable según la frecuencia del tren y debe incorporarse a la incertidumbre del trayecto.
+
+## 20. Tiempo operativo de cada servicio
+
+Cada `pickup` y cada `delivery` bloquean **10 minutos operativos** para la rutina del operario con el vehículo/cliente. Durante ese bloque el operario no está disponible para iniciar otro desplazamiento o tarea.
+
+## 21. Transporte de compañeros en vehículos de clientes
+
+Restricción dura:
 
 `max_logistics_passengers_per_customer_vehicle = 1`
 
-Además del operario conductor, un vehículo de cliente puede transportar como máximo **un compañero adicional** por necesidades logísticas del parking.
+Además del conductor, un vehículo de cliente puede transportar como máximo un compañero adicional por necesidades logísticas. El optimizador nunca puede proponer dos o más acompañantes logísticos. Todo traslado debe respetar ventanas temporales, kilometraje estimado y coherencia de rutas, y reflejarse en los itinerarios de ambos operarios.
 
-El optimizador automático nunca puede proponer dos o más acompañantes logísticos en un vehículo de cliente. La regla busca evitar un uso que el cliente pueda percibir como inadecuado de su vehículo para resolver necesidades internas del negocio.
+## 22. Asignaciones manuales existentes
 
-Cualquier traslado de un compañero debe además:
+Al optimizar un periodo se cargan primero las asignaciones manuales ya confirmadas. Se preservan como decisiones del Admin y el solver planifica alrededor de ellas, incluso si representan una excepción consciente a una regla automática como `GAMA_ALTA → EXPERTO`. La excepción debe reflejarse en el informe.
 
-- ser compatible con las ventanas temporales;
-- respetar el límite de kilometraje estimado del coche;
-- ser coherente con la ruta real del vehículo;
-- reflejarse en los itinerarios de ambos operarios.
+## 23. Política de puntualidad, criticidad e incertidumbre
 
-### 18.11 Asignaciones manuales existentes
+### 23.1 Diferencia entre pickup y delivery
 
-Al optimizar un periodo se deben cargar primero las asignaciones manuales ya confirmadas dentro del horizonte.
+Las dos operaciones requieren puntualidad, pero sus consecuencias son diferentes:
 
-Estas asignaciones se preservan como decisiones del Admin y el optimizador planifica alrededor de ellas, incluso cuando representen una excepción consciente a una regla automática.
+- `pickup` (recogida del coche al cliente que va a viajar): **operación crítica**. Un retraso puede contribuir a que el cliente pierda su vuelo.
+- `delivery` (devolución del coche al cliente que llega al aeropuerto): **operación importante pero más flexible**. Un retraso genera espera y deteriora el servicio, pero normalmente no implica riesgo de perder un vuelo.
 
-Ejemplo: la asignación automática exige `GAMA_ALTA → EXPERTO`, pero si antes de ejecutar el optimizador un Admin ha asignado manualmente un vehículo de gama alta a un operario BAJO/MEDIO por una necesidad operativa, el solver no debe deshacer silenciosamente esa decisión. Debe preservarla y reflejarla como excepción manual en el informe.
+Esta asimetría debe formar parte explícita de la función objetivo y de las restricciones temporales.
 
-### 18.12 Principio de uso de Google
+### 23.2 Política normal: llegar 5 minutos antes
 
-Google debe actuar como **sensor externo de calibración logística**, no como dependencia por cada tarea individual.
+La política de servicio es que el operario llegue al punto de recogida/entrega **5 minutos antes de la hora programada**.
 
-Esto reduce coste, llamadas innecesarias y dependencia externa, mientras conserva el beneficio principal: que la planificación tenga en cuenta diferencias por horario y circunstancias anómalas de la red viaria.
+Por tanto, el objetivo temporal preferido para cualquier tarea es:
+
+`target_arrival = scheduled_time - 5 min`
+
+Llegar después de este objetivo no se considera equivalente a una solución puntual: debe introducir penalización en la optimización.
+
+### 23.3 Retrasos máximos tolerables como peor opción
+
+Los retrasos son escenarios no deseados y solo deben aparecer cuando no exista una solución mejor dentro de las restricciones globales.
+
+Límites:
+
+| Operación | Objetivo | Retraso máximo tolerable |
+| --- | --- | ---: |
+| `pickup` | llegar 5 min antes | **5 min** después de la hora programada |
+| `delivery` | llegar 5 min antes | **10 min** después de la hora programada |
+
+Superar estos límites debe tratarse como solución no factible para la planificación automática, salvo que posteriormente se defina un mecanismo explícito de excepción manual del Admin.
+
+### 23.4 Jerarquía de penalización temporal
+
+El solver debe favorecer las soluciones aproximadamente en este orden:
+
+1. Nunca superar el retraso máximo permitido de un `pickup`.
+2. Nunca superar el retraso máximo permitido de un `delivery`.
+3. Evitar cualquier retraso en `pickup`, incluso dentro de los 5 minutos tolerables.
+4. Evitar retrasos en `delivery`, aunque sean inferiores a 10 minutos.
+5. Buscar llegar al menos 5 minutos antes en ambos tipos de tarea.
+6. Solo después optimizar tiempos muertos, balance de carga, kilómetros y demás objetivos blandos, sin violar las restricciones duras.
+
+La penalización por retraso de `pickup` debe ser significativamente mayor que la de `delivery`.
+
+### 23.5 Propagación de incertidumbre
+
+El optimizador no debe trabajar únicamente con la suma de tiempos medios. Debe considerar la **incertidumbre acumulada del itinerario propuesto** para calcular una hora de salida suficientemente robusta.
+
+Entre las fuentes de incertidumbre se incluyen:
+
+- variación del tráfico de carretera y anomalías detectadas mediante Google Routes;
+- espera del Bus Tránsito;
+- espera del tren T4↔T4S;
+- transiciones entre punto operativo y parada/estación;
+- dependencias de traslado con otro operario;
+- cualquier margen operacional configurable que se incorpore posteriormente.
+
+La incertidumbre se propaga a través de la cadena de movimientos. Una secuencia con más transbordos o dependencias puede requerir una salida más temprana que otra con el mismo tiempo medio pero menor variabilidad.
+
+### 23.6 Cálculo de hora recomendada de salida
+
+El resultado del optimizador debe incluir no solo la asignación y el itinerario, sino también la **hora recomendada de salida desde el Parking o desde cualquier punto de origen**.
+
+Conceptualmente:
+
+`hora_salida_recomendada = target_arrival - tiempo_estimado_total - margen_por_incertidumbre`
+
+El `margen_por_incertidumbre` no debe ser una constante universal: depende del trayecto propuesto y de las fuentes de incertidumbre presentes.
+
+Ejemplo de salida para el operario:
+
+- tarea: pickup T1 a las 10:00;
+- objetivo: estar en T1 a las 09:55;
+- hora de salida recomendada: calculada por el solver según ruta, tráfico, transporte y riesgo;
+- llegada estimada y margen previsto: incluidos en el informe.
+
+### 23.7 Itinerario robusto, no solo itinerario más rápido
+
+La solución óptima no debe ser necesariamente la que tenga el menor tiempo medio. Debe favorecer el itinerario que reduzca el riesgo de incumplimiento, especialmente en `pickup`.
+
+Una ruta ligeramente más lenta pero estable puede ser preferible a otra más rápida en promedio pero con alta incertidumbre si esta última aumenta el riesgo de llegar tarde a una recogida crítica.
+
+## 24. Principio de uso de Google
+
+Google debe actuar como **sensor externo de calibración logística**, no como dependencia por cada tarea individual. Esto reduce coste, llamadas innecesarias y dependencia externa, manteniendo la capacidad de detectar diferencias por horario y circunstancias anómalas de la red viaria.
