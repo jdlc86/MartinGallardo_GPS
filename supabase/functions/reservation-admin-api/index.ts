@@ -1,6 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import ExcelJS from "npm:exceljs@4.4.0";
 import { Buffer } from "node:buffer";
+import {
+  COLUMN_KEYS as IMPORT_COLUMN_KEYS,
+  REQUIRED_KEYS as IMPORT_REQUIRED_KEYS,
+  ImportFileError,
+  decodeImportBase64,
+  extractImportRows,
+  findHeaderCandidate as findSemanticHeaderCandidate,
+  normalizeImportedRows as normalizeSemanticRows,
+  sanitizeImportDetail,
+} from "./import-parser.ts";
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -16,9 +26,13 @@ const AI_MODEL = "gemini-2.5-flash-lite";
 
 class AppError extends Error {
   status: number;
-  constructor(message: string, status = 400) {
+  code: string;
+  diagnostic?: Record<string, unknown>;
+  constructor(message: string, status = 400, diagnostic?: Record<string, unknown>) {
     super(message);
+    this.code = message;
     this.status = status;
+    this.diagnostic = diagnostic;
   }
 }
 
@@ -340,15 +354,44 @@ async function analyzeHeadersWithAI(rows: Array<{ source_row: number; cells: Arr
     throw new AppError("ai_import_invalid_response", 502);
   }
   const columns: Record<ColumnKey, number> = {} as Record<ColumnKey, number>;
+  const usedColumns = new Set<number>();
   for (const key of COLUMN_KEYS) {
     const index = Number(result?.columns?.[key]);
-    columns[key] = Number.isInteger(index) && index >= -1 && index < MAX_IMPORT_COLUMNS ? index : -1;
+    if (Number.isInteger(index) && index >= 0 && index < MAX_IMPORT_COLUMNS && !usedColumns.has(index)) {
+      columns[key] = index;
+      usedColumns.add(index);
+    } else columns[key] = -1;
   }
   return {
     headerRow: header.source_row,
     columns,
     warnings: Array.isArray(result?.warnings) ? result.warnings.map((value: unknown) => String(value).slice(0, 300)).slice(0, 10) : [],
   };
+}
+
+async function analyzeImportHeaders(rows: Array<{ source_row: number; cells: Array<string | number> }>) {
+  const candidate = findSemanticHeaderCandidate(rows);
+  if (IMPORT_REQUIRED_KEYS.every((key) => candidate.columns[key] >= 0)) {
+    return {
+      headerRow: candidate.row.source_row,
+      columns: candidate.columns,
+      warnings: [] as string[],
+      strategy: "deterministic" as const,
+    };
+  }
+
+  const ai = await analyzeHeadersWithAI(rows);
+  const used = new Set(Object.values(ai.columns).filter((value) => value >= 0));
+  for (const key of IMPORT_COLUMN_KEYS) {
+    const deterministicIndex = candidate.columns[key];
+    if (ai.columns[key] < 0 && deterministicIndex >= 0 && !used.has(deterministicIndex)) {
+      ai.columns[key] = deterministicIndex;
+      used.add(deterministicIndex);
+    }
+  }
+  const missing = IMPORT_REQUIRED_KEYS.filter((key) => ai.columns[key] < 0);
+  if (missing.length) throw new AppError(`missing_required_columns:${missing.join(",")}`);
+  return { ...ai, strategy: "ai_fallback" as const };
 }
 
 function twoDigits(value: number) {
@@ -471,47 +514,99 @@ function normalizeImportedRows(
 }
 
 async function analyzeImport(telegramUserId: number, body: any) {
-  const writerEpoch = Number(body.writer_epoch);
-  if (!Number.isSafeInteger(writerEpoch) || writerEpoch < 1) throw new AppError("write_permission_changed", 409);
-  await rpc("parking_booking_require_writer", {
-    p_actor_telegram_user_id: telegramUserId,
-    p_writer_epoch: writerEpoch,
-  });
-  const fileName = String(body.file_name || "").replace(/[\\/]/g, "").slice(0, 240);
-  const mimeType = String(body.mime_type || "application/octet-stream").slice(0, 120);
-  if (!fileName) throw new AppError("invalid_import_file");
-  const bytes = decodeBase64(String(body.file_base64 || ""));
-  const fileSha256 = await sha256Hex(bytes);
-  const extracted = await extractRows(bytes, fileName, mimeType);
-  const ai = await analyzeHeadersWithAI(extracted.rows);
-  const normalized = normalizeImportedRows(extracted.rows, ai.headerRow, ai.columns);
-  if (!normalized.validRows.length && !normalized.invalidRows.length) throw new AppError("empty_import_file");
-  const missingColumns = COLUMN_KEYS.filter((key) => ai.columns[key] < 0);
-  const warnings = [...ai.warnings];
-  if (missingColumns.length) warnings.push(`Columnas no detectadas: ${missingColumns.join(", ")}`);
-  if (extracted.rows.length > MAX_IMPORT_ROWS) warnings.push(`Se analizaron como máximo ${MAX_IMPORT_ROWS} filas.`);
-  const analysis = await insert("parking_booking_import_analyses", {
-    created_by_telegram_user_id: telegramUserId,
-    file_name: fileName,
-    file_sha256: fileSha256,
-    ai_provider: "google_gemini",
-    ai_model: AI_MODEL,
-    valid_rows: normalized.validRows,
-    invalid_rows: normalized.invalidRows,
-    warnings,
-  });
-  return {
-    analysis_id: analysis.id,
-    file_name: fileName,
-    file_sha256: fileSha256,
-    ai_model: AI_MODEL,
-    header_row: ai.headerRow,
-    columns: ai.columns,
-    warnings,
-    valid_rows: normalized.validRows,
-    invalid_rows: normalized.invalidRows,
-    expires_at: analysis.expires_at,
-  };
+  let stage = "permission";
+  let fileName = "";
+  let mimeType = "application/octet-stream";
+  let decodedBytes = 0;
+  let declaredBytes = 0;
+  let receivedBase64Chars = 0;
+  try {
+    const writerEpoch = Number(body.writer_epoch);
+    if (!Number.isSafeInteger(writerEpoch) || writerEpoch < 1) throw new AppError("write_permission_changed", 409);
+    await rpc("parking_booking_require_writer", {
+      p_actor_telegram_user_id: telegramUserId,
+      p_writer_epoch: writerEpoch,
+    });
+
+    stage = "metadata";
+    fileName = String(body.file_name || "").replace(/[\\/]/g, "").slice(0, 240);
+    mimeType = String(body.mime_type || "application/octet-stream").slice(0, 120).toLowerCase();
+    declaredBytes = Number(body.file_size) || 0;
+    receivedBase64Chars = String(body.file_base64 || "").length;
+    if (!fileName) throw new AppError("invalid_import_file");
+    if (declaredBytes && (!Number.isSafeInteger(declaredBytes) || declaredBytes < 10 || declaredBytes > MAX_FILE_BYTES)) {
+      throw new AppError("invalid_import_file_size");
+    }
+
+    stage = "base64";
+    const bytes = decodeImportBase64(body.file_base64);
+    decodedBytes = bytes.length;
+    if (declaredBytes && decodedBytes !== declaredBytes) {
+      throw new AppError("import_payload_truncated");
+    }
+    stage = "hash";
+    const fileSha256 = await sha256Hex(bytes);
+    const clientSha256 = String(body.client_sha256 || "").toLowerCase();
+    if (clientSha256 && (!/^[0-9a-f]{64}$/.test(clientSha256) || clientSha256 !== fileSha256)) {
+      throw new AppError("import_payload_checksum_mismatch");
+    }
+    stage = "extract";
+    const extracted = await extractImportRows(bytes, fileName, mimeType);
+    console.log("IMPORT_EXTRACT_OK", JSON.stringify({ fileName, mimeType, decodedBytes, format: extracted.format, sheet: extracted.sheetName, rows: extracted.rows.length }));
+
+    stage = "headers";
+    const headers = await analyzeImportHeaders(extracted.rows);
+    console.log("IMPORT_HEADERS_OK", JSON.stringify({ strategy: headers.strategy, headerRow: headers.headerRow, columns: headers.columns }));
+
+    stage = "normalize";
+    const normalized = normalizeSemanticRows(extracted.rows, headers.headerRow, headers.columns);
+    console.log("IMPORT_NORMALIZE_OK", JSON.stringify({ valid: normalized.validRows.length, invalid: normalized.invalidRows.length }));
+    if (!normalized.validRows.length && !normalized.invalidRows.length) throw new AppError("empty_import_file");
+    const missingColumns = IMPORT_COLUMN_KEYS.filter((key) => headers.columns[key] < 0);
+    const warnings = [...headers.warnings];
+    if (missingColumns.length) warnings.push(`Columnas no detectadas: ${missingColumns.join(", ")}`);
+    if (extracted.rows.length > MAX_IMPORT_ROWS) warnings.push(`Se analizaron como máximo ${MAX_IMPORT_ROWS} filas.`);
+
+    stage = "insert_analysis";
+    const analysis = await insert("parking_booking_import_analyses", {
+      created_by_telegram_user_id: telegramUserId,
+      file_name: fileName,
+      file_sha256: fileSha256,
+      ai_provider: headers.strategy === "deterministic" ? "deterministic_header_mapper" : "google_gemini",
+      ai_model: headers.strategy === "deterministic" ? "header-mapper-v4" : AI_MODEL,
+      valid_rows: normalized.validRows,
+      invalid_rows: normalized.invalidRows,
+      warnings,
+    });
+    return {
+      analysis_id: analysis.id,
+      file_name: fileName,
+      file_sha256: fileSha256,
+      ai_model: headers.strategy === "deterministic" ? "header-mapper-v4" : AI_MODEL,
+      header_strategy: headers.strategy,
+      header_row: headers.headerRow,
+      columns: headers.columns,
+      warnings,
+      valid_rows: normalized.validRows,
+      invalid_rows: normalized.invalidRows,
+      expires_at: analysis.expires_at,
+    };
+  } catch (error) {
+    const code = error instanceof ImportFileError ? error.code : error instanceof AppError ? error.code : "invalid_import_file";
+    const detail = error instanceof ImportFileError ? error.detail : sanitizeImportDetail((error as Error)?.message || error);
+    const status = error instanceof AppError ? error.status : 400;
+    const diagnostic = {
+      import_stage: stage,
+      detail,
+      filename: fileName || undefined,
+      mime_type: mimeType,
+      decoded_bytes: decodedBytes,
+      declared_bytes: declaredBytes,
+      received_base64_chars: receivedBase64Chars,
+    };
+    console.error("IMPORT_STAGE_ERROR", JSON.stringify({ stage, code, filename: fileName || null, mimeType, decodedBytes, detail }));
+    throw new AppError(code, status, diagnostic);
+  }
 }
 
 function requireUuid(value: unknown, code: string) {
@@ -540,7 +635,8 @@ Deno.serve(async (request: Request) => {
         p_limit: Math.min(Math.max(Number(body.limit) || 50, 1), 200),
         p_offset: Math.max(Number(body.offset) || 0, 0),
       });
-      data.ai_import_available = Boolean(GEMINI_KEY);
+      // El mapeador semántico funciona sin proveedor externo; Gemini solo es respaldo.
+      data.ai_import_available = true;
     } else if (action === "create") {
       data = await rpc("parking_booking_create", {
         p_actor_telegram_user_id: auth.telegramUserId,
@@ -605,8 +701,8 @@ Deno.serve(async (request: Request) => {
     return json({ ok: true, ...data });
   } catch (error) {
     console.error(error);
-    const message = String((error as Error)?.message || error);
+    const message = error instanceof AppError ? error.code : String((error as Error)?.message || error);
     const status = error instanceof AppError ? error.status : (message === "not_admin" ? 403 : 400);
-    return json({ ok: false, error: message }, status);
+    return json({ ok: false, error: message, ...(error instanceof AppError ? error.diagnostic : {}) }, status);
   }
 });

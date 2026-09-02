@@ -234,7 +234,7 @@
       var data=null,selected=new Map(),editing=null,analysis=null,searchTimer=null,eventRefreshTimer=null,toastTimer=null;
       var $=function(id){return document.getElementById(id)};
       function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-      function friendly(value){return window.PMGFriendlyError?window.PMGFriendlyError(value):String(value||'No se pudo completar la operación.')}
+      function friendly(value){var importErrors={invalid_import_base64:'El archivo llegó incompleto al servidor. Selecciónalo de nuevo y vuelve a intentarlo.',import_payload_truncated:'El archivo no llegó completo al servidor. Comprueba la conexión y vuelve a seleccionarlo.',import_payload_checksum_mismatch:'El archivo cambió durante el envío. Vuelve a seleccionarlo para reintentarlo con seguridad.',xlsx_parse_failed:'El archivo .xlsx llegó al servidor, pero no se pudo abrir como Office Open XML.',import_headers_not_found:'No se han reconocido los encabezados de reservas. Comprueba que estén visibles en una sola fila.'};return importErrors[value]||(window.PMGFriendlyError?window.PMGFriendlyError(value):String(value||'No se pudo completar la operación.'))}
       function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').classList.add('on');toastTimer=setTimeout(function(){$('toast').classList.remove('on')},2800)}
       function busy(on,title,text){$('busy').classList.toggle('on',on);if(title)$('busyTitle').textContent=title;if(text)$('busyText').textContent=text}
       function uuid(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();return'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&3|8);return v.toString(16)})}
@@ -244,7 +244,11 @@
         var body={initData:tg.initData,action:action};if(extra)Object.keys(extra).forEach(function(key){body[key]=extra[key]});
         var response;try{response=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}catch(error){throw new Error('network_error')}
         var text=await response.text(),payload;try{payload=JSON.parse(text)}catch(error){throw new Error('invalid_server_response')}
-        if(!response.ok||!payload.ok)throw new Error(payload.error||'network_error');return payload;
+        if(!response.ok||!payload.ok){
+          var code=String(payload.error||'network_error'),failure={name:'ApiError',message:code,code:code,status:response.status,diagnostic:payload};
+          if(action==='analyze_import')console.warn('IMPORT_REQUEST_FAILED',{error:code,import_stage:payload.import_stage||null,detail:payload.detail||null,filename:payload.filename||null,mime_type:payload.mime_type||null,decoded_bytes:Number(payload.decoded_bytes)||0,declared_bytes:Number(payload.declared_bytes)||0,received_base64_chars:Number(payload.received_base64_chars)||0});
+          throw failure;
+        }return payload;
       }
       function canWrite(){return !!(data&&data.permission&&data.permission.can_write)}
       function epoch(){return Number(data&&data.permission?data.permission.epoch:0)}
@@ -338,10 +342,10 @@
       async function respondPermission(requestId,decision){try{busy(true,decision==='accept'?'Aceptando permiso…':'Rechazando solicitud…','Actualizando el control de escritura.');var response=await api('respond_permission',{request_id:requestId,decision:decision,idempotency_key:uuid()});if(response.error)throw new Error(response.error);pulse('success');toast(decision==='accept'?'Permiso actualizado':'Solicitud rechazada');await load(true);renderNotifications()}catch(error){pulse('error');toast(friendly(error.message));await load(true)}finally{busy(false)}}
       async function markRead(){var ids=(data.notifications||[]).filter(function(item){return!item.read_at}).map(function(item){return Number(item.id)});if(!ids.length)return toast('No hay avisos sin leer');try{await api('mark_notifications_read',{notification_ids:ids});await load(true);renderNotifications()}catch(error){toast(friendly(error.message))}}
       function resetImport(){analysis=null;$('importFile').value='';$('fileName').textContent='';$('importResult').hidden=true;$('importPreview').innerHTML='';$('importWarnings').hidden=true;$('importIssues').hidden=true}
-      function fileBase64(file){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=function(){var bytes=new Uint8Array(reader.result),chunk=0x8000,binary='';for(var i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));resolve(btoa(binary))};reader.onerror=function(){reject(new Error('invalid_import_file'))};reader.readAsArrayBuffer(file)})}
+      function filePayload(file){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=async function(){try{var bytes=new Uint8Array(reader.result),chunk=0x8000,binary='';for(var i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));var digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes.buffer)),sha256=Array.prototype.map.call(digest,function(value){return value.toString(16).padStart(2,'0')}).join('');resolve({base64:btoa(binary),size:bytes.length,sha256:sha256})}catch(error){reject({message:'invalid_import_file'})}};reader.onerror=function(){reject({message:'invalid_import_file'})};reader.readAsArrayBuffer(file)})}
       async function analyzeFile(file){
         if(!canWrite())return openPermission();if(!file)return;if(file.size>6000000)return toast(friendly('invalid_import_file_size'));
-        $('fileName').textContent=file.name;try{busy(true,'La IA está leyendo el Excel…','Identificando encabezados, fechas, clientes, matrículas y forma de pago.');var base64=await fileBase64(file);analysis=await api('analyze_import',{writer_epoch:epoch(),file_name:file.name,mime_type:file.type||'application/octet-stream',file_base64:base64});renderImport();pulse('success')}
+        $('fileName').textContent=file.name;try{busy(true,'La IA está leyendo el Excel…','Identificando encabezados, fechas, clientes, matrículas y forma de pago.');var payload=await filePayload(file);analysis=await api('analyze_import',{writer_epoch:epoch(),file_name:file.name,mime_type:file.type||'application/octet-stream',file_size:payload.size,client_sha256:payload.sha256,file_base64:payload.base64});renderImport();pulse('success')}
         catch(error){analysis=null;pulse('error');toast(friendly(error.message));if(/permission/.test(error.message))await load(true)}finally{busy(false)}
       }
       function renderImport(){
