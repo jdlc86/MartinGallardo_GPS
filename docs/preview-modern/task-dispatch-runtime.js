@@ -14,8 +14,23 @@
       .app{padding-bottom:calc(28px + env(safe-area-inset-bottom))!important}
       html.pmg-has-assignbar .app{padding-bottom:calc(var(--pmg-assignbar-height) + 28px + env(safe-area-inset-bottom))!important}
       .task{scroll-margin-bottom:calc(var(--pmg-assignbar-height) + 28px + env(safe-area-inset-bottom))}
+      #pmg-ai-planner{width:auto;min-width:82px;padding:0 11px;font-weight:900;color:#fff;background:linear-gradient(135deg,#2563eb,#7c3aed);border:0}
     `;
     document.head.appendChild(style);
+
+    const toolbar = document.querySelector('.toolbar');
+    const refresh = document.getElementById('refresh');
+    if (toolbar && refresh && !document.getElementById('pmg-ai-planner')) {
+      toolbar.style.gridTemplateColumns = '1fr auto auto';
+      const ai = document.createElement('button');
+      ai.id = 'pmg-ai-planner';
+      ai.className = 'refresh';
+      ai.type = 'button';
+      ai.textContent = '✨ IA';
+      ai.title = 'Asistente IA de asignación';
+      ai.onclick = () => { location.href = 'ai-dispatch.html?v=20260902AI1'; };
+      toolbar.appendChild(ai);
+    }
 
     function syncSpace() {
       const active = bar.classList.contains("on");
