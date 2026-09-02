@@ -7,51 +7,35 @@
   const GLOBAL='/functions/v1/reservation-ai-global-solver';
   const nativeFetch=window.fetch.bind(window);
 
-  function sameMadridDay(a,b){
-    const f=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'});
-    return f.format(new Date(a))===f.format(new Date(b));
-  }
-
-  function manualConflicts(data){
-    const conflicts=[];
-    for(const report of Object.values(data?.reports||{})){
-      const items=(report?.items||[]).filter(x=>x?.fixed).sort((a,b)=>new Date(a.sched)-new Date(b.sched));
-      for(let i=1;i<items.length;i++){
-        const prev=items[i-1],cur=items[i];
-        if(!sameMadridDay(prev.sched,cur.sched))continue;
-        let impossible=false;
-        if(prev.type==='pickup'&&cur.type==='delivery')impossible=new Date(prev.worker_end)>new Date(cur.car_depart);
-        else if(prev.type==='pickup'&&cur.type==='pickup')impossible=new Date(prev.worker_end)>new Date(cur.target);
-        else if(prev.type==='delivery'&&cur.type==='delivery')impossible=new Date(prev.worker_end)>new Date(cur.car_depart);
-        if(impossible){
-          conflicts.push({
-            task_id:cur.id,
-            previous_task_id:prev.id,
-            worker_id:report.worker?.id,
-            worker_name:report.worker?.full_name||'Operario',
-            reason:'manual_assignment_physical_conflict'
-          });
-        }
-      }
-    }
-    return conflicts;
-  }
-
-  async function postProcess(response){
+  async function adaptGlobalResponse(response){
     const clone=response.clone();
     let data;
     try{data=await clone.json()}catch{return response}
     if(!data?.ok)return response;
-    const conflicts=manualConflicts(data);
-    if(!conflicts.length)return response;
-    data.hard_conflicts=conflicts;
-    data.physical_feasible=false;
-    data.unassigned=[...(data.unassigned||[]),...conflicts.map(c=>({task_id:c.task_id,reason:c.reason}))];
-    for(const c of conflicts){
-      const r=Object.values(data.reports||{}).find(x=>x?.worker?.id===c.worker_id);
-      if(r?.text)r.text='⚠️ CONFLICTO EN ASIGNACIONES MANUALES: revisar la secuencia antes de ejecutar.\n'+r.text;
+
+    // Compatibilidad visual con la pantalla existente. La detección se realiza
+    // exclusivamente en backend; aquí solo se presenta en el bloque de incidencias.
+    const manual=Array.isArray(data.manual_conflicts)?data.manual_conflicts:[];
+    if(manual.length){
+      data.unassigned=[...(data.unassigned||[]),...manual.map(c=>({
+        task_id:c.task_id,
+        reason:`manual_assignment_physical_conflict · ${c.worker_name||'Operario'}`
+      }))];
     }
-    return new Response(JSON.stringify(data),{status:response.status,statusText:response.statusText,headers:response.headers});
+
+    const late=(data.reviews||[]).filter(r=>r?.reason==='planned_late_arrival');
+    if(late.length){
+      data.unassigned=[...(data.unassigned||[]),...late.map(r=>({
+        task_id:r.task_id,
+        reason:`plan usa retraso penalizado de ${r.lateness_minutes} min`
+      }))];
+    }
+
+    return new Response(JSON.stringify(data),{
+      status:response.status,
+      statusText:response.statusText,
+      headers:response.headers
+    });
   }
 
   window.fetch=function(input,init){
@@ -61,7 +45,7 @@
         const body=typeof init.body==='string'?JSON.parse(init.body):null;
         if(body?.action==='optimize'){
           const next=url.replace(PLANNER,GLOBAL);
-          return nativeFetch(next,init).then(postProcess);
+          return nativeFetch(next,init).then(adaptGlobalResponse);
         }
       }
     }catch{}
