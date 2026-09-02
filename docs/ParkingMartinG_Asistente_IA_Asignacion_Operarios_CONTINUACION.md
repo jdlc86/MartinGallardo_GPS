@@ -5,17 +5,26 @@
 
 Este documento continúa la especificación funcional y técnica del Asistente IA de planificación. Debe leerse conjuntamente con dicho documento.
 
-> **Decisión V1 posterior y prevalente:** para la primera versión del optimizador se simplifica la elegibilidad. Los candidatos automáticos son los **operarios activos**. No se utilizarán niveles `BAJO/MEDIO/EXPERTO` ni clasificación `MARCA → GAMA` para decidir asignaciones automáticas en V1. Las tareas que el Admin considere críticas o que requieran una persona concreta se asignarán manualmente antes de optimizar; esas asignaciones quedan fijadas y el solver planifica alrededor de ellas. Esta decisión sustituye, para V1, las reglas anteriores de experiencia/gama donde entren en conflicto.
+> **Decisión V1 posterior y prevalente:** los candidatos automáticos son los **operarios activos**. No se utilizan niveles `BAJO/MEDIO/EXPERTO` ni `MARCA → GAMA` para decidir asignaciones automáticas en V1. Las tareas que el Admin quiera reservar se asignan manualmente antes de optimizar. **Toda asignación manual es inmutable para el solver: nunca propone cambiarla y optimiza exclusivamente alrededor de ella.**
 
 ## 18. Matriz dinámica de trayectos mediante Google Routes
 
 ### 18.1 Objetivo
-Google Routes no se utilizará para consultar individualmente cada reserva. Su función será calibrar periódicamente la matriz logística de carretera, capturar diferencias por franja y detectar anomalías puntuales (obras, cortes, desvíos o congestión excepcional).
+Google Routes calibra periódicamente la matriz logística de carretera, no se consulta por cada reserva. Permite capturar diferencias por franja y anomalías puntuales.
 
-`Solicitud de optimización → comprobar vigencia de matriz → Google Routes si procede → matriz dinámica → OR-Tools → propuesta → IA → confirmación Admin`
+`Solicitud optimización → comprobar matriz → Google Routes si procede → matriz dinámica → OR-Tools → propuesta → IA → revisión Admin → confirmación`
 
-### 18.2 Nodos operativos
-Como mínimo: Parking, T1, T2, T3, T4 y T4S. La matriz es dirigida: `A → B` y `B → A` pueden diferir.
+### 18.2 Nodos geográficos V1
+Nodos iniciales de configuración:
+
+- `PARKING`: https://maps.app.goo.gl/Rijkcdh9HzTAkfuw5?g_st=ac
+- `T1`: https://maps.app.goo.gl/u6AGoB78gYFxJfrf7?g_st=ac
+- `T2`: https://maps.app.goo.gl/Ebd5nGdibmH2ayZL9?g_st=ac
+- `T3`: https://maps.app.goo.gl/9zA41fCfaXvginPx5?g_st=ac
+- `T4`: https://maps.app.goo.gl/syAqdwBU3jFGbbkV9?g_st=ac
+- `T4S`: https://maps.app.goo.gl/bMtfCW4tL95tHm8RA?g_st=ac
+
+Antes de producción deben resolverse/verificarse las coordenadas o Place IDs concretos correspondientes a los puntos operativos reales. La matriz es dirigida.
 
 ### 18.3 Franjas horarias
 | Franja | Horario Europe/Madrid |
@@ -26,33 +35,33 @@ Como mínimo: Parking, T1, T2, T3, T4 y T4S. La matriz es dirigida: `A → B` y 
 | `PUNTA_TARDE` | 16:00–19:59 |
 | `NOCHE` | 20:00–23:59 |
 
-Las franjas son configurables y persistentes, no rígidas en el solver.
+Configurables y persistentes.
 
-### 18.4 Datos por origen, destino y franja
+### 18.4 Datos por origen/destino/franja
 Campos conceptuales: `origin`, `destination`, `time_band`, `distance_m`, `baseline_duration_s`, `current_duration_s`, `deviation_pct`, `fetched_at`, `source`, `is_anomaly`.
 
-### 18.5 Actualización y caché
-No se harán llamadas por cada reserva. Se agrupan y reutilizan por nodo/franja. Antes de optimizar se comprueba vigencia y se refresca solo lo necesario. Con 6 nodos hay 30 trayectos dirigidos útiles y, con 5 franjas, hasta 150 combinaciones antes de caché.
+### 18.5 Actualización/caché
+Las consultas se agrupan por nodo/franja. Antes de optimizar se comprueba vigencia y se refresca solo lo necesario. Con 6 nodos hay 30 trayectos dirigidos útiles y 150 combinaciones para 5 franjas antes de caché.
 
 ### 18.6 Anomalías
-Se compara el tiempo actualizado con el baseline de ese trayecto/franja. El umbral de anomalía será configurable y el solver utilizará el dato actualizado cuando proceda.
+Comparar dato actual con baseline. Umbral configurable. Si procede, el solver utiliza el valor actualizado.
 
 ### 18.7 Kilometraje
-`km máximos planificables = km lógicos estimados del servicio + 4 km de margen operativo`
+`km máximos planificables = km lógicos estimados del servicio + 4 km de margen operativo`.
 
-El odómetro fotografiado no forma parte del cálculo del optimizador.
+El odómetro fotografiado no interviene en el cálculo del solver.
 
 ## 19. Movilidad entre terminales
 
-### 19.1 Bus Tránsito gratuito T1/T2/T3/T4
-Opción prioritaria cuando sea temporalmente viable.
+### 19.1 Bus Tránsito gratuito
+Prioritario cuando sea temporalmente viable.
 
-- hacia T4: `T1 → T2 → T4`
-- desde T4: `T4 → T3 → T2 → T1`
-- 06:00–22:00: aproximadamente cada 5 min
-- 22:00–06:00: aproximadamente cada 20 min
+- `T1 → T2 → T4`
+- `T4 → T3 → T2 → T1`
+- 06:00–22:00: ~5 min frecuencia
+- 22:00–06:00: ~20 min frecuencia
 
-| Origen | Destino | Tiempo bus aproximado |
+| Origen | Destino | Tiempo bus aprox. |
 | --- | --- | ---: |
 | T1 | T2 | 2 min |
 | T1 | T4 | 10 min |
@@ -61,100 +70,178 @@ Opción prioritaria cuando sea temporalmente viable.
 | T4 | T2 | 10 min |
 | T4 | T1 | 15 min |
 
-La matriz es dirigida; no se inventa simetría.
+Matriz dirigida; no inventar simetría.
 
-### 19.2 Acceso y espera
-Para T1/T2/T3/T4: **5 min por defecto** desde punto operativo hasta parada. La espera no es constante: se deriva de frecuencia/servicio y su incertidumbre se incorpora al trayecto.
+### 19.2 Acceso/espera
+T1/T2/T3/T4: **5 min** de acceso por defecto. La espera no es fija: deriva de frecuencia/servicio y forma parte de la incertidumbre.
 
 ### 19.3 T4 ↔ T4S
-Medio distinto: tren automático.
-
-- acceso punto operativo → tren: **10 min**;
-- sustituye los 5 min estándar;
-- trayecto aproximado: 5 min;
-- espera variable según frecuencia e incorporada a la incertidumbre.
+Tren automático: **10 min** de acceso desde punto operativo, ~5 min de trayecto y espera variable.
 
 ## 20. Tiempo operativo
-Cada `pickup` y `delivery` bloquea **10 min operativos**. Durante ese tiempo el operario no está disponible para otra tarea/desplazamiento.
+Cada `pickup` y `delivery` bloquea **10 min operativos**.
 
 ## 21. Transporte de compañeros
 Restricción dura: `max_logistics_passengers_per_customer_vehicle = 1`.
 
-Además del conductor, máximo un compañero adicional por logística. Debe respetar ventanas temporales, kilometraje y coherencia de rutas y reflejarse en ambos itinerarios.
+Además del conductor, máximo un compañero. El informe debe indicar de forma especialmente visible cualquier recogida/traslado de compañero: quién, dónde, cuándo y hacia dónde.
 
-## 22. Elegibilidad de operarios y asignaciones manuales — V1
+## 22. Elegibilidad y asignaciones manuales — V1
 
-### 22.1 Disponibilidad
-Para V1, el conjunto de candidatos del solver está formado exclusivamente por **operarios activos** en el sistema.
+### 22.1 Candidatos
+Solo **operarios activos**. Un operario desactivado queda excluido. Root/Admin no se convierte en chófer por su rol salvo que el modelo actual lo identifique además como operario activo.
 
-- Operario activo → candidato automático.
-- Operario desactivado → excluido automáticamente.
-- Un usuario `root` o `admin` no se considera chófer por el mero hecho de tener ese rol; solo entra en el conjunto de candidatos si el modelo actual del sistema lo identifica además como operario activo.
+### 22.2 Equivalencia V1
+No diferenciar por experiencia ni gama de vehículo en el reparto automático.
 
-No se introduce en V1 un calendario/turno adicional independiente de la condición de operario activo. Si posteriormente el negocio necesita turnos, vacaciones o disponibilidades parciales, se ampliará el modelo.
+### 22.3 Asignaciones manuales: restricción dura e inmutable
+Antes de invocar IA, el Admin puede configurar manualmente las tareas que considere necesarias.
 
-### 22.2 Todos los operarios activos son equivalentes para el reparto automático
-En V1 el solver **no diferencia chóferes por experiencia**. Se pospone el uso de `BAJO`, `MEDIO` y `EXPERTO` como restricciones de asignación.
+Estas asignaciones:
 
-### 22.3 Todos los vehículos son equivalentes para el reparto automático
-En V1 el solver **no utiliza la gama/marca del vehículo para decidir qué operario puede conducirlo**. Se pospone la regla automática `GAMA_ALTA → EXPERTO` y el catálogo `MARCA → GAMA` como criterio de elegibilidad.
+- entran en el problema como compromisos existentes;
+- ocupan tiempo y posición en el itinerario;
+- condicionan el resto de movimientos;
+- **no pueden ser modificadas, reasignadas ni propuestas para cambio por el solver**;
+- permanecen intactas incluso al solicitar una nueva optimización.
 
-Esto no elimina la posibilidad futura de reintroducir experiencia y gama; simplemente quedan fuera del problema de optimización V1.
+El solver solo decide sobre tareas no fijadas y optimiza alrededor de las manuales.
 
-### 22.4 Operaciones críticas o especiales: asignación manual previa
-El Admin conserva la capacidad de asignar manualmente cualquier tarea antes de ejecutar el optimizador. Esta es la vía V1 para reservar operaciones críticas, vehículos especiales o cualquier situación que por criterio humano deba realizar una persona concreta.
+## 23. Puntualidad e incertidumbre
 
-El solver debe distinguir:
+### 23.1 Criticidad
+`pickup` es crítica por riesgo de pérdida de vuelo. `delivery` es importante pero más flexible.
 
-- **tareas ya asignadas manualmente** → decisiones fijas que se respetan;
-- **tareas sin asignar** → conjunto que el solver puede repartir entre operarios activos.
+### 23.2 Objetivo
+`target_arrival = scheduled_time - 5 min`.
 
-El optimizador no debe deshacer, sustituir ni reinterpretar silenciosamente una asignación manual preexistente. Debe planificar el resto de la logística alrededor de ella.
-
-La asignación manual también ocupa tiempo y posición dentro del itinerario del operario, por lo que debe incluirse al comprobar factibilidad de las tareas automáticas posteriores/anteriores.
-
-### 22.5 Reoptimización de una asignación manual
-Por defecto, una asignación manual queda bloqueada para el solver. Solo podrá reconsiderarse si el Admin solicita de forma explícita una modalidad futura de reoptimización que permita modificar tareas previamente fijadas.
-
-## 23. Política de puntualidad, criticidad e incertidumbre
-
-### 23.1 Diferencia entre pickup y delivery
-- `pickup`: operación crítica; un retraso puede contribuir a que el cliente pierda el vuelo.
-- `delivery`: importante pero más flexible; el retraso genera espera, normalmente sin riesgo de perder un vuelo.
-
-Esta asimetría afecta a la función objetivo temporal, pero **no reintroduce diferencias de experiencia entre chóferes**.
-
-### 23.2 Política normal
-Objetivo para cualquier tarea: `target_arrival = scheduled_time - 5 min`.
-
-### 23.3 Retrasos máximos tolerables
-| Operación | Objetivo | Retraso máximo tolerable |
+### 23.3 Retrasos máximos
+| Operación | Objetivo | Máximo |
 | --- | --- | ---: |
-| `pickup` | llegar 5 min antes | **5 min** después de la hora programada |
-| `delivery` | llegar 5 min antes | **10 min** después de la hora programada |
+| `pickup` | 5 min antes | +5 min |
+| `delivery` | 5 min antes | +10 min |
 
-Son escenarios no deseados y deben ser la peor opción. Superarlos hace la planificación automática no factible salvo futura excepción explícita del Admin.
+Los retrasos son siempre soluciones no deseadas y la peor opción.
 
-### 23.4 Jerarquía temporal
-1. No superar retraso máximo de `pickup`.
-2. No superar retraso máximo de `delivery`.
-3. Evitar cualquier retraso en `pickup`.
-4. Evitar retrasos en `delivery`.
-5. Buscar llegar al menos 5 min antes.
-6. Después optimizar tiempos muertos, carga, kilómetros y demás objetivos blandos.
+### 23.4 Prioridad
+1. No superar máximo pickup.
+2. No superar máximo delivery.
+3. Evitar retraso pickup.
+4. Evitar retraso delivery.
+5. Llegar ≥5 min antes.
+6. Después optimizar carga, tiempos muertos, km, etc.
 
-### 23.5 Propagación de incertidumbre
-No basta sumar tiempos medios. Se considera incertidumbre acumulada por tráfico/Google Routes, espera del Bus Tránsito, espera del tren T4↔T4S, accesos, dependencias con compañeros y márgenes operativos configurables.
+### 23.5 Incertidumbre
+Propagar incertidumbre de tráfico, Google Routes, bus, tren, accesos, dependencias con compañeros y márgenes operativos.
 
-### 23.6 Hora recomendada de salida
-El resultado debe incluir la hora recomendada de salida desde Parking o cualquier origen:
+### 23.6 Hora de salida
+`hora_salida_recomendada = target_arrival - tiempo_estimado_total - margen_por_incertidumbre`.
 
-`hora_salida_recomendada = target_arrival - tiempo_estimado_total - margen_por_incertidumbre`
+Debe calcularse desde Parking o desde cualquier punto de origen del operario.
 
-El margen depende del itinerario, no es una constante universal.
+## 24. Horizonte de planificación
 
-### 23.7 Itinerario robusto
-La solución óptima no es necesariamente la de menor tiempo medio. Debe reducir el riesgo de incumplimiento, especialmente en `pickup`.
+Por defecto el Asistente IA propone **7 días / una semana**. El Admin puede cambiar el horizonte antes de optimizar (por ejemplo, próximos 3 días u otro intervalo personalizado).
 
-## 24. Principio de uso de Google
+El horizonte elegido determina las reservas/tareas cargadas, pero no autoriza al solver a modificar asignaciones manuales incluidas en dicho intervalo.
+
+## 25. Workflow V1 de optimización, revisión y confirmación
+
+### 25.1 Preparación manual
+1. El Admin revisa Gestión/Asignación de tareas.
+2. Si necesita reservar determinadas operaciones para personas concretas, las asigna manualmente mediante el flujo actual.
+3. Estas asignaciones quedan fijadas.
+
+### 25.2 Invocación del Asistente IA
+4. El Admin pulsa el botón **Asistente IA**.
+5. Se propone horizonte de una semana por defecto, modificable.
+6. El backend vuelve a cargar estado real: tareas, asignaciones/versiones, operarios activos, matrices y reglas.
+7. OR-Tools optimiza únicamente el conjunto permitido y genera itinerarios completos.
+8. La IA convierte la solución técnica en informes operativos legibles.
+
+### 25.3 Revisión antes de ejecutar
+En esta fase **no se escriben todavía las nuevas asignaciones definitivas**.
+
+El Admin recibe el plan completo y **todos los informes individuales** que posteriormente recibiría cada operario.
+
+El Admin puede:
+
+- aprobar la propuesta;
+- rechazarla;
+- solicitar una nueva optimización;
+- proporcionar instrucciones adicionales válidas por chat y volver a calcular.
+
+Una nueva optimización sigue respetando todas las asignaciones manuales existentes.
+
+### 25.4 Confirmación única del plan
+El plan se **confirma de una sola vez**. Antes de ejecutar se revalidan:
+
+- identidad y permiso de escritura del Admin;
+- versiones/concurrencia de las tareas;
+- operarios activos;
+- que las asignaciones manuales sigan intactas;
+- que la propuesta corresponda al estado vigente.
+
+Si el estado cambió de forma incompatible, no se aplica silenciosamente un plan obsoleto: se informa al Admin y se requiere recalcular/revisar.
+
+### 25.5 Aplicación mediante workflow existente
+Tras confirmación, las asignaciones automáticas aprobadas se ejecutan reutilizando el **mismo workflow/API de asignación manual existente** (`reservation-task-api` y mecanismos asociados), evitando crear un sistema paralelo.
+
+Resultado:
+
+- se actualiza la pantalla **Asignación de tareas**;
+- se conservan exactamente las asignaciones manuales preestablecidas;
+- las nuevas asignaciones quedan sujetas a los mismos mecanismos de versión, historial y notificación que las manuales.
+
+## 26. Informes para operarios y Admin
+
+### 26.1 Informe individual del operario
+Después de la confirmación y aplicación correcta, cada operario recibe por Telegram un informe textual/calendario operativo con sus tareas e itinerario.
+
+Debe incluir, según corresponda:
+
+- fecha y hora;
+- tipo: recogida/entrega;
+- terminal;
+- matrícula y datos operativos necesarios;
+- hora recomendada de salida;
+- medio de desplazamiento entre tareas;
+- uso de Bus Tránsito o tren T4S cuando corresponda;
+- indicaciones de traslado con otro operario;
+- **si debe recoger a un compañero: nombre, punto, hora/ventana y destino**;
+- si otro compañero lo recogerá: quién, dónde y cuándo;
+- precauciones o dependencias relevantes para cumplir el plan.
+
+La logística de compañeros debe mostrarse con especial claridad porque afecta simultáneamente a dos itinerarios.
+
+### 26.2 Informe global del Admin
+El Admin recibe **todos los informes individuales**, con el mismo contenido que se envía a cada trabajador. Así puede verificar qué instrucciones concretas recibió cada operario.
+
+Antes de confirmar, el Admin ve esos mismos informes en modo propuesta. Después de confirmar, conserva/recibe la versión final efectivamente enviada.
+
+### 26.3 Notificaciones existentes + informe Telegram
+La confirmación debe conservar el flujo actual de notificaciones de asignación (`parking_booking_notifications` y Telegram donde ya aplique). El nuevo informe textual de planificación es **adicional**, no sustituye las notificaciones existentes.
+
+## 27. Seguridad y autoridad del Asistente IA
+
+### 27.1 Solo órdenes de usuarios con escritura
+La IA **solo puede obedecer instrucciones de planificación procedentes de un usuario que, en ese momento, tenga permiso vigente de escritura** para el módulo/función correspondiente.
+
+No basta con haber tenido permiso al iniciar la conversación. El permiso debe comprobarse nuevamente en cada mensaje/acción sensible y obligatoriamente antes de confirmar/aplicar el plan.
+
+### 27.2 Aislamiento de mensajes y eventos
+El sistema debe distinguir estrictamente entre:
+
+- texto enviado por un Admin autorizado con escritura;
+- mensajes/notificaciones generados por el bot;
+- eventos del sistema;
+- mensajes de operarios;
+- mensajes de usuarios sin permiso de escritura.
+
+Solo el primer grupo puede convertirse en instrucciones para modificar/reoptimizar/confirmar una planificación. Una notificación entrante nunca debe interpretarse como una orden para la IA.
+
+### 27.3 Contexto por usuario y permisos cambiantes
+La sesión/contexto de IA se mantiene por usuario, pero la autorización no se congela en la sesión. Si el permiso cambia a mitad de conversación, la siguiente acción debe aplicar el permiso vigente.
+
+## 28. Principio de uso de Google
 Google actúa como **sensor externo de calibración logística**, no como dependencia por cada tarea individual. Esto reduce coste y llamadas mientras permite capturar diferencias por horario y anomalías de la red viaria.
