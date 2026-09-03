@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from .domain import CompanionMatch, OptimizerConfig, Solution
-from .shifts import allowed_shift_types, operational_day, shift_window
+from .shifts import allowed_shift_types, shift_duration_minutes, shift_rest_minutes
 from .transitions import build_transition, terminal_transfer
 
 
@@ -31,9 +31,6 @@ def _validate_company_shuttle_link(errors, worker_id, previous, current, stored,
     if current.start_at < previous.end_at:
         errors.append(ValidationError("time_overlap", worker_id, current.id))
         return
-    # The car always starts/ends at PARKING. For an outbound passenger the mission starts
-    # after the operator is ready; for an inbound passenger the car may deadhead earlier
-    # but must have returned by the next PARKING task.
     if previous.end_node == "PARKING" and mission.depart_parking_at < previous.end_at:
         errors.append(ValidationError("company_shuttle_departs_before_ready", worker_id, current.id))
     if current.start_node == "PARKING" and mission.return_parking_at > current.start_at:
@@ -43,23 +40,37 @@ def _validate_company_shuttle_link(errors, worker_id, previous, current, stored,
 
 
 def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[ValidationError]:
-    """Independent physical, work-policy and company-shuttle validation."""
+    """Independent physical and continuous-work-policy validation."""
     errors: list[ValidationError] = []
     task_owner: dict[str, str] = {}
     task_index = {task.id: task for route in solution.routes.values() for task in route.tasks}
-
-    shifts: dict[tuple[str, object], object] = {}
     allowed = set(allowed_shift_types(cfg))
+
+    # Flexible shift blocks: validate type, duration, overlap and policy-specific rest.
+    shifts_by_worker = {}
     for shift in solution.shift_assignments:
-        key = (shift.worker_id, shift.operational_day)
-        if key in shifts:
-            errors.append(ValidationError("duplicate_shift_assignment", shift.worker_id, detail=str(shift.operational_day)))
-        shifts[key] = shift
+        shifts_by_worker.setdefault(shift.worker_id, []).append(shift)
         if shift.shift_type not in allowed:
             errors.append(ValidationError("shift_type_not_allowed", shift.worker_id, detail=shift.shift_type))
-        canonical_start, canonical_end = shift_window(shift.operational_day, shift.shift_type, cfg)
-        if shift.start_at != canonical_start or shift.end_at != canonical_end:
-            errors.append(ValidationError("noncanonical_shift_window", shift.worker_id, detail=str(shift.operational_day)))
+            continue
+        if shift.end_at < shift.start_at:
+            errors.append(ValidationError("shift_negative_duration", shift.worker_id, detail=shift.shift_type))
+            continue
+        duration = int((shift.end_at - shift.start_at).total_seconds() // 60)
+        maximum = shift_duration_minutes(shift.shift_type, cfg)
+        if duration > maximum:
+            errors.append(ValidationError("shift_duration_exceeded", shift.worker_id, detail=f"{duration}>{maximum}:{shift.shift_type}"))
+
+    for worker_id, shifts in shifts_by_worker.items():
+        shifts.sort(key=lambda s: (s.start_at, s.end_at))
+        for previous, current in zip(shifts, shifts[1:]):
+            if current.start_at < previous.end_at:
+                errors.append(ValidationError("shift_overlap", worker_id, detail=f"{previous.end_at.isoformat()}>{current.start_at.isoformat()}"))
+                continue
+            rest = int((current.start_at - previous.end_at).total_seconds() // 60)
+            required = shift_rest_minutes(current.shift_type, cfg)
+            if rest < required:
+                errors.append(ValidationError("insufficient_rest_before_shift", worker_id, detail=f"{rest}<{required}:{current.shift_type}"))
 
     matches_by_rider: dict[tuple[str, str], CompanionMatch] = {}
     matches_by_driver_task: dict[tuple[str, str], list[CompanionMatch]] = {}
@@ -96,54 +107,72 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
             if previous.return_parking_at > current.depart_parking_at:
                 errors.append(ValidationError("company_shuttle_vehicle_overlap", detail=f"vehicle={vehicle_index}:{previous.mission_id}>{current.mission_id}"))
 
+    # Map each assigned task to exactly one flexible shift block.
+    shift_for_task = {}
     for worker_id, route in solution.routes.items():
+        worker_shifts = shifts_by_worker.get(worker_id, [])
         ordered = sorted(route.tasks, key=lambda task: (task.start_at, task.id))
         if ordered != route.tasks:
             errors.append(ValidationError("route_not_chronological", worker_id))
-
-        previous = None
-        previous_day = None
         for task in ordered:
-            day = operational_day(task.start_at, cfg)
-            shift = shifts.get((worker_id, day))
-            if shift is None:
-                errors.append(ValidationError("missing_shift_assignment", worker_id, task.id, str(day)))
-            elif task.start_at < shift.start_at or task.end_at > shift.end_at:
-                errors.append(ValidationError("task_outside_shift", worker_id, task.id, shift.shift_type))
+            containing = [s for s in worker_shifts if task.start_at >= s.start_at and task.end_at <= s.end_at]
+            if len(containing) != 1:
+                errors.append(ValidationError("task_shift_membership_invalid", worker_id, task.id, f"count={len(containing)}"))
+            else:
+                shift_for_task[worker_id, task.id] = containing[0]
 
-            if day != previous_day:
-                previous = None
-
+    for worker_id, route in solution.routes.items():
+        ordered = route.tasks
+        previous = None
+        previous_shift = None
+        for task in ordered:
             owner = task_owner.setdefault(task.id, worker_id)
             if owner != worker_id:
                 errors.append(ValidationError("task_assigned_twice", worker_id, task.id, f"also assigned to {owner}"))
             if task.fixed_worker_id and task.fixed_worker_id != worker_id:
                 errors.append(ValidationError("manual_assignment_changed", worker_id, task.id, task.fixed_worker_id))
 
-            canonical = build_transition(previous, task, cfg)
+            current_shift = shift_for_task.get((worker_id, task.id))
             stored = route.transitions.get(task.id)
-            if stored is not None and stored.kind == "company_shuttle":
-                mission = rescue_by_rider.get((worker_id, task.id))
-                _validate_company_shuttle_link(errors, worker_id, previous, task, stored, mission)
-            elif not canonical.feasible:
-                errors.append(ValidationError(canonical.reason or "transition_infeasible", worker_id, task.id))
-            elif canonical.requires_companion:
-                match = matches_by_rider.get((worker_id, task.id))
-                if match is None:
-                    errors.append(ValidationError("missing_companion", worker_id, task.id, canonical.kind))
-                elif previous is not None:
-                    _validate_match(errors, solution, worker_id, previous, task, canonical, match, cfg, task_index)
-            elif (worker_id, task.id) in matches_by_rider:
-                errors.append(ValidationError("unexpected_companion", worker_id, task.id, canonical.kind))
+            starts_new_shift = previous is None or (current_shift is not None and current_shift is not previous_shift)
+
+            if starts_new_shift:
+                # After the required rest this is a new work block. The worker may
+                # reach the first task's terminal/PARKING by personal means.
+                if stored is None or stored.kind != "shift_start":
+                    errors.append(ValidationError("missing_shift_start_transition", worker_id, task.id))
+                if previous is not None and current_shift is not None:
+                    rest = int((current_shift.start_at - previous_shift.end_at).total_seconds() // 60) if previous_shift is not None else 0
+                    required = shift_rest_minutes(current_shift.shift_type, cfg)
+                    if rest < required:
+                        errors.append(ValidationError("insufficient_rest_before_shift", worker_id, task.id, f"{rest}<{required}"))
+                if (worker_id, task.id) in matches_by_rider:
+                    errors.append(ValidationError("unexpected_companion_on_shift_start", worker_id, task.id))
+                if (worker_id, task.id) in rescue_by_rider:
+                    errors.append(ValidationError("unexpected_company_shuttle_on_shift_start", worker_id, task.id))
+            else:
+                canonical = build_transition(previous, task, cfg)
+                if stored is not None and stored.kind == "company_shuttle":
+                    mission = rescue_by_rider.get((worker_id, task.id))
+                    _validate_company_shuttle_link(errors, worker_id, previous, task, stored, mission)
+                elif not canonical.feasible:
+                    errors.append(ValidationError(canonical.reason or "transition_infeasible", worker_id, task.id))
+                elif canonical.requires_companion:
+                    match = matches_by_rider.get((worker_id, task.id))
+                    if match is None:
+                        errors.append(ValidationError("missing_companion", worker_id, task.id, canonical.kind))
+                    else:
+                        _validate_match(errors, solution, worker_id, previous, task, canonical, match, cfg, task_index)
+                elif (worker_id, task.id) in matches_by_rider:
+                    errors.append(ValidationError("unexpected_companion", worker_id, task.id, canonical.kind))
 
             previous = task
-            previous_day = day
+            previous_shift = current_shift
 
     assigned_ids = set(task_owner)
     for task_id in sorted(assigned_ids.intersection(solution.unassigned_task_ids)):
         errors.append(ValidationError("task_both_assigned_and_unassigned", task_id=task_id))
 
-    # Every mission rider must point to an assigned task whose stored transition really uses that mission.
     for (worker_id, task_id), mission in rescue_by_rider.items():
         route = solution.routes.get(worker_id)
         if route is None or task_id not in task_index or task_index[task_id] not in route.tasks:
@@ -177,9 +206,6 @@ def _validate_match(errors, solution, rider_worker_id, previous, current, transi
     driver_route = solution.routes.get(match.driver_worker_id)
     if driver_task is None or driver_route is None or driver_task not in driver_route.tasks:
         errors.append(ValidationError("companion_driver_task_missing", rider_worker_id, current.id))
-        return
-    if operational_day(driver_task.start_at, cfg) != operational_day(current.start_at, cfg):
-        errors.append(ValidationError("companion_crosses_operational_day", rider_worker_id, current.id))
         return
 
     expected_direction = "out" if driver_task.task_type == "delivery" else "in"
