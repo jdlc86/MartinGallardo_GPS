@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from .domain import OptimizerConfig, Solution, Task, Worker
-from .horizon_solver_path import solve_horizon
+from .hybrid_solver import solve_hybrid
 
 
 def solve(
@@ -15,14 +15,13 @@ def solve(
     random_seed: int = 20260903,
     search_workers: int = 8,
 ) -> Solution:
-    """Public optimizer entry point: continuous 24/7 workforce planning.
+    """Public optimizer entry point: robust continuous 24/7 planning.
 
-    Calendar-day boundaries no longer constrain worker availability. A worker
-    may start a new shift at any task location after satisfying the rest period
-    of the policy chosen for that new shift. Inside each shift physical
-    continuity remains mandatory.
+    A proven daily CP-SAT solution is first built as a safe incumbent/fallback.
+    The continuous-horizon CP-SAT model then receives the remaining budget to
+    improve coverage while respecting policy rest and physical continuity.
     """
-    return solve_horizon(
+    return solve_hybrid(
         tasks,
         workers,
         cfg,
