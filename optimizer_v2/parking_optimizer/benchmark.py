@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections import defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import httpx
@@ -87,6 +88,7 @@ def _serialize_solution(payload: dict, tasks, solution, errors, result: dict, cf
         "metrics": result,
         "work_policy": {
             "global_work_mode": cfg.global_work_mode,
+        "back_forward_mode": cfg.back_forward_mode,
             "shift_start": f"{cfg.shift_start_hour:02d}:{cfg.shift_start_minute:02d}",
             "normal_shift_duration_minutes": cfg.normal_shift_duration_minutes,
             "intensive_shift_duration_minutes": cfg.intensive_shift_duration_minutes,
@@ -126,6 +128,11 @@ def main() -> None:
         raise RuntimeError(f"unexpected benchmark contract: {payload.get('contract')!r}")
 
     cfg = _config(payload["config"])
+    benchmark_mode = os.getenv("BACK_FORWARD_BENCHMARK_MODE")
+    if benchmark_mode:
+        if benchmark_mode not in {"fast", "optimal"}:
+            raise ValueError(f"invalid BACK_FORWARD_BENCHMARK_MODE: {benchmark_mode}")
+        cfg = replace(cfg, back_forward_mode=benchmark_mode)
     matrix = {(row["origin"], row["destination"], row["time_band"]): row for row in payload["matrix"]}
     tasks = _prepare_tasks(payload["tasks"], matrix, cfg)
     workers = [Worker(str(worker["id"]), worker["full_name"], worker.get("telegram_user_id")) for worker in payload["workers"]]
