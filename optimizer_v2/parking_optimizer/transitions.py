@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from .domain import OptimizerConfig, Task, TransferStep, Transition
 
 _MADRID = ZoneInfo("Europe/Madrid")
-
+_TERMINALS = ("T1", "T2", "T3", "T4")
 _DIRECT = {
     ("T1", "T2"): 2,
     ("T1", "T4"): 10,
@@ -27,14 +27,44 @@ def _wait_minutes(at, cfg: OptimizerConfig) -> int:
 
 
 def terminal_transfer(origin: str, destination: str, ready_at, cfg: OptimizerConfig):
+    """Return the fastest supported shuttle path at a concrete departure time.
+
+    The network is tiny, so an exhaustive search of simple terminal paths is both
+    deterministic and safer than maintaining ad-hoc composite cases (T3->T4,
+    T1->T3, etc.) in several places.
+    """
     if origin == destination:
         return 0, ()
-    ride = _DIRECT.get((origin, destination))
-    if ride is None:
+    if origin not in _TERMINALS or destination not in _TERMINALS:
         return None
-    wait = _wait_minutes(ready_at, cfg)
-    total = cfg.terminal_shuttle_access_minutes + wait + ride
-    return total, (TransferStep("shuttle", origin, destination, total),)
+
+    best: tuple[int, tuple[TransferStep, ...]] | None = None
+
+    def visit(node: str, at, visited: frozenset[str], elapsed: int, steps: tuple[TransferStep, ...]):
+        nonlocal best
+        if best and elapsed >= best[0]:
+            return
+        if node == destination:
+            best = (elapsed, steps)
+            return
+        for nxt in _TERMINALS:
+            ride = _DIRECT.get((node, nxt))
+            if ride is None or nxt in visited:
+                continue
+            access = cfg.terminal_shuttle_access_minutes if not steps else 0
+            wait = _wait_minutes(at, cfg)
+            leg_minutes = access + wait + ride
+            step = TransferStep("shuttle", node, nxt, leg_minutes)
+            visit(
+                nxt,
+                at + timedelta(minutes=leg_minutes),
+                visited | frozenset((nxt,)),
+                elapsed + leg_minutes,
+                steps + (step,),
+            )
+
+    visit(origin, ready_at, frozenset((origin,)), 0, ())
+    return best
 
 
 def build_transition(previous: Task | None, current: Task, cfg: OptimizerConfig) -> Transition:
