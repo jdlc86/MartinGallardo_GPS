@@ -4,7 +4,7 @@ from typing import Iterable
 
 from .back_forward_solver import solve_back_forward
 from .domain import OptimizerConfig, Solution, Task, Worker
-from .unassigned_audit import audit_unassigned
+from .unassigned_audit import audit_unassigned, repair_audited_insertions
 
 
 def solve(
@@ -32,5 +32,11 @@ def solve(
         random_seed=random_seed,
         search_workers=search_workers,
     )
-    solution.unassigned_audit = audit_unassigned(tasks, solution, cfg)
-    return solution
+    repaired, repairs = repair_audited_insertions(tasks, solution, cfg)
+    repaired.unassigned_audit = audit_unassigned(tasks, repaired, cfg)
+    repaired.day_diagnostics.append({
+        "mode": "unassigned_audit_repair",
+        "inserted_count": sum(1 for row in repairs if row.get("status") == "inserted"),
+        "repair_event_count": len(repairs),
+    })
+    return repaired
