@@ -125,12 +125,36 @@ def _select_anchor(
             "coverage_count": sol.coverage_count,
         }]
 
-    # Optimal mode evaluates candidate windows before choosing the common anchor.
-    limit = cfg.back_forward_max_anchor_candidates
-    candidates = ranked if limit <= 0 else ranked[:limit]
-    per_candidate = max(0.5, time_budget / max(1, len(candidates)))
-    best = None
+    # OPTIMAL sees the whole timeline first with a cheap continuous feasibility
+    # probe. This prevents density from biasing anchor selection (e.g. 5/50).
+    pre_ranked = []
     diagnostics = []
+    for start in starts:
+        subset = _window_tasks(tasks, start, cfg.back_forward_window_minutes)
+        seed = build_continuous_seed(subset, workers, cfg)
+        valid = not validate_solution(seed, cfg)
+        operations = len(subset)
+        quality = _boundary_quality(seed, start, cfg.back_forward_window_minutes, cfg) if valid else 0.0
+        pre_score = float(seed.coverage_count) * quality if valid else 0.0
+        pre_ranked.append(((pre_score, seed.coverage_count, operations, -start.timestamp()), start))
+        diagnostics.append({
+            "phase": "anchor_prescan",
+            "mode": "optimal",
+            "start_at": start.isoformat(),
+            "operation_count": operations,
+            "estimated_coverage_count": seed.coverage_count,
+            "boundary_quality": round(quality, 4),
+            "estimated_score": round(pre_score, 4),
+            "valid": valid,
+        })
+
+    pre_ranked.sort(key=lambda item: item[0], reverse=True)
+    limit = cfg.back_forward_max_anchor_candidates
+    selected = pre_ranked if limit <= 0 else pre_ranked[:limit]
+    candidates = [start for _, start in selected]
+    per_candidate = max(0.5, time_budget / max(1, len(candidates)))
+
+    best = None
     for index, start in enumerate(candidates):
         sol = _solve_window(
             tasks, workers, cfg, start,
@@ -140,7 +164,6 @@ def _select_anchor(
         )
         operations = _density(tasks, start, cfg.back_forward_window_minutes)
         quality = _boundary_quality(sol, start, cfg.back_forward_window_minutes, cfg)
-        # Coverage is primary; boundary quality breaks near ties.
         score = float(sol.coverage_count) * quality
         diagnostics.append({
             "phase": "anchor_probe",
@@ -154,6 +177,7 @@ def _select_anchor(
         key = (score, sol.coverage_count, operations, -start.timestamp())
         if best is None or key > best[0]:
             best = (key, start, sol)
+
     assert best is not None
     return best[1], best[2], diagnostics
 
