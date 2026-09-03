@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from .domain import OptimizerConfig, Solution, Task, Worker
-from .horizon_solver import solve_horizon
+from .horizon_solver_compact import solve_horizon
 
 
 def solve(
