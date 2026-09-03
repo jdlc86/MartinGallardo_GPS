@@ -37,13 +37,12 @@ def solve_horizon(
     random_seed: int = 20260903,
     search_workers: int = 8,
 ) -> Solution:
-    """Solve workforce routing on one continuous 24/7 timeline.
+    """Continuous 24/7 workforce planning.
 
-    A worker may start a new work block at any task location after the minimum
-    rest required by the policy chosen for that new block. The new block resets
-    physical location because the worker reaches its first task by personal
-    means. Inside a work block, every movement remains physically constrained
-    by terminal transfer, companion vehicle or company shuttle.
+    Work blocks are independent paths on the same worker timeline. A new block
+    may start at any task location because, after completing the required rest,
+    the worker reaches that first task by personal means. Physical continuity is
+    mandatory only between tasks inside the same work block.
     """
     tasks = _ordered_tasks(tasks)
     workers = list(workers)
@@ -54,6 +53,8 @@ def solve_horizon(
     task_by_id = {task.id: task for task in tasks}
     worker_by_id = {worker.id: worker for worker in workers}
     allowed = allowed_shift_types(cfg)
+    max_shift_minutes = max(shift_duration_minutes(st, cfg) for st in allowed)
+    max_rest_minutes = max(shift_rest_minutes(st, cfg) for st in allowed)
     base_time = min(task.start_at for task in tasks) - timedelta(hours=24)
     horizon_end = max(task.end_at for task in tasks) + timedelta(hours=24)
     horizon_minutes = max(1, _m(base_time, horizon_end))
@@ -62,36 +63,36 @@ def solve_horizon(
 
     model = cp_model.CpModel()
 
-    # Assignment and state of the current work block at each selected task.
     x = {}
-    first = {}
-    route_end = {}
+    begin = {}
+    finish = {}
     shift_origin = {}
     type_at = {}
-    first_type = {}
+    begin_type = {}
+
     for task in tasks:
         for worker in workers:
-            key = (task.id, worker.id)
-            x[key] = model.new_bool_var(f"x_{task.id}_{worker.id}")
-            first[key] = model.new_bool_var(f"first_{task.id}_{worker.id}")
-            route_end[key] = model.new_bool_var(f"end_{task.id}_{worker.id}")
-            shift_origin[key] = model.new_int_var(0, horizon_minutes, f"shift_origin_{task.id}_{worker.id}")
+            w = worker.id
+            key = (task.id, w)
+            x[key] = model.new_bool_var(f"x_{task.id}_{w}")
+            begin[key] = model.new_bool_var(f"begin_{task.id}_{w}")
+            finish[key] = model.new_bool_var(f"finish_{task.id}_{w}")
+            shift_origin[key] = model.new_int_var(0, horizon_minutes, f"shift_origin_{task.id}_{w}")
             tvars = []
-            ftvars = []
+            bvars = []
             for st in allowed:
-                tv = model.new_bool_var(f"type_{task.id}_{worker.id}_{st}")
-                fv = model.new_bool_var(f"first_type_{task.id}_{worker.id}_{st}")
-                type_at[task.id, worker.id, st] = tv
-                first_type[task.id, worker.id, st] = fv
+                tv = model.new_bool_var(f"type_{task.id}_{w}_{st}")
+                bv = model.new_bool_var(f"begin_type_{task.id}_{w}_{st}")
+                type_at[task.id, w, st] = tv
+                begin_type[task.id, w, st] = bv
                 tvars.append(tv)
-                ftvars.append(fv)
-                model.add(fv <= tv)
-                model.add(shift_origin[key] == start_min[task.id]).only_enforce_if(fv)
-                # The whole block must fit inside the selected policy duration.
+                bvars.append(bv)
+                model.add(bv <= tv)
+                model.add(shift_origin[key] == start_min[task.id]).only_enforce_if(bv)
                 model.add(end_min[task.id] - shift_origin[key] <= shift_duration_minutes(st, cfg)).only_enforce_if(tv)
             model.add(sum(tvars) == x[key])
-            model.add(sum(ftvars) == first[key])
-            if task.fixed_worker_id and task.fixed_worker_id != worker.id:
+            model.add(sum(bvars) == begin[key])
+            if task.fixed_worker_id and task.fixed_worker_id != w:
                 model.add(x[key] == 0)
         model.add(sum(x[task.id, worker.id] for worker in workers) <= 1)
         if task.fixed_worker_id:
@@ -99,67 +100,68 @@ def solve_horizon(
                 raise ValueError(f"fixed worker is not active: {task.fixed_worker_id}")
             model.add(x[task.id, task.fixed_worker_id] == 1)
 
-    # One overall path per worker. Path edges are either within the same work
-    # block, or start a new block after policy-specific rest.
     same = {}
-    restart = {}
     incoming = defaultdict(list)
     outgoing = defaultdict(list)
     pair_transition = {}
     shuttle_pair_window = {}
 
+    # Same-shift path edges. Pairs farther apart than the longest permitted work
+    # block are impossible in one shift and are safely omitted.
     for i, previous in enumerate(tasks):
         for current in tasks[i + 1 :]:
             if current.start_at < previous.end_at:
+                for worker in workers:
+                    model.add(x[previous.id, worker.id] + x[current.id, worker.id] <= 1)
                 continue
-            pair = (previous.id, current.id)
+            if int((current.end_at - previous.start_at).total_seconds() // 60) > max_shift_minutes:
+                continue
             canonical = build_transition(previous, current, cfg)
             shuttle_window = _shuttle_window(previous, current, tasks, cfg)
+            pair = (previous.id, current.id)
             pair_transition[pair] = canonical
             if shuttle_window is not None:
                 shuttle_pair_window[pair] = shuttle_window
-            gap_minutes = max(0, int((current.start_at - previous.end_at).total_seconds() // 60))
-
+            if not canonical.feasible and shuttle_window is None:
+                continue
             for worker in workers:
                 w = worker.id
-                # Continue same work block only when physical movement is possible.
-                if canonical.feasible or shuttle_window is not None:
-                    skey = (w, previous.id, current.id)
-                    svar = model.new_bool_var(f"same_{w}_{previous.id}_{current.id}")
-                    same[skey] = svar
-                    model.add(svar <= x[previous.id, w])
-                    model.add(svar <= x[current.id, w])
-                    incoming[current.id, w].append(svar)
-                    outgoing[previous.id, w].append(svar)
-                    model.add(shift_origin[current.id, w] == shift_origin[previous.id, w]).only_enforce_if(svar)
-                    for st in allowed:
-                        model.add(type_at[current.id, w, st] == type_at[previous.id, w, st]).only_enforce_if(svar)
-
-                # A new work block may start at current after the required rest.
+                skey = (w, previous.id, current.id)
+                svar = model.new_bool_var(f"same_{w}_{previous.id}_{current.id}")
+                same[skey] = svar
+                model.add(svar <= x[previous.id, w])
+                model.add(svar <= x[current.id, w])
+                incoming[current.id, w].append(svar)
+                outgoing[previous.id, w].append(svar)
+                model.add(shift_origin[current.id, w] == shift_origin[previous.id, w]).only_enforce_if(svar)
                 for st in allowed:
-                    if gap_minutes < shift_rest_minutes(st, cfg):
-                        continue
-                    if end_min[current.id] - start_min[current.id] > shift_duration_minutes(st, cfg):
-                        continue
-                    rkey = (w, previous.id, current.id, st)
-                    rvar = model.new_bool_var(f"restart_{w}_{previous.id}_{current.id}_{st}")
-                    restart[rkey] = rvar
-                    model.add(rvar <= x[previous.id, w])
-                    model.add(rvar <= x[current.id, w])
-                    model.add(rvar <= type_at[current.id, w, st])
-                    model.add(shift_origin[current.id, w] == start_min[current.id]).only_enforce_if(rvar)
-                    incoming[current.id, w].append(rvar)
-                    outgoing[previous.id, w].append(rvar)
+                    model.add(type_at[current.id, w, st] == type_at[previous.id, w, st]).only_enforce_if(svar)
 
+    # Every selected task belongs to exactly one work-block path.
     for worker in workers:
         w = worker.id
         for task in tasks:
-            model.add(sum(incoming[task.id, w]) + first[task.id, w] == x[task.id, w])
-            model.add(sum(outgoing[task.id, w]) + route_end[task.id, w] == x[task.id, w])
-        model.add(sum(first[task.id, w] for task in tasks) <= 1)
-        model.add(sum(route_end[task.id, w] for task in tasks) <= 1)
+            model.add(sum(incoming[task.id, w]) + begin[task.id, w] == x[task.id, w])
+            model.add(sum(outgoing[task.id, w]) + finish[task.id, w] == x[task.id, w])
 
-    # Companion candidates for same-block arcs requiring a customer-car seat.
+    # Rest between work blocks. We need no explicit restart edges: if one block
+    # ends at previous and another begins at current, the policy chosen for the
+    # NEW block determines the minimum required rest. Only gaps below the largest
+    # configured rest can violate anything, so all larger pairs are omitted.
+    for i, previous in enumerate(tasks):
+        for current in tasks[i + 1 :]:
+            gap = int((current.start_at - previous.end_at).total_seconds() // 60)
+            if gap < 0:
+                continue
+            if gap >= max_rest_minutes:
+                break
+            for worker in workers:
+                w = worker.id
+                for st in allowed:
+                    if gap < shift_rest_minutes(st, cfg):
+                        model.add(finish[previous.id, w] + begin_type[current.id, w, st] <= 1)
+
+    # Companion candidates for transport-dependent same-shift arcs.
     seats_by_direction = {"out": [], "in": []}
     for task in tasks:
         seat = _seat_task(task)
@@ -202,24 +204,21 @@ def solve_horizon(
     for (driver_worker_id, driver_task_id), vars_ in seat_usage.items():
         model.add(sum(vars_) <= cfg.max_logistics_passengers * x[driver_task_id, driver_worker_id])
 
-    # Native company-shuttle rescue for same-block physical transitions.
+    # Native company-car rescue for same-shift movement.
     z = {}
     group_riders = defaultdict(list)
     group_data = {}
-    z_by_same = {}
     for skey, same_var in same.items():
         worker_id, previous_id, current_id = skey
         canonical = pair_transition[previous_id, current_id]
         window = shuttle_pair_window.get((previous_id, current_id))
-        rescue_allowed = window is not None and (not canonical.feasible or canonical.requires_companion)
-        if not rescue_allowed:
+        if window is None or (canonical.feasible and not canonical.requires_companion):
             continue
         depart, ret, stops = window
         group_key = (depart, ret, stops)
         group_data[group_key] = (depart, ret, stops)
         var = model.new_bool_var(f"shuttle_{worker_id}_{previous_id}_{current_id}")
         z[skey] = var
-        z_by_same[skey] = var
         group_riders[group_key].append((skey, var))
         model.add(var <= same_var)
 
@@ -229,12 +228,12 @@ def solve_horizon(
         transport_vars = []
         for candidate in ride_candidates.get(skey, []):
             transport_vars.append(y[skey[0], previous_id, current_id, candidate.driver_worker_id, candidate.driver_task_id])
-        if skey in z_by_same:
-            transport_vars.append(z_by_same[skey])
+        if skey in z:
+            transport_vars.append(z[skey])
         if canonical.feasible and canonical.requires_companion:
             model.add(sum(transport_vars) == same_var) if transport_vars else model.add(same_var == 0)
         elif not canonical.feasible:
-            model.add(z_by_same[skey] == same_var) if skey in z_by_same else model.add(same_var == 0)
+            model.add(z[skey] == same_var) if skey in z else model.add(same_var == 0)
 
     group_used = {}
     group_vehicle = {}
@@ -278,11 +277,10 @@ def solve_horizon(
     model.add_max_equality(max_load, loads)
     model.add_min_equality(min_load, loads)
 
-    shift_terms = []
-    for (task_id, worker_id, st), var in first_type.items():
-        shift_terms.append((10 + shift_cost(st, cfg)) * var)
-    for (worker_id, previous_id, current_id, st), var in restart.items():
-        shift_terms.append((10 + shift_cost(st, cfg)) * var)
+    shift_terms = [
+        (10 + shift_cost(st, cfg)) * var
+        for (task_id, worker_id, st), var in begin_type.items()
+    ]
     movement_terms = []
     for skey, var in same.items():
         canonical = pair_transition[skey[1], skey[2]]
@@ -296,7 +294,6 @@ def solve_horizon(
             companion_terms.append(candidate.extra_transfer_minutes * var)
     shuttle_terms = [cfg.company_shuttle_mission_cost * used for used in group_used.values()]
 
-    # Phase A: coverage is lexicographically dominant.
     phase1_seconds = max(1.0, time_limit_seconds * 0.75)
     model.maximize(coverage_expr)
     s1 = cp_model.CpSolver()
@@ -311,7 +308,6 @@ def solve_horizon(
     coverage_bound = float(s1.best_objective_bound)
     coverage_gap = 0.0 if coverage_bound <= 0 else max(0.0, (coverage_bound - coverage_found) / coverage_bound)
 
-    # Phase B: freeze coverage and improve operational quality.
     model.add(coverage_expr == coverage_found)
     secondary = 1000 * (max_load - min_load)
     if shift_terms:
@@ -328,7 +324,7 @@ def solve_horizon(
         model.clear_hints()
     except AttributeError:
         pass
-    hint_vars = list(x.values()) + list(first.values()) + list(same.values()) + list(restart.values()) + list(type_at.values()) + list(first_type.values()) + list(y.values()) + list(z.values()) + list(group_used.values()) + list(group_vehicle.values())
+    hint_vars = list(x.values()) + list(begin.values()) + list(finish.values()) + list(same.values()) + list(type_at.values()) + list(begin_type.values()) + list(y.values()) + list(z.values()) + list(group_used.values()) + list(group_vehicle.values())
     for var in hint_vars:
         model.add_hint(var, s1.value(var))
 
@@ -345,10 +341,6 @@ def solve_horizon(
     for skey, var in same.items():
         if chosen.value(var):
             selected_same_by_current[skey[0], skey[2]] = skey
-    selected_restart_by_current = {}
-    for rkey, var in restart.items():
-        if chosen.value(var):
-            selected_restart_by_current[rkey[0], rkey[2]] = rkey
 
     assigned_ids = set()
     shift_assignments = []
@@ -357,30 +349,34 @@ def solve_horizon(
         selected = [task for task in tasks if chosen.value(x[task.id, w])]
         selected.sort(key=lambda task: (task.start_at, task.id))
         routes[w].tasks.extend(selected)
+        previous = None
         current_shift_start = None
         current_shift_type = None
         current_shift_tasks = []
-        previous = None
         for task in selected:
-            restart_key = selected_restart_by_current.get((w, task.id))
-            starts_new = previous is None or restart_key is not None
+            starts_new = bool(chosen.value(begin[task.id, w]))
             if starts_new:
                 if current_shift_tasks:
                     last = current_shift_tasks[-1]
                     shift_assignments.append(ShiftAssignment(w, operational_day(current_shift_start, cfg), current_shift_type, current_shift_start, last.end_at))
-                if restart_key is not None:
-                    st = restart_key[3]
-                    routes[w].transitions[task.id] = Transition(previous.id, task.id, "shift_start", True, previous.end_at, task.start_at, 0, reason=f"rest_complete:{st}")
-                else:
-                    st = next(st for st in allowed if chosen.value(first_type[task.id, w, st]))
-                    routes[w].transitions[task.id] = Transition(None, task.id, "shift_start", True, None, task.start_at)
+                st = next(st for st in allowed if chosen.value(begin_type[task.id, w, st]))
+                routes[w].transitions[task.id] = Transition(
+                    previous.id if previous else None,
+                    task.id,
+                    "shift_start",
+                    True,
+                    previous.end_at if previous else None,
+                    task.start_at,
+                    0,
+                    reason=f"new_shift:{st}",
+                )
                 current_shift_start = task.start_at
                 current_shift_type = st
                 current_shift_tasks = [task]
             else:
                 skey = selected_same_by_current.get((w, task.id))
                 if skey is None:
-                    raise RuntimeError(f"missing selected path edge for {w}/{task.id}")
+                    raise RuntimeError(f"missing selected same-shift edge for {w}/{task.id}")
                 if skey in z and chosen.value(z[skey]):
                     routes[w].transitions[task.id] = Transition(
                         previous.id,
