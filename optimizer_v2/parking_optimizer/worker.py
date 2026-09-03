@@ -13,6 +13,7 @@ import httpx
 from .domain import OptimizerConfig, Task, Worker
 from .solver import solve
 from .validator import validate_solution
+from .unassigned_audit import audit_summary
 
 _MADRID = ZoneInfo("Europe/Madrid")
 
@@ -243,12 +244,14 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
     shift_counts = {"normal": 0, "intensive": 0, "max_effort": 0}
     for shift in solution.shift_assignments:
         shift_counts[shift.shift_type] += 1
+    unassigned_summary = audit_summary(solution.unassigned_audit)
     metrics = {
         "task_count": len(tasks), "assigned_count": len(tasks) - len(solution.unassigned_task_ids),
         "unassigned_count": len(solution.unassigned_task_ids), "companion_count": len(solution.companion_matches),
         "shift_counts": shift_counts, "global_work_mode": cfg.global_work_mode,
         "solver_status": solution.solver_status, "objective_value": solution.objective_value,
         "validation_error_count": len(validation_errors), "elapsed_seconds": round(solve_seconds, 3),
+        "unassigned_audit": unassigned_summary,
     }
     if validation_errors:
         backend.rpc("fail_optimization_job", {"p_job_id": job_id, "p_worker_id": worker_id, "p_error_code": "physical_validation_failed", "p_error_detail": json.dumps([asdict(e) for e in validation_errors[:100]], ensure_ascii=False), "p_retryable": False, "p_metrics": metrics})
@@ -272,11 +275,12 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
     plan = {
         "contract": "optimizer_v2_plan_v2_shifts", "physical_feasible": True,
         "assignments": assignments,
-        "unassigned": [{"task_id": task_id, "reason": "not_selected_by_optimizer"} for task_id in solution.unassigned_task_ids],
+        "unassigned": solution.unassigned_audit,
         "routes": routes_json, "companion_matches": companions,
         "shift_assignments": [_shift_json(shift) for shift in solution.shift_assignments],
         "work_policy": {"global_work_mode": cfg.global_work_mode, "shift_start": f"{cfg.shift_start_hour:02d}:{cfg.shift_start_minute:02d}"},
         "validator": {"contract": "physical_validator_v2_shifts", "errors": []},
+        "unassigned_audit_summary": unassigned_summary,
         "solver_status": solution.solver_status, "objective_value": solution.objective_value,
     }
     plan_rows = backend.insert("ai_dispatch_plans", {
