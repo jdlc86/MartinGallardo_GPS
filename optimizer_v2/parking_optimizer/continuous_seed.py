@@ -29,7 +29,7 @@ def _types_by_capacity(cfg: OptimizerConfig) -> list[str]:
     )
 
 
-def build_continuous_seed(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerConfig) -> Solution:
+def build_continuous_seed(\n    tasks: Iterable[Task],\n    workers: Iterable[Worker],\n    cfg: OptimizerConfig,\n    *,\n    preferred_worker_by_task: dict[str, str] | None = None,\n) -> Solution:
     """Fast deterministic 24/7 incumbent.
 
     It never uses companion/shuttle rescue. A worker either continues the same
