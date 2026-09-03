@@ -4,6 +4,7 @@ from typing import Iterable
 
 from .back_forward_solver import solve_back_forward
 from .domain import OptimizerConfig, Solution, Task, Worker
+from .unassigned_audit import audit_unassigned
 
 
 def solve(
@@ -21,7 +22,9 @@ def solve(
     differ only in anchor selection; both share the same forward/backward
     expansion and continuity stitching.
     """
-    return solve_back_forward(
+    tasks = list(tasks)
+    workers = list(workers)
+    solution = solve_back_forward(
         tasks,
         workers,
         cfg,
@@ -29,3 +32,5 @@ def solve(
         random_seed=random_seed,
         search_workers=search_workers,
     )
+    solution.unassigned_audit = audit_unassigned(tasks, solution, cfg)
+    return solution
