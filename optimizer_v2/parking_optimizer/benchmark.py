@@ -2,15 +2,69 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import asdict
+from pathlib import Path
 
 import httpx
 
 from .domain import Worker
 from .solver import solve
 from .validator import validate_solution
-from .worker import _config, _prepare_tasks
+from .worker import _config, _prepare_tasks, _task_json, _transition_json, _iso
 
 BENCHMARK_URL = "https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservation-optimizer-benchmark-v1"
+ARTIFACT_PATH = Path("benchmark_plan.json")
+
+
+def _serialize_solution(payload: dict, solution, errors, result: dict) -> dict:
+    routes = {}
+    for worker_id, route in solution.routes.items():
+        routes[worker_id] = {
+            "worker": asdict(route.worker),
+            "tasks": [_task_json(task) for task in route.tasks],
+            "transitions": {
+                task_id: _transition_json(transition)
+                for task_id, transition in route.transitions.items()
+            },
+        }
+
+    companions = [
+        {
+            "rider_worker_id": match.rider_worker_id,
+            "rider_task_id": match.rider_task_id,
+            "driver_worker_id": match.driver_worker_id,
+            "driver_task_id": match.driver_task_id,
+            "direction": match.direction,
+            "depart_at": _iso(match.depart_at),
+            "vehicle_leg_arrive_at": _iso(match.vehicle_leg_arrive_at),
+            "arrive_at": _iso(match.arrive_at),
+            "steps": [asdict(step) for step in match.steps],
+        }
+        for match in solution.companion_matches
+    ]
+
+    return {
+        "contract": "optimizer_v2_benchmark_plan_v1",
+        "benchmark": payload["contract"],
+        "metrics": result,
+        "solver": {
+            "status": solution.solver_status,
+            "objective_value": solution.objective_value,
+            "physical_feasible": len(errors) == 0,
+        },
+        "routes": routes,
+        "companion_matches": companions,
+        "unassigned_task_ids": list(solution.unassigned_task_ids),
+        "validation_errors": [
+            {
+                "code": error.code,
+                "worker_id": error.worker_id,
+                "task_id": error.task_id,
+                "detail": error.detail,
+            }
+            for error in errors
+        ],
+    }
 
 
 def main() -> None:
@@ -68,7 +122,15 @@ def main() -> None:
             for error in errors[:20]
         ],
     }
+
+    artifact = _serialize_solution(payload, solution, errors, result)
+    ARTIFACT_PATH.write_text(
+        json.dumps(artifact, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    print(f"benchmark artifact written to {ARTIFACT_PATH}")
 
     if errors:
         raise SystemExit(2)
