@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import time
+from collections import defaultdict
 from dataclasses import asdict
 from pathlib import Path
 
 import httpx
 
 from .domain import Worker
+from .shifts import operational_day
 from .solver import solve
+from .transitions import build_transition
 from .validator import validate_solution
 from .worker import _config, _prepare_tasks, _task_json, _transition_json, _iso, _shift_json
 
@@ -16,7 +19,47 @@ BENCHMARK_URL = "https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservati
 ARTIFACT_PATH = Path("benchmark_plan.json")
 
 
-def _serialize_solution(payload: dict, solution, errors, result: dict, cfg) -> dict:
+def _graph_diagnostics(tasks, cfg):
+    by_day = defaultdict(list)
+    for task in tasks:
+        by_day[operational_day(task.start_at, cfg)].append(task)
+
+    result = []
+    for day in sorted(by_day):
+        day_tasks = sorted(by_day[day], key=lambda task: (task.start_at, task.end_at, task.id))
+        counts = defaultdict(int)
+        direct_pairs = []
+        for i, previous in enumerate(day_tasks):
+            for current in day_tasks[i + 1:]:
+                transition = build_transition(previous, current, cfg)
+                if not transition.feasible:
+                    continue
+                counts[transition.kind] += 1
+                if not transition.requires_companion and len(direct_pairs) < 100:
+                    direct_pairs.append({
+                        "previous_task_id": previous.id,
+                        "current_task_id": current.id,
+                        "previous_type": previous.task_type,
+                        "current_type": current.task_type,
+                        "previous_terminal": previous.terminal,
+                        "current_terminal": current.terminal,
+                        "previous_end_at": _iso(previous.end_at),
+                        "current_start_at": _iso(current.start_at),
+                        "kind": transition.kind,
+                    })
+        result.append({
+            "operational_day": day.isoformat(),
+            "task_count": len(day_tasks),
+            "pickup_count": sum(task.task_type == "pickup" for task in day_tasks),
+            "delivery_count": sum(task.task_type == "delivery" for task in day_tasks),
+            "feasible_pair_counts": dict(sorted(counts.items())),
+            "direct_non_companion_pair_count": sum(count for kind, count in counts.items() if kind not in {"ride_out", "ride_in"}),
+            "direct_pair_samples": direct_pairs,
+        })
+    return result
+
+
+def _serialize_solution(payload: dict, tasks, solution, errors, result: dict, cfg, graph_diagnostics) -> dict:
     routes = {}
     for worker_id, route in solution.routes.items():
         routes[worker_id] = {
@@ -37,8 +80,9 @@ def _serialize_solution(payload: dict, solution, errors, result: dict, cfg) -> d
         "steps": [asdict(step) for step in match.steps],
     } for match in solution.companion_matches]
 
+    assigned_ids = {task.id for route in solution.routes.values() for task in route.tasks}
     return {
-        "contract": "optimizer_v2_benchmark_plan_v4_daily_budget_diagnostics",
+        "contract": "optimizer_v2_benchmark_plan_v5_full_input_graph_audit",
         "benchmark": payload["contract"],
         "metrics": result,
         "work_policy": {
@@ -48,6 +92,8 @@ def _serialize_solution(payload: dict, solution, errors, result: dict, cfg) -> d
             "intensive_shift_duration_minutes": cfg.intensive_shift_duration_minutes,
             "max_effort_shift_duration_minutes": cfg.max_effort_shift_duration_minutes,
         },
+        "input_tasks": [{**_task_json(task), "selected": task.id in assigned_ids} for task in tasks],
+        "transition_graph_diagnostics": graph_diagnostics,
         "shift_assignments": [_shift_json(shift) for shift in solution.shift_assignments],
         "solver": {
             "status": solution.solver_status,
@@ -89,6 +135,7 @@ def main() -> None:
     if len(workers) != 5:
         raise RuntimeError(f"expected 5 workers, got {len(workers)}")
 
+    graph_diagnostics = _graph_diagnostics(tasks, cfg)
     solution = solve(tasks, workers, cfg, time_limit_seconds=60.0)
     errors = validate_solution(solution, cfg)
     elapsed = time.monotonic() - started
@@ -117,6 +164,7 @@ def main() -> None:
         "elapsed_seconds": round(elapsed, 3),
         "tasks_by_worker": by_worker,
         "day_diagnostics": solution.day_diagnostics,
+        "graph_summary": [{key: value for key, value in row.items() if key != "direct_pair_samples"} for row in graph_diagnostics],
         "validation_errors": [{
             "code": error.code,
             "worker_id": error.worker_id,
@@ -125,7 +173,7 @@ def main() -> None:
         } for error in errors[:20]],
     }
 
-    artifact = _serialize_solution(payload, solution, errors, result, cfg)
+    artifact = _serialize_solution(payload, tasks, solution, errors, result, cfg, graph_diagnostics)
     ARTIFACT_PATH.write_text(json.dumps(artifact, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
