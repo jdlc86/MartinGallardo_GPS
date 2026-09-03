@@ -16,6 +16,32 @@ class ValidationError:
     detail: str | None = None
 
 
+def _validate_company_shuttle_link(errors, worker_id, previous, current, stored, mission):
+    if previous is None:
+        errors.append(ValidationError("company_shuttle_without_predecessor", worker_id, current.id))
+        return
+    if mission is None:
+        errors.append(ValidationError("missing_company_shuttle_mission", worker_id, current.id))
+        return
+    if stored.predecessor_task_id != previous.id:
+        errors.append(ValidationError("company_shuttle_wrong_predecessor", worker_id, current.id))
+    expected_stops = tuple(node for node in (previous.end_node, current.start_node) if node != "PARKING")
+    if mission.stops != expected_stops:
+        errors.append(ValidationError("company_shuttle_wrong_stops", worker_id, current.id, f"{mission.stops}!={expected_stops}"))
+    if current.start_at < previous.end_at:
+        errors.append(ValidationError("time_overlap", worker_id, current.id))
+        return
+    # The car always starts/ends at PARKING. For an outbound passenger the mission starts
+    # after the operator is ready; for an inbound passenger the car may deadhead earlier
+    # but must have returned by the next PARKING task.
+    if previous.end_node == "PARKING" and mission.depart_parking_at < previous.end_at:
+        errors.append(ValidationError("company_shuttle_departs_before_ready", worker_id, current.id))
+    if current.start_node == "PARKING" and mission.return_parking_at > current.start_at:
+        errors.append(ValidationError("company_shuttle_arrives_late", worker_id, current.id))
+    if mission.depart_parking_at > current.start_at:
+        errors.append(ValidationError("company_shuttle_starts_after_successor", worker_id, current.id))
+
+
 def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[ValidationError]:
     """Independent physical, work-policy and company-shuttle validation."""
     errors: list[ValidationError] = []
@@ -55,6 +81,8 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
             errors.append(ValidationError("company_shuttle_capacity_exceeded", detail=mission.mission_id))
         if mission.return_parking_at < mission.depart_parking_at:
             errors.append(ValidationError("company_shuttle_invalid_window", detail=mission.mission_id))
+        if any(stop == "PARKING" for stop in mission.stops):
+            errors.append(ValidationError("company_shuttle_parking_as_airport_stop", detail=mission.mission_id))
         missions_by_vehicle.setdefault(mission.vehicle_index, []).append(mission)
         for worker_id, task_id in zip(mission.rider_worker_ids, mission.rider_task_ids):
             key = (worker_id, task_id)
@@ -66,12 +94,7 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
         missions.sort(key=lambda mission: mission.depart_parking_at)
         for previous, current in zip(missions, missions[1:]):
             if previous.return_parking_at > current.depart_parking_at:
-                errors.append(
-                    ValidationError(
-                        "company_shuttle_vehicle_overlap",
-                        detail=f"vehicle={vehicle_index}:{previous.mission_id}>{current.mission_id}",
-                    )
-                )
+                errors.append(ValidationError("company_shuttle_vehicle_overlap", detail=f"vehicle={vehicle_index}:{previous.mission_id}>{current.mission_id}"))
 
     for worker_id, route in solution.routes.items():
         ordered = sorted(route.tasks, key=lambda task: (task.start_at, task.id))
@@ -99,23 +122,17 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
 
             canonical = build_transition(previous, task, cfg)
             stored = route.transitions.get(task.id)
-            if not canonical.feasible:
+            if stored is not None and stored.kind == "company_shuttle":
+                mission = rescue_by_rider.get((worker_id, task.id))
+                _validate_company_shuttle_link(errors, worker_id, previous, task, stored, mission)
+            elif not canonical.feasible:
                 errors.append(ValidationError(canonical.reason or "transition_infeasible", worker_id, task.id))
             elif canonical.requires_companion:
-                if stored is not None and stored.kind == "company_shuttle":
-                    mission = rescue_by_rider.get((worker_id, task.id))
-                    if mission is None:
-                        errors.append(ValidationError("missing_company_shuttle_mission", worker_id, task.id))
-                    elif mission.depart_parking_at > task.start_at:
-                        errors.append(ValidationError("company_shuttle_arrives_late", worker_id, task.id))
-                else:
-                    match = matches_by_rider.get((worker_id, task.id))
-                    if match is None:
-                        errors.append(ValidationError("missing_companion", worker_id, task.id, canonical.kind))
-                    elif previous is not None:
-                        _validate_match(errors, solution, worker_id, previous, task, canonical, match, cfg, task_index)
-            elif stored is not None and stored.kind == "company_shuttle":
-                errors.append(ValidationError("unexpected_company_shuttle", worker_id, task.id, canonical.kind))
+                match = matches_by_rider.get((worker_id, task.id))
+                if match is None:
+                    errors.append(ValidationError("missing_companion", worker_id, task.id, canonical.kind))
+                elif previous is not None:
+                    _validate_match(errors, solution, worker_id, previous, task, canonical, match, cfg, task_index)
             elif (worker_id, task.id) in matches_by_rider:
                 errors.append(ValidationError("unexpected_companion", worker_id, task.id, canonical.kind))
 
@@ -126,6 +143,16 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
     for task_id in sorted(assigned_ids.intersection(solution.unassigned_task_ids)):
         errors.append(ValidationError("task_both_assigned_and_unassigned", task_id=task_id))
 
+    # Every mission rider must point to an assigned task whose stored transition really uses that mission.
+    for (worker_id, task_id), mission in rescue_by_rider.items():
+        route = solution.routes.get(worker_id)
+        if route is None or task_id not in task_index or task_index[task_id] not in route.tasks:
+            errors.append(ValidationError("company_shuttle_rider_task_missing", worker_id, task_id, mission.mission_id))
+            continue
+        stored = route.transitions.get(task_id)
+        if stored is None or stored.kind != "company_shuttle":
+            errors.append(ValidationError("company_shuttle_orphan_rider", worker_id, task_id, mission.mission_id))
+
     for (driver_worker_id, driver_task_id), matches in matches_by_driver_task.items():
         driver_task = task_index.get(driver_task_id)
         driver_route = solution.routes.get(driver_worker_id)
@@ -134,14 +161,7 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
                 errors.append(ValidationError("companion_driver_task_missing", match.rider_worker_id, match.rider_task_id))
             continue
         if len(matches) > cfg.max_logistics_passengers:
-            errors.append(
-                ValidationError(
-                    "companion_capacity_exceeded",
-                    driver_worker_id,
-                    driver_task_id,
-                    f"{len(matches)}>{cfg.max_logistics_passengers}",
-                )
-            )
+            errors.append(ValidationError("companion_capacity_exceeded", driver_worker_id, driver_task_id, f"{len(matches)}>{cfg.max_logistics_passengers}"))
 
     return errors
 
