@@ -70,15 +70,27 @@ def _solve_window(
 ) -> Solution:
     subset = _window_tasks(tasks, start, cfg.back_forward_window_minutes)
     seed = build_continuous_seed(subset, workers, cfg)
-    return solve_horizon(
+    seed_valid = not validate_solution(seed, cfg)
+    solved = solve_horizon(
         subset,
         workers,
         cfg,
         time_limit_seconds=max(0.25, seconds),
         random_seed=random_seed,
         search_workers=search_workers,
-        seed_solution=seed if not validate_solution(seed, cfg) else None,
+        seed_solution=seed if seed_valid else None,
     )
+    solved_valid = solved.solver_status in {"OPTIMAL", "FEASIBLE"} and not validate_solution(solved, cfg)
+    if solved_valid and (not seed_valid or solved.coverage_count >= seed.coverage_count):
+        return solved
+    if seed_valid:
+        seed.day_diagnostics.append({
+            "mode": "window_seed_fallback",
+            "cp_status": solved.solver_status,
+            "cp_coverage": solved.coverage_count,
+        })
+        return seed
+    return solved
 
 
 def _select_anchor(
