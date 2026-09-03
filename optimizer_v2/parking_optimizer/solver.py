@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 from .domain import OptimizerConfig, Solution, Task, Worker
-from .horizon_solver_compact import solve_horizon
+from .horizon_solver_path import solve_horizon
 
 
 def solve(
@@ -19,7 +19,8 @@ def solve(
 
     Calendar-day boundaries no longer constrain worker availability. A worker
     may start a new shift at any task location after satisfying the rest period
-    of the policy chosen for that new shift.
+    of the policy chosen for that new shift. Inside each shift physical
+    continuity remains mandatory.
     """
     return solve_horizon(
         tasks,
