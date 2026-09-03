@@ -52,3 +52,11 @@ jobs:
           cache-dependency-path: optimizer_v2/requirements.txt
       - run: pip install -r requirements.txt
       - run: python -m parking_optimizer.benchmark
+      - name: Upload benchmark plan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimizer-v2-benchmark-plan
+          path: optimizer_v2/benchmark_plan.json
+          if-no-files-found: warn
+          retention-days: 30
