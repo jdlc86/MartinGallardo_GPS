@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from .domain import OptimizerConfig, Task, TransferStep, Transition
+
+_MADRID = ZoneInfo("Europe/Madrid")
 
 _DIRECT = {
     ("T1", "T2"): 2,
@@ -18,7 +21,7 @@ _DIRECT = {
 
 
 def _wait_minutes(at, cfg: OptimizerConfig) -> int:
-    h = at.astimezone().hour
+    h = at.astimezone(_MADRID).hour
     inside = cfg.terminal_shuttle_day_start_hour <= h < cfg.terminal_shuttle_day_end_hour
     return cfg.terminal_shuttle_wait_day_minutes if inside else cfg.terminal_shuttle_wait_night_minutes
 
@@ -31,9 +34,7 @@ def terminal_transfer(origin: str, destination: str, ready_at, cfg: OptimizerCon
         return None
     wait = _wait_minutes(ready_at, cfg)
     total = cfg.terminal_shuttle_access_minutes + wait + ride
-    return total, (
-        TransferStep("shuttle", origin, destination, total),
-    )
+    return total, (TransferStep("shuttle", origin, destination, total),)
 
 
 def build_transition(previous: Task | None, current: Task, cfg: OptimizerConfig) -> Transition:
