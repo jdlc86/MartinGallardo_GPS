@@ -92,6 +92,9 @@ def _config(raw: dict) -> OptimizerConfig:
     mode = str(raw.get("global_work_mode", "max_effort"))
     if mode not in ("normal", "intensive", "max_effort"):
         raise ValueError(f"invalid global_work_mode: {mode}")
+    back_forward_mode = str(raw.get("back_forward_mode", "fast"))
+    if back_forward_mode not in ("fast", "optimal"):
+        raise ValueError(f"invalid back_forward_mode: {back_forward_mode}")
     return OptimizerConfig(
         operation_minutes=int(raw.get("operation_minutes", 10)),
         target_early_minutes=int(raw.get("target_early_minutes", 5)),
@@ -109,6 +112,9 @@ def _config(raw: dict) -> OptimizerConfig:
         normal_shift_duration_minutes=int(raw.get("normal_shift_duration_minutes", 720)),
         intensive_shift_duration_minutes=int(raw.get("intensive_shift_duration_minutes", 1080)),
         max_effort_shift_duration_minutes=int(raw.get("max_effort_shift_duration_minutes", 1320)),
+        normal_rest_minutes=int(raw.get("normal_rest_minutes", 720)),
+        intensive_rest_minutes=int(raw.get("intensive_rest_minutes", 360)),
+        max_effort_rest_minutes=int(raw.get("max_effort_rest_minutes", 120)),
         normal_shift_cost=int(raw.get("normal_shift_cost", 0)),
         intensive_shift_cost=int(raw.get("intensive_shift_cost", 120)),
         max_effort_shift_cost=int(raw.get("max_effort_shift_cost", 300)),
@@ -122,7 +128,6 @@ def _config(raw: dict) -> OptimizerConfig:
         back_forward_max_anchor_candidates=int(raw.get("back_forward_max_anchor_candidates", 12)),
         back_forward_optimal_explore_ratio=float(raw.get("back_forward_optimal_explore_ratio", 0.35)),
     )
-
 
 def _prepare_tasks(raw_tasks: list[dict], matrix: dict, cfg: OptimizerConfig) -> list[Task]:
     tasks: list[Task] = []
