@@ -92,3 +92,11 @@ class OptimizerConfig:
     company_shuttle_vehicle_count: int = 1
     company_shuttle_passenger_capacity: int = 4
     company_shuttle_mission_cost: int = 500
+    # Back-forward rolling-horizon planner. "fast" anchors on max density;
+    # "optimal" evaluates candidate windows before using the same expansion engine.
+    back_forward_mode: str = "fast"
+    back_forward_window_minutes: int = 1440
+    back_forward_overlap_minutes: int = 360
+    back_forward_candidate_step_minutes: int = 60
+    back_forward_max_anchor_candidates: int = 12
+    back_forward_optimal_explore_ratio: float = 0.35
