@@ -38,7 +38,7 @@ def _serialize_solution(payload: dict, solution, errors, result: dict, cfg) -> d
     } for match in solution.companion_matches]
 
     return {
-        "contract": "optimizer_v2_benchmark_plan_v3_lexicographic_daily",
+        "contract": "optimizer_v2_benchmark_plan_v4_daily_budget_diagnostics",
         "benchmark": payload["contract"],
         "metrics": result,
         "work_policy": {
@@ -58,6 +58,7 @@ def _serialize_solution(payload: dict, solution, errors, result: dict, cfg) -> d
             "operational_day_count": solution.operational_day_count,
             "physical_feasible": len(errors) == 0,
         },
+        "day_diagnostics": solution.day_diagnostics,
         "routes": routes,
         "companion_matches": companions,
         "unassigned_task_ids": list(solution.unassigned_task_ids),
@@ -88,7 +89,7 @@ def main() -> None:
     if len(workers) != 5:
         raise RuntimeError(f"expected 5 workers, got {len(workers)}")
 
-    solution = solve(tasks, workers, cfg, time_limit_seconds=180.0)
+    solution = solve(tasks, workers, cfg, time_limit_seconds=60.0)
     errors = validate_solution(solution, cfg)
     elapsed = time.monotonic() - started
     assigned = len(tasks) - len(solution.unassigned_task_ids)
@@ -115,6 +116,7 @@ def main() -> None:
         "secondary_objective_value": solution.objective_value,
         "elapsed_seconds": round(elapsed, 3),
         "tasks_by_worker": by_worker,
+        "day_diagnostics": solution.day_diagnostics,
         "validation_errors": [{
             "code": error.code,
             "worker_id": error.worker_id,
