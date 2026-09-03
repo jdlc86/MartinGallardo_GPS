@@ -1,0 +1,362 @@
+from __future__ import annotations
+
+import json
+import os
+import socket
+import time
+from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+import httpx
+
+from .domain import OptimizerConfig, Task, Worker
+from .solver import solve
+from .validator import validate_solution
+
+_MADRID = ZoneInfo("Europe/Madrid")
+
+
+class Backend:
+    def __init__(self) -> None:
+        self.url = os.environ["SUPABASE_URL"].rstrip("/")
+        self.key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+        self.client = httpx.Client(
+            timeout=30,
+            headers={"apikey": self.key, "Authorization": f"Bearer {self.key}"},
+        )
+
+    def rpc(self, name: str, payload: dict):
+        res = self.client.post(f"{self.url}/rest/v1/rpc/{name}", json=payload)
+        res.raise_for_status()
+        if not res.text:
+            return None
+        return res.json()
+
+    def select(self, table: str, params: dict[str, str]):
+        res = self.client.get(f"{self.url}/rest/v1/{table}", params=params)
+        res.raise_for_status()
+        return res.json()
+
+    def insert(self, table: str, payload: dict):
+        res = self.client.post(
+            f"{self.url}/rest/v1/{table}",
+            json=payload,
+            headers={"Prefer": "return=representation"},
+        )
+        res.raise_for_status()
+        return res.json()
+
+    def patch(self, table: str, params: dict[str, str], payload: dict):
+        res = self.client.patch(f"{self.url}/rest/v1/{table}", params=params, json=payload)
+        res.raise_for_status()
+
+
+class MatrixMissing(RuntimeError):
+    pass
+
+
+def _parse(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _terminal(value: object) -> str:
+    text = str(value or "").upper().replace(" ", "")
+    if "4S" in text or "T4" in text or "TERMINAL4" in text:
+        return "T4"
+    for terminal in ("T3", "T2", "T1"):
+        if terminal in text or f"TERMINAL{terminal[1:]}" in text:
+            return terminal
+    raise ValueError(f"unsupported terminal: {value!r}")
+
+
+def _band(at: datetime) -> str:
+    hour = at.astimezone(_MADRID).hour
+    if hour < 6:
+        return "MADRUGADA"
+    if hour < 10:
+        return "PUNTA_MANANA"
+    if hour < 16:
+        return "VALLE_DIA"
+    if hour < 20:
+        return "PUNTA_TARDE"
+    return "NOCHE"
+
+
+def _road_minutes(matrix: dict[tuple[str, str, str], dict], origin: str, destination: str, at: datetime, cfg: OptimizerConfig) -> int:
+    if origin == destination:
+        return 0
+    row = matrix.get((origin, destination, _band(at)))
+    if not row or not row.get("current_duration_s"):
+        raise MatrixMissing(f"route matrix missing: {origin}>{destination}@{_band(at)}")
+    base = (int(row["current_duration_s"]) + 59) // 60
+    uncertainty = max(cfg.road_uncertainty_min_minutes, int(base * cfg.road_uncertainty_pct + 0.999999))
+    return base + uncertainty
+
+
+def _config(raw: dict) -> OptimizerConfig:
+    return OptimizerConfig(
+        operation_minutes=int(raw.get("operation_minutes", 10)),
+        target_early_minutes=int(raw.get("target_early_minutes", 5)),
+        road_uncertainty_pct=float(raw.get("road_uncertainty_pct", 0.10)),
+        road_uncertainty_min_minutes=int(raw.get("road_uncertainty_min_minutes", 2)),
+        terminal_shuttle_access_minutes=int(raw.get("terminal_shuttle_access_minutes", 5)),
+        terminal_shuttle_wait_day_minutes=int(raw.get("terminal_shuttle_wait_day_minutes", 5)),
+        terminal_shuttle_wait_night_minutes=int(raw.get("terminal_shuttle_wait_night_minutes", 20)),
+        terminal_shuttle_day_start_hour=int(raw.get("terminal_shuttle_day_start_hour", 6)),
+        terminal_shuttle_day_end_hour=int(raw.get("terminal_shuttle_day_end_hour", 22)),
+        operator_shift_reset_minutes=int(raw.get("operator_shift_reset_minutes", 360)),
+        max_logistics_passengers=int(raw.get("max_logistics_passengers", 1)),
+    )
+
+
+def _prepare_tasks(raw_tasks: list[dict], matrix: dict, cfg: OptimizerConfig) -> list[Task]:
+    tasks: list[Task] = []
+    for raw in raw_tasks:
+        booking = raw.get("parking_bookings") or {}
+        task_type = raw["task_type"]
+        terminal = _terminal(booking.get("pickup_terminal") if task_type == "pickup" else booking.get("return_terminal"))
+        scheduled = _parse(raw["scheduled_at"])
+        target = scheduled - timedelta(minutes=cfg.target_early_minutes)
+        worker = raw.get("workers") or None
+        fixed_worker_id = str(worker["id"]) if worker else None
+
+        if task_type == "delivery":
+            road = _road_minutes(matrix, "PARKING", terminal, target, cfg)
+            vehicle_depart = target - timedelta(minutes=road)
+            vehicle_arrive = target
+            start_at = vehicle_depart
+            end_at = scheduled + timedelta(minutes=cfg.operation_minutes)
+            start_node, end_node = "PARKING", terminal
+        else:
+            start_at = target
+            vehicle_depart = scheduled + timedelta(minutes=cfg.operation_minutes)
+            road = _road_minutes(matrix, terminal, "PARKING", vehicle_depart, cfg)
+            vehicle_arrive = vehicle_depart + timedelta(minutes=road)
+            end_at = vehicle_arrive
+            start_node, end_node = terminal, "PARKING"
+
+        tasks.append(
+            Task(
+                id=str(raw["id"]),
+                booking_id=str(raw["booking_id"]),
+                task_type=task_type,
+                scheduled_at=scheduled,
+                start_at=start_at,
+                end_at=end_at,
+                start_node=start_node,
+                end_node=end_node,
+                terminal=terminal,
+                version=int(raw["version"]),
+                vehicle_leg_depart_at=vehicle_depart,
+                vehicle_leg_arrive_at=vehicle_arrive,
+                plate=booking.get("vehicle_plate"),
+                customer_name=booking.get("customer_name"),
+                fixed_worker_id=fixed_worker_id,
+            )
+        )
+    return tasks
+
+
+def _iso(value: datetime | None):
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z") if value else None
+
+
+def _task_json(task: Task) -> dict:
+    return {
+        "id": task.id,
+        "booking_id": task.booking_id,
+        "type": task.task_type,
+        "scheduled_at": _iso(task.scheduled_at),
+        "start_at": _iso(task.start_at),
+        "end_at": _iso(task.end_at),
+        "start_node": task.start_node,
+        "end_node": task.end_node,
+        "terminal": task.terminal,
+        "version": task.version,
+        "vehicle_leg_depart_at": _iso(task.vehicle_leg_depart_at),
+        "vehicle_leg_arrive_at": _iso(task.vehicle_leg_arrive_at),
+        "plate": task.plate,
+        "customer_name": task.customer_name,
+        "fixed_worker_id": task.fixed_worker_id,
+    }
+
+
+def _transition_json(transition) -> dict:
+    return {
+        "predecessor_task_id": transition.predecessor_task_id,
+        "successor_task_id": transition.successor_task_id,
+        "kind": transition.kind,
+        "ready_at": _iso(transition.ready_at),
+        "arrive_at": _iso(transition.arrive_at),
+        "cost_minutes": transition.cost_minutes,
+        "steps": [asdict(step) for step in transition.steps],
+    }
+
+
+def process_job(backend: Backend, job: dict, worker_id: str) -> None:
+    job_id = job["id"]
+    started = time.monotonic()
+    backend.rpc("heartbeat_optimization_job", {
+        "p_job_id": job_id,
+        "p_worker_id": worker_id,
+        "p_lease_seconds": 900,
+        "p_progress": {"stage": "snapshot", "percent": 5},
+    })
+
+    current = backend.select("optimization_jobs", {"id": f"eq.{job_id}", "select": "status", "limit": "1"})[0]
+    if current["status"] == "cancel_requested":
+        backend.patch("optimization_jobs", {"id": f"eq.{job_id}", "claimed_by": f"eq.{worker_id}"}, {
+            "status": "cancelled", "finished_at": datetime.now(timezone.utc).isoformat(), "lease_until": None,
+        })
+        return
+
+    cfg_raw = backend.select("ai_dispatch_config", {"id": "eq.1", "select": "*", "limit": "1"})[0]
+    cfg = _config(cfg_raw)
+    workers_raw = backend.select("workers", {
+        "active": "eq.true", "role": "eq.operator", "select": "id,telegram_user_id,full_name", "order": "full_name.asc"
+    })
+    workers = [Worker(str(w["id"]), w["full_name"], w.get("telegram_user_id")) for w in workers_raw]
+    if not workers:
+        raise RuntimeError("no_active_workers")
+
+    matrix_rows = backend.select("ai_dispatch_route_matrix", {
+        "origin": "neq.T4S", "destination": "neq.T4S",
+        "select": "origin,destination,time_band,current_duration_s,distance_m,is_anomaly,fetched_at",
+    })
+    matrix = {(r["origin"], r["destination"], r["time_band"]): r for r in matrix_rows}
+
+    raw_tasks = backend.select("reservation_tasks", {
+        "status": "in.(unassigned,assigned)",
+        "scheduled_at": f"gte.{job['horizon_start']}",
+        "and": f"(scheduled_at.lt.{job['horizon_end']})",
+        "select": "id,booking_id,task_type,scheduled_at,assigned_worker_id,status,version,parking_bookings!inner(id,pickup_terminal,return_terminal,vehicle_plate,customer_name,deleted_at),workers(id,telegram_user_id,full_name)",
+        "parking_bookings.deleted_at": "is.null",
+        "order": "scheduled_at.asc",
+    })
+    tasks = _prepare_tasks(raw_tasks, matrix, cfg)
+
+    snapshot = {
+        "contract": "optimizer_v2_snapshot_v1",
+        "task_versions": {task.id: task.version for task in tasks},
+        "active_worker_ids": [worker.id for worker in workers],
+        "config": asdict(cfg),
+        "route_matrix_fetched_at": max((r.get("fetched_at") or "" for r in matrix_rows), default=None),
+        "task_count": len(tasks),
+    }
+    backend.patch("optimization_jobs", {"id": f"eq.{job_id}", "claimed_by": f"eq.{worker_id}"}, {
+        "input_snapshot": snapshot, "progress": {"stage": "cp_sat", "percent": 20}, "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    solution = solve(tasks, workers, cfg, time_limit_seconds=120.0)
+    validation_errors = validate_solution(solution, cfg)
+    solve_seconds = time.monotonic() - started
+    metrics = {
+        "task_count": len(tasks),
+        "assigned_count": len(tasks) - len(solution.unassigned_task_ids),
+        "unassigned_count": len(solution.unassigned_task_ids),
+        "companion_count": len(solution.companion_matches),
+        "solver_status": solution.solver_status,
+        "objective_value": solution.objective_value,
+        "validation_error_count": len(validation_errors),
+        "elapsed_seconds": round(solve_seconds, 3),
+    }
+
+    if validation_errors:
+        backend.rpc("fail_optimization_job", {
+            "p_job_id": job_id,
+            "p_worker_id": worker_id,
+            "p_error_code": "physical_validation_failed",
+            "p_error_detail": json.dumps([asdict(e) for e in validation_errors[:100]], ensure_ascii=False),
+            "p_retryable": False,
+            "p_metrics": metrics,
+        })
+        return
+
+    routes_json = {}
+    assignments = []
+    for wid, route in solution.routes.items():
+        routes_json[wid] = {
+            "worker": asdict(route.worker),
+            "tasks": [_task_json(task) for task in route.tasks],
+            "transitions": {task_id: _transition_json(t) for task_id, t in route.transitions.items()},
+        }
+        for task in route.tasks:
+            if not task.fixed_worker_id:
+                assignments.append({"task_id": task.id, "version": task.version, "worker_id": wid})
+
+    companions = [
+        {
+            "rider_worker_id": m.rider_worker_id,
+            "rider_task_id": m.rider_task_id,
+            "driver_worker_id": m.driver_worker_id,
+            "driver_task_id": m.driver_task_id,
+            "direction": m.direction,
+            "depart_at": _iso(m.depart_at),
+            "vehicle_leg_arrive_at": _iso(m.vehicle_leg_arrive_at),
+            "arrive_at": _iso(m.arrive_at),
+            "steps": [asdict(step) for step in m.steps],
+        }
+        for m in solution.companion_matches
+    ]
+
+    plan = {
+        "contract": "optimizer_v2_plan_v1",
+        "physical_feasible": True,
+        "assignments": assignments,
+        "unassigned": [{"task_id": task_id, "reason": "not_selected_by_optimizer"} for task_id in solution.unassigned_task_ids],
+        "routes": routes_json,
+        "companion_matches": companions,
+        "validator": {"contract": "physical_validator_v1", "errors": []},
+        "solver_status": solution.solver_status,
+        "objective_value": solution.objective_value,
+    }
+    plan_rows = backend.insert("ai_dispatch_plans", {
+        "created_by_telegram_user_id": job["created_by_telegram_user_id"],
+        "writer_epoch": job["writer_epoch"],
+        "horizon_start": job["horizon_start"],
+        "horizon_end": job["horizon_end"],
+        "status": "proposal",
+        "solver_engine": "optimizer_v2_cp_sat_integrated_rides_v1",
+        "input_snapshot": snapshot,
+        "plan": plan,
+        "reports": {},
+    })
+    plan_id = plan_rows[0]["id"]
+    backend.rpc("complete_optimization_job", {
+        "p_job_id": job_id,
+        "p_worker_id": worker_id,
+        "p_result_plan_id": plan_id,
+        "p_metrics": metrics,
+        "p_progress": {"stage": "completed", "percent": 100},
+    })
+
+
+def run_forever() -> None:
+    backend = Backend()
+    worker_id = os.getenv("OPTIMIZER_WORKER_ID") or f"{socket.gethostname()}:{os.getpid()}"
+    idle_seconds = float(os.getenv("OPTIMIZER_IDLE_SECONDS", "2"))
+    while True:
+        claimed = backend.rpc("claim_next_optimization_job", {"p_worker_id": worker_id, "p_lease_seconds": 900})
+        if not claimed or not claimed.get("id"):
+            time.sleep(idle_seconds)
+            continue
+        try:
+            process_job(backend, claimed, worker_id)
+        except Exception as exc:
+            try:
+                backend.rpc("fail_optimization_job", {
+                    "p_job_id": claimed["id"],
+                    "p_worker_id": worker_id,
+                    "p_error_code": type(exc).__name__,
+                    "p_error_detail": str(exc),
+                    "p_retryable": isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)),
+                    "p_metrics": {},
+                })
+            finally:
+                print(f"job {claimed['id']} failed: {exc}", flush=True)
+
+
+if __name__ == "__main__":
+    run_forever()
