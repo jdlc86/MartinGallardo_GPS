@@ -8,7 +8,19 @@ from typing import Iterable
 
 from ortools.sat.python import cp_model
 
-from .domain import CompanionMatch, OptimizerConfig, ShiftAssignment, Solution, Task, Transition, Worker, WorkerRoute
+from .company_shuttle import ShuttleRequest, request_mission_window
+from .domain import (
+    CompanyShuttleMission,
+    CompanionMatch,
+    OptimizerConfig,
+    ShiftAssignment,
+    Solution,
+    Task,
+    TransferStep,
+    Transition,
+    Worker,
+    WorkerRoute,
+)
 from .shifts import allowed_shift_types, eligible_shift_types, operational_day, shift_cost, shift_window
 from .transitions import build_transition, terminal_transfer
 
@@ -47,6 +59,16 @@ class _RideCandidate:
     steps: tuple
 
 
+@dataclass(frozen=True, slots=True)
+class _ShuttleCandidate:
+    rider_worker_id: str
+    previous_id: str
+    current_id: str
+    depart_parking_at: datetime
+    return_parking_at: datetime
+    stops: tuple[str, ...]
+
+
 def _ordered_tasks(tasks: Iterable[Task]) -> list[Task]:
     return sorted(tasks, key=lambda task: (task.start_at, task.end_at, task.id))
 
@@ -57,7 +79,14 @@ def _seat_task(task: Task) -> _SeatTask:
     return _SeatTask(task, "in", task.terminal, "PARKING", task.vehicle_leg_depart_at, task.vehicle_leg_arrive_at)
 
 
-def _candidate_for_seat(rider_worker_id: str, previous: Task, current: Task, driver_worker_id: str, seat: _SeatTask, cfg: OptimizerConfig) -> _RideCandidate | None:
+def _candidate_for_seat(
+    rider_worker_id: str,
+    previous: Task,
+    current: Task,
+    driver_worker_id: str,
+    seat: _SeatTask,
+    cfg: OptimizerConfig,
+) -> _RideCandidate | None:
     if rider_worker_id == driver_worker_id:
         return None
     transition = build_transition(previous, current, cfg)
@@ -83,17 +112,44 @@ def _candidate_for_seat(rider_worker_id: str, previous: Task, current: Task, dri
             return None
         arrive = seat.arrive_at
     return _RideCandidate(
-        rider_worker_id, previous.id, current.id, driver_worker_id, seat.task.id,
-        seat.direction, seat.depart_at, seat.arrive_at, arrive, transfer_minutes, steps,
+        rider_worker_id,
+        previous.id,
+        current.id,
+        driver_worker_id,
+        seat.task.id,
+        seat.direction,
+        seat.depart_at,
+        seat.arrive_at,
+        arrive,
+        transfer_minutes,
+        steps,
     )
 
 
-def _add_greedy_hints(model: cp_model.CpModel, tasks: list[Task], workers: list[Worker], cfg: OptimizerConfig, x, shift_vars) -> None:
-    """Provide a cheap physically valid starting point.
+def _shuttle_window(previous: Task, current: Task, tasks: list[Task], cfg: OptimizerConfig):
+    """Return the closed company-car mission needed between two tasks, if physically possible."""
+    if cfg.company_shuttle_vehicle_count <= 0 or previous.end_node == current.start_node:
+        return None
+    if current.start_at < previous.end_at:
+        return None
+    request = ShuttleRequest(
+        worker_id="candidate",
+        successor_task_id=current.id,
+        origin=previous.end_node,
+        destination=current.start_node,
+        ready_at=previous.end_at,
+        latest_arrival=current.start_at,
+    )
+    window = request_mission_window(request, tasks)
+    if window is None:
+        return None
+    depart, ret = window
+    stops = tuple(node for node in (previous.end_node, current.start_node) if node != "PARKING")
+    return depart, ret, stops
 
-    The hint intentionally uses only transitions that do not require a companion.
-    CP-SAT remains free to add companion moves and improve coverage.
-    """
+
+def _add_greedy_hints(model: cp_model.CpModel, tasks: list[Task], workers: list[Worker], cfg: OptimizerConfig, x, shift_vars) -> None:
+    """Provide a cheap physically valid starting point without consuming scarce rescue resources."""
     previous: dict[str, Task | None] = {worker.id: None for worker in workers}
     chosen: dict[str, str] = {}
     for task in tasks:
@@ -140,11 +196,27 @@ def _add_greedy_hints(model: cp_model.CpModel, tasks: list[Task], workers: list[
                     break
 
 
-def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerConfig, *, time_limit_seconds: float = 60.0, random_seed: int = 20260903, search_workers: int = 8) -> Solution:
+def solve_day(
+    tasks: Iterable[Task],
+    workers: Iterable[Worker],
+    cfg: OptimizerConfig,
+    *,
+    time_limit_seconds: float = 60.0,
+    random_seed: int = 20260903,
+    search_workers: int = 8,
+) -> Solution:
     tasks = _ordered_tasks(tasks)
     workers = list(workers)
     if not tasks:
-        return Solution(routes={w.id: WorkerRoute(w) for w in workers}, unassigned_task_ids=[], solver_status="OPTIMAL", coverage_count=0, coverage_best_bound=0.0, coverage_relative_gap=0.0, operational_day_count=0)
+        return Solution(
+            routes={w.id: WorkerRoute(w) for w in workers},
+            unassigned_task_ids=[],
+            solver_status="OPTIMAL",
+            coverage_count=0,
+            coverage_best_bound=0.0,
+            coverage_relative_gap=0.0,
+            operational_day_count=0,
+        )
 
     days = {operational_day(task.start_at, cfg) for task in tasks}
     if len(days) != 1:
@@ -184,20 +256,29 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
                 if worker.id != task.fixed_worker_id:
                     model.add(x[task.id, worker.id] == 0)
 
+    # Build the worker path graph. A pair is admitted when the canonical transition works,
+    # or when a closed company-shuttle mission can make an otherwise impossible repositioning.
     arcs, arc_meta = {}, {}
     incoming, outgoing = defaultdict(list), defaultdict(list)
+    shuttle_pair_window = {}
     for i, previous in enumerate(tasks):
-        for current in tasks[i + 1:]:
+        for current in tasks[i + 1 :]:
             if current.start_at < previous.end_at:
                 continue
             transition = build_transition(previous, current, cfg)
-            if not transition.feasible:
+            shuttle_window = _shuttle_window(previous, current, tasks, cfg)
+            if not transition.feasible and shuttle_window is None:
                 continue
+            pair = (previous.id, current.id)
+            if shuttle_window is not None:
+                shuttle_pair_window[pair] = shuttle_window
             for worker in workers:
                 key = (worker.id, previous.id, current.id)
                 var = model.new_bool_var(f"a_{worker.id}_{previous.id}_{current.id}")
                 arcs[key] = var
-                arc_meta[key] = _Arc(worker.id, previous.id, current.id, transition.kind, transition.cost_minutes)
+                kind = transition.kind if transition.feasible else "company_shuttle"
+                cost = transition.cost_minutes if transition.feasible else 0
+                arc_meta[key] = _Arc(worker.id, previous.id, current.id, kind, cost)
                 model.add(var <= x[previous.id, worker.id])
                 model.add(var <= x[current.id, worker.id])
                 incoming[current.id, worker.id].append(var)
@@ -210,6 +291,7 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
         model.add(sum(start[task.id, worker.id] for task in tasks) <= 1)
         model.add(sum(end[task.id, worker.id] for task in tasks) <= 1)
 
+    # Existing customer-car companion candidates.
     seats_by_direction = {"out": [], "in": []}
     for task in tasks:
         seat = _seat_task(task)
@@ -223,16 +305,15 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
     seat_usage = defaultdict(list)
     for key, arc_var in arcs.items():
         rider_worker_id, previous_id, current_id = key
-        if arc_meta[key].transition_kind not in ("ride_out", "ride_in"):
-            continue
         previous, current = task_by_id[previous_id], task_by_id[current_id]
-        transition = build_transition(previous, current, cfg)
-        direction = transition.direction
-        if direction is None or transition.ready_at is None:
-            model.add(arc_var == 0)
+        canonical = build_transition(previous, current, cfg)
+        if not canonical.feasible or canonical.kind not in ("ride_out", "ride_in"):
+            continue
+        direction = canonical.direction
+        if direction is None or canonical.ready_at is None:
             continue
         seats, times = seats_by_direction[direction], depart_times[direction]
-        lo, hi = bisect_left(times, transition.ready_at), bisect_right(times, current.start_at)
+        lo, hi = bisect_left(times, canonical.ready_at), bisect_right(times, current.start_at)
         for seat in seats[lo:hi]:
             if seat.task.id in (previous_id, current_id) or seat.arrive_at > current.start_at:
                 continue
@@ -249,11 +330,84 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
                 model.add(var <= arc_var)
                 model.add(var <= x[seat.task.id, driver_worker.id])
                 seat_usage[driver_worker.id, seat.task.id].append(var)
-        compatible = [y[rider_worker_id, previous_id, current_id, c.driver_worker_id, c.driver_task_id] for c in ride_candidates[key]]
-        model.add(sum(compatible) == arc_var) if compatible else model.add(arc_var == 0)
 
     for (driver_worker_id, driver_task_id), vars_ in seat_usage.items():
         model.add(sum(vars_) <= cfg.max_logistics_passengers * x[driver_task_id, driver_worker_id])
+
+    # Native company-shuttle variables. Each rescue arc belongs to a closed mission group.
+    # Requests with exactly the same closed route/window share one vehicle and up to N passengers.
+    z = {}
+    group_riders = defaultdict(list)
+    group_data = {}
+    z_by_arc = {}
+    for key, arc_var in arcs.items():
+        worker_id, previous_id, current_id = key
+        canonical = build_transition(task_by_id[previous_id], task_by_id[current_id], cfg)
+        pair_window = shuttle_pair_window.get((previous_id, current_id))
+        rescue_allowed = pair_window is not None and (not canonical.feasible or canonical.requires_companion)
+        if not rescue_allowed:
+            continue
+        depart, ret, stops = pair_window
+        group_key = (depart, ret, stops)
+        group_data[group_key] = (depart, ret, stops)
+        var = model.new_bool_var(f"shuttle_{worker_id}_{previous_id}_{current_id}")
+        z[key] = var
+        z_by_arc[key] = var
+        group_riders[group_key].append((key, var))
+        model.add(var <= arc_var)
+
+    # Every transport-dependent arc must choose exactly one physical transport mode.
+    for key, arc_var in arcs.items():
+        previous_id, current_id = key[1], key[2]
+        canonical = build_transition(task_by_id[previous_id], task_by_id[current_id], cfg)
+        transport_vars = []
+        for candidate in ride_candidates.get(key, []):
+            transport_vars.append(y[key[0], previous_id, current_id, candidate.driver_worker_id, candidate.driver_task_id])
+        if key in z_by_arc:
+            transport_vars.append(z_by_arc[key])
+        if canonical.feasible and canonical.requires_companion:
+            model.add(sum(transport_vars) == arc_var) if transport_vars else model.add(arc_var == 0)
+        elif not canonical.feasible:
+            model.add(z_by_arc[key] == arc_var) if key in z_by_arc else model.add(arc_var == 0)
+
+    group_used = {}
+    group_vehicle = {}
+    vehicle_intervals = defaultdict(list)
+    for index, (group_key, rider_vars) in enumerate(group_riders.items()):
+        depart, ret, stops = group_data[group_key]
+        used = model.new_bool_var(f"shuttle_group_used_{index}")
+        group_used[group_key] = used
+        vars_only = [var for _, var in rider_vars]
+        model.add(sum(vars_only) <= cfg.company_shuttle_passenger_capacity * used)
+        model.add(sum(vars_only) >= used)
+
+        per_worker = defaultdict(list)
+        for key, var in rider_vars:
+            per_worker[key[0]].append(var)
+        for vars_for_worker in per_worker.values():
+            model.add(sum(vars_for_worker) <= 1)
+
+        vehicle_vars = []
+        duration_seconds = max(1, int((ret - depart).total_seconds()))
+        start_seconds = int(depart.timestamp())
+        end_seconds = start_seconds + duration_seconds
+        for vehicle_index in range(cfg.company_shuttle_vehicle_count):
+            q = model.new_bool_var(f"shuttle_group_{index}_vehicle_{vehicle_index}")
+            group_vehicle[group_key, vehicle_index] = q
+            vehicle_vars.append(q)
+            interval = model.new_optional_interval_var(
+                start_seconds,
+                duration_seconds,
+                end_seconds,
+                q,
+                f"shuttle_interval_{index}_{vehicle_index}",
+            )
+            vehicle_intervals[vehicle_index].append(interval)
+        model.add(sum(vehicle_vars) == used)
+
+    for intervals in vehicle_intervals.values():
+        if intervals:
+            model.add_no_overlap(intervals)
 
     assigned_vars = [x[task.id, worker.id] for task in tasks for worker in workers]
     coverage_expr = sum(assigned_vars)
@@ -275,10 +429,11 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
         if candidate.extra_transfer_minutes:
             companion_terms.append(candidate.extra_transfer_minutes * var)
     shift_terms = [shift_cost(st, cfg) * var for (wid, d, st), var in shift_vars.items() if shift_cost(st, cfg)]
+    shuttle_terms = [cfg.company_shuttle_mission_cost * used for used in group_used.values() if cfg.company_shuttle_mission_cost]
 
     _add_greedy_hints(model, tasks, workers, cfg, x, shift_vars)
 
-    # Phase A: coverage only. No balance, movement or shift penalty can reduce it.
+    # Phase A: maximize coverage only. Rescue cost can never buy the loss of a task.
     phase1_seconds = max(1.0, time_limit_seconds * 0.75)
     model.maximize(coverage_expr)
     s1 = cp_model.CpSolver()
@@ -293,7 +448,7 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
     coverage_bound = float(s1.best_objective_bound)
     coverage_gap = 0.0 if coverage_bound <= 0 else max(0.0, (coverage_bound - coverage_found) / coverage_bound)
 
-    # Phase B: freeze coverage, then improve operational quality.
+    # Phase B: freeze coverage, then minimize operational cost including rescue missions.
     model.add(coverage_expr == coverage_found)
     secondary = 1000 * (max_load - min_load)
     if shift_terms:
@@ -302,14 +457,16 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
         secondary += sum(movement_terms)
     if companion_terms:
         secondary += sum(companion_terms)
+    if shuttle_terms:
+        secondary += sum(shuttle_terms)
     model.minimize(secondary)
 
-    # The phase-A incumbent is a high-quality hint for phase B.
     try:
         model.clear_hints()
     except AttributeError:
         pass
-    for var in list(x.values()) + list(arcs.values()) + list(y.values()) + list(shift_vars.values()):
+    hint_vars = list(x.values()) + list(arcs.values()) + list(y.values()) + list(z.values()) + list(group_used.values()) + list(group_vehicle.values()) + list(shift_vars.values())
+    for var in hint_vars:
         model.add_hint(var, s1.value(var))
 
     phase2_seconds = max(1.0, time_limit_seconds - phase1_seconds)
@@ -330,6 +487,11 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
 
     routes = {worker.id: WorkerRoute(worker) for worker in workers}
     assigned_ids = set()
+    selected_arc_by_current = {}
+    for key, var in arcs.items():
+        if chosen.value(var):
+            selected_arc_by_current[key[0], key[2]] = key
+
     for worker in workers:
         selected = [task for task in tasks if chosen.value(x[task.id, worker.id])]
         selected.sort(key=lambda task: (task.start_at, task.id))
@@ -337,7 +499,23 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
         route.tasks.extend(selected)
         previous = None
         for task in selected:
-            route.transitions[task.id] = build_transition(previous, task, cfg)
+            if previous is None:
+                route.transitions[task.id] = build_transition(None, task, cfg)
+            else:
+                key = selected_arc_by_current.get((worker.id, task.id))
+                if key is not None and key in z and chosen.value(z[key]):
+                    route.transitions[task.id] = Transition(
+                        previous.id,
+                        task.id,
+                        "company_shuttle",
+                        True,
+                        previous.end_at,
+                        task.start_at,
+                        cfg.company_shuttle_mission_cost,
+                        steps=(TransferStep("company_shuttle", previous.end_node, task.start_node, max(0, int((task.start_at - previous.end_at).total_seconds() // 60))),),
+                    )
+                else:
+                    route.transitions[task.id] = build_transition(previous, task, cfg)
             previous = task
             assigned_ids.add(task.id)
 
@@ -352,10 +530,31 @@ def solve_day(tasks: Iterable[Task], workers: Iterable[Worker], cfg: OptimizerCo
         base = routes[rw].transitions[cur]
         routes[rw].transitions[cur] = Transition(base.predecessor_task_id, cur, base.kind, True, base.ready_at, match.arrive_at, base.cost_minutes, steps=match.steps, requires_companion=True, direction=match.direction)
 
+    missions = []
+    for index, (group_key, rider_vars) in enumerate(group_riders.items()):
+        if not chosen.value(group_used[group_key]):
+            continue
+        depart, ret, stops = group_data[group_key]
+        vehicle_index = next(v for v in range(cfg.company_shuttle_vehicle_count) if chosen.value(group_vehicle[group_key, v]))
+        selected_riders = [key for key, var in rider_vars if chosen.value(var)]
+        selected_riders.sort()
+        missions.append(
+            CompanyShuttleMission(
+                vehicle_index,
+                f"cp:{day}:{index}",
+                depart,
+                ret,
+                stops,
+                tuple(key[0] for key in selected_riders),
+                tuple(key[2] for key in selected_riders),
+            )
+        )
+
     return Solution(
         routes=routes,
         unassigned_task_ids=[task.id for task in tasks if task.id not in assigned_ids],
         companion_matches=matches,
+        company_shuttle_missions=missions,
         shift_assignments=shift_assignments,
         objective_value=int(round(chosen.objective_value)),
         solver_status=final_status,
