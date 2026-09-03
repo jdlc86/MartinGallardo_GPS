@@ -15,7 +15,6 @@ jobs:
     timeout-minutes: 10
     env:
       PYTHONPATH: ${{ github.workspace }}/optimizer_v2
-      BACK_FORWARD_BENCHMARK_MODE: optimal
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
