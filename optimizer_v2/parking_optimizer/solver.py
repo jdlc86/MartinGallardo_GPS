@@ -5,7 +5,7 @@ from typing import Iterable
 
 from .daily_solver import solve_day
 from .domain import OptimizerConfig, Solution, Task, Worker, WorkerRoute
-from .shifts import operational_day
+from .shifts import eligible_shift_types, operational_day
 from .transitions import build_transition
 
 
@@ -13,6 +13,8 @@ def _mobility_diagnostics(day_tasks: list[Task], cfg: OptimizerConfig) -> dict[s
     ordered = sorted(day_tasks, key=lambda t: (t.start_at, t.end_at, t.id))
     pickups = sum(t.task_type == "pickup" for t in ordered)
     deliveries = len(ordered) - pickups
+    eligible_count = sum(bool(eligible_shift_types(task, cfg)) for task in ordered)
+    outside_shift_count = len(ordered) - eligible_count
     direct = ride_out = ride_in = 0
     for i, previous in enumerate(ordered):
         for current in ordered[i + 1 :]:
@@ -28,12 +30,21 @@ def _mobility_diagnostics(day_tasks: list[Task], cfg: OptimizerConfig) -> dict[s
 
     bottleneck = "none"
     detail = None
-    if ordered and deliveries == len(ordered) and direct == 0:
+    if ordered and outside_shift_count == len(ordered):
+        bottleneck = "outside_all_allowed_shifts"
+        detail = (
+            f"All {len(ordered)} tasks fall outside every shift type allowed by the current "
+            f"global work mode ({cfg.global_work_mode})."
+        )
+    elif outside_shift_count:
+        bottleneck = "partial_outside_allowed_shifts"
+        detail = f"{outside_shift_count}/{len(ordered)} tasks fall outside every currently allowed shift type."
+    elif ordered and deliveries == len(ordered) and direct == 0:
         bottleneck = "airport_stranding_without_repositioning"
-        detail = "All tasks are deliveries; company shuttle capacity is needed to return operators to PARKING."
+        detail = "All tasks are deliveries; company shuttle capacity may be needed to return operators to PARKING between tasks."
     elif ordered and pickups == len(ordered) and direct == 0:
         bottleneck = "parking_stranding_without_repositioning"
-        detail = "All tasks are pickups; company shuttle capacity is needed to send operators from PARKING to airport."
+        detail = "All tasks are pickups; company shuttle capacity may be needed to reposition operators after they return to PARKING."
     elif pickups and deliveries and max(pickups, deliveries) >= 4 * min(pickups, deliveries):
         bottleneck = "strong_directional_imbalance"
         detail = f"Strong directional imbalance ({pickups} pickups / {deliveries} deliveries)."
@@ -41,6 +52,8 @@ def _mobility_diagnostics(day_tasks: list[Task], cfg: OptimizerConfig) -> dict[s
     return {
         "pickup_count": pickups,
         "delivery_count": deliveries,
+        "shift_eligible_task_count": eligible_count,
+        "outside_allowed_shifts_task_count": outside_shift_count,
         "direct_non_companion_pair_count": direct,
         "ride_out_pair_count": ride_out,
         "ride_in_pair_count": ride_in,
