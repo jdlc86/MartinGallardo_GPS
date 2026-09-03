@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 Node = Literal["PARKING", "T1", "T2", "T3", "T4"]
 TaskType = Literal["pickup", "delivery"]
+ShiftType = Literal["normal", "intensive", "max_effort"]
 MovementKind = Literal[
     "shift_start",
-    "shift_reset",
     "same_location",
     "terminal_transfer",
     "ride_out",
@@ -94,6 +94,15 @@ class CompanionMatch:
     steps: tuple[TransferStep, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class ShiftAssignment:
+    worker_id: str
+    operational_day: date
+    shift_type: ShiftType
+    start_at: datetime
+    end_at: datetime
+
+
 @dataclass(slots=True)
 class WorkerRoute:
     worker: Worker
@@ -106,6 +115,7 @@ class Solution:
     routes: dict[str, WorkerRoute]
     unassigned_task_ids: list[str]
     companion_matches: list[CompanionMatch] = field(default_factory=list)
+    shift_assignments: list[ShiftAssignment] = field(default_factory=list)
     objective_value: int | None = None
     solver_status: str = "UNKNOWN"
 
@@ -121,5 +131,17 @@ class OptimizerConfig:
     terminal_shuttle_wait_night_minutes: int = 20
     terminal_shuttle_day_start_hour: int = 6
     terminal_shuttle_day_end_hour: int = 22
-    operator_shift_reset_minutes: int = 360
     max_logistics_passengers: int = 1
+
+    # Work policy. All values are configurable from ai_dispatch_config.
+    global_work_mode: ShiftType = "max_effort"
+    shift_start_hour: int = 6
+    shift_start_minute: int = 0
+    normal_shift_duration_minutes: int = 12 * 60       # 06:00 -> 18:00
+    intensive_shift_duration_minutes: int = 18 * 60    # 06:00 -> 00:00 next day
+    max_effort_shift_duration_minutes: int = 22 * 60   # 06:00 -> 04:00 next day
+
+    # Secondary objective only: coverage always dominates these costs.
+    normal_shift_cost: int = 0
+    intensive_shift_cost: int = 120
+    max_effort_shift_cost: int = 300
