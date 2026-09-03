@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import FastAPI, Header, HTTPException
 
-from parking_optimizer.worker import Backend, process_job
+from parking_optimizer.job_processor import process_job
+from parking_optimizer.worker import Backend
 
 app = FastAPI()
 
@@ -34,8 +35,6 @@ def _run_one() -> dict:
         process_job(backend, claimed, worker_id)
         return {"ok": True, "claimed": True, "job_id": claimed["id"]}
     except Exception as exc:
-        # Keep failure/retry semantics in the durable Supabase job record. The HTTP
-        # request is only an execution vehicle and is never the source of truth.
         try:
             backend.rpc(
                 "fail_optimization_job",
