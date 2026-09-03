@@ -20,8 +20,12 @@ def solve(
     """Solve independently per operational day, then merge the plans.
 
     Daily decomposition is exact for the current domain because physical continuity
-    intentionally resets only at the configured start of a new operational day.
-    Companion movements are forbidden across that boundary by the validator.
+    resets only at the configured start of a new operational day and companion
+    movements cannot cross that boundary.
+
+    ``time_limit_seconds`` is a quality budget for one daily subproblem, not a
+    horizon-wide budget to divide among all days. The asynchronous worker owns the
+    horizon runtime, so adding days must not starve each CP-SAT subproblem.
     """
     tasks = list(tasks)
     workers = list(workers)
@@ -35,6 +39,7 @@ def solve(
             coverage_best_bound=0.0,
             coverage_relative_gap=0.0,
             operational_day_count=0,
+            day_diagnostics=[],
         )
 
     by_day: dict[object, list[Task]] = defaultdict(list)
@@ -42,9 +47,9 @@ def solve(
         by_day[operational_day(task.start_at, cfg)].append(task)
     days = sorted(by_day)
 
-    # Every operational day receives a real CP-SAT budget. This is the main
-    # protection against a busy day consuming the entire horizon budget.
-    per_day_seconds = max(5.0, time_limit_seconds / len(days))
+    # Never starve a daily model because the requested horizon is longer.
+    # 60 s/day is the quality floor; callers may explicitly request more.
+    per_day_seconds = max(60.0, float(time_limit_seconds))
 
     unassigned: list[str] = []
     companions = []
@@ -53,6 +58,7 @@ def solve(
     bound = 0.0
     objective = 0
     statuses: list[str] = []
+    day_diagnostics: list[dict[str, object]] = []
 
     for index, day in enumerate(days):
         day_solution = solve_day(
@@ -68,8 +74,26 @@ def solve(
         companions.extend(day_solution.companion_matches)
         shifts.extend(day_solution.shift_assignments)
         coverage += day_solution.coverage_count
-        bound += day_solution.coverage_best_bound if day_solution.coverage_best_bound is not None else len(by_day[day])
+        day_bound = (
+            day_solution.coverage_best_bound
+            if day_solution.coverage_best_bound is not None
+            else float(len(by_day[day]))
+        )
+        bound += day_bound
         objective += day_solution.objective_value or 0
+
+        day_diagnostics.append({
+            "operational_day": str(day),
+            "task_count": len(by_day[day]),
+            "coverage_count": day_solution.coverage_count,
+            "unassigned_count": len(day_solution.unassigned_task_ids),
+            "coverage_best_bound": day_bound,
+            "coverage_relative_gap": day_solution.coverage_relative_gap,
+            "solver_status": day_solution.solver_status,
+            "shift_count": len(day_solution.shift_assignments),
+            "companion_count": len(day_solution.companion_matches),
+            "time_budget_seconds": per_day_seconds,
+        })
 
         for worker_id, day_route in day_solution.routes.items():
             routes[worker_id].tasks.extend(day_route.tasks)
@@ -97,4 +121,5 @@ def solve(
         coverage_best_bound=bound,
         coverage_relative_gap=gap,
         operational_day_count=len(days),
+        day_diagnostics=day_diagnostics,
     )
