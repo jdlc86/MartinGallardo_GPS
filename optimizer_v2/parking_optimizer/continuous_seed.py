@@ -29,19 +29,26 @@ def _types_by_capacity(cfg: OptimizerConfig) -> list[str]:
     )
 
 
-def build_continuous_seed(\n    tasks: Iterable[Task],\n    workers: Iterable[Worker],\n    cfg: OptimizerConfig,\n    *,\n    preferred_worker_by_task: dict[str, str] | None = None,\n) -> Solution:
-    """Fast deterministic 24/7 incumbent.
+def build_continuous_seed(
+    tasks: Iterable[Task],
+    workers: Iterable[Worker],
+    cfg: OptimizerConfig,
+    *,
+    preferred_worker_by_task: dict[str, str] | None = None,
+) -> Solution:
+    """Fast deterministic 24/7 incumbent and continuity stitcher.
 
-    It never uses companion/shuttle rescue. A worker either continues the same
-    physical route or opens a new shift after the policy-specific rest; a new
-    shift may start at any task location because the worker travels there by
-    their own means.
+    It never invents a discontinuity: a worker either continues through a
+    physically feasible transition or opens a new shift after the required
+    policy rest. Window solvers may suggest preferred workers, but those
+    preferences never override feasibility.
     """
     tasks = _ordered_tasks(tasks)
     workers = list(workers)
     routes = {w.id: WorkerRoute(w) for w in workers}
     states = {w.id: _State(w) for w in workers}
-    preferred = _types_by_capacity(cfg)
+    preferred_types = _types_by_capacity(cfg)
+    preferred_worker_by_task = preferred_worker_by_task or {}
     assigned: set[str] = set()
     shifts: list[ShiftAssignment] = []
 
@@ -51,37 +58,55 @@ def build_continuous_seed(\n    tasks: Iterable[Task],\n    workers: Iterable[Wo
         for worker in candidates:
             s = states[worker.id]
             if s.last_task is None:
-                option = (1, 0, worker.id, "start", preferred[0], tuple(preferred))
+                option = (1, 0, worker.id, "start", preferred_types[0], tuple(preferred_types))
             else:
                 prev = s.last_task
                 if task.start_at < prev.end_at:
                     continue
                 tr = build_transition(prev, task, cfg)
                 span = int((task.end_at - s.block_start).total_seconds() // 60) if s.block_start else 10**9
-                continuation_types = [st for st in s.eligible_types if span <= shift_duration_minutes(st, cfg)]
+                continuation_types = [
+                    st for st in s.eligible_types
+                    if span <= shift_duration_minutes(st, cfg)
+                ]
                 if tr.feasible and not tr.requires_companion and continuation_types:
                     st = continuation_types[0]
                     option = (0, tr.cost_minutes, worker.id, "continue", st, tuple(continuation_types))
                 else:
                     gap = int((task.start_at - prev.end_at).total_seconds() // 60)
-                    restart_types = [st for st in preferred if gap >= shift_rest_minutes(st, cfg)]
+                    restart_types = [
+                        st for st in preferred_types
+                        if gap >= shift_rest_minutes(st, cfg)
+                    ]
                     if not restart_types:
                         continue
                     st = restart_types[0]
                     option = (1, gap, worker.id, "restart", st, tuple(restart_types))
-            if best is None or option[:3] < best[0][:3]:
-                best = (option, worker)
+
+            preference_penalty = 0 if preferred_worker_by_task.get(task.id) == worker.id else 1
+            rank = (preference_penalty, *option[:3])
+            if best is None or rank < best[0]:
+                best = (rank, option, worker)
 
         if best is None:
             continue
-        option, worker = best
+
+        _, option, worker = best
         mode, st, eligible = option[3], option[4], option[5]
         s = states[worker.id]
 
         if mode in {"start", "restart"}:
             if s.current_tasks:
                 end_at = s.current_tasks[-1].end_at
-                shifts.append(ShiftAssignment(worker.id, operational_day(s.block_start, cfg), s.block_type, s.block_start, end_at))
+                shifts.append(
+                    ShiftAssignment(
+                        worker.id,
+                        operational_day(s.block_start, cfg),
+                        s.block_type,
+                        s.block_start,
+                        end_at,
+                    )
+                )
             predecessor = s.last_task
             routes[worker.id].transitions[task.id] = Transition(
                 predecessor.id if predecessor else None,
@@ -110,7 +135,15 @@ def build_continuous_seed(\n    tasks: Iterable[Task],\n    workers: Iterable[Wo
     for worker in workers:
         s = states[worker.id]
         if s.current_tasks:
-            shifts.append(ShiftAssignment(worker.id, operational_day(s.block_start, cfg), s.block_type, s.block_start, s.current_tasks[-1].end_at))
+            shifts.append(
+                ShiftAssignment(
+                    worker.id,
+                    operational_day(s.block_start, cfg),
+                    s.block_type,
+                    s.block_start,
+                    s.current_tasks[-1].end_at,
+                )
+            )
 
     return Solution(
         routes=routes,
@@ -119,5 +152,9 @@ def build_continuous_seed(\n    tasks: Iterable[Task],\n    workers: Iterable[Wo
         solver_status="FEASIBLE",
         coverage_count=len(assigned),
         operational_day_count=len({operational_day(t.start_at, cfg) for t in tasks}),
-        day_diagnostics=[{"mode": "continuous_seed", "coverage_count": len(assigned), "task_count": len(tasks)}],
+        day_diagnostics=[{
+            "mode": "continuous_seed",
+            "coverage_count": len(assigned),
+            "task_count": len(tasks),
+        }],
     )
