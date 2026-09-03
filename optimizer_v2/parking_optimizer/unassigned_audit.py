@@ -402,6 +402,125 @@ def audit_summary(audits: Iterable[dict[str, object]]) -> dict[str, int]:
 
 
 
+def _local_reoptimization_ids(
+    tasks: list[Task],
+    solution: Solution,
+    target: Task,
+    cfg: OptimizerConfig,
+) -> set[str]:
+    """Return a conservative local closure around the audited task.
+
+    The initial time window is expanded to whole current shift blocks and to
+    every task participating in a companion/company-shuttle dependency touched
+    by that window. This prevents the local solve from cutting a live logistics
+    edge or only half of an existing work block.
+    """
+    half = timedelta(minutes=max(60, int(cfg.audit_local_window_minutes) // 2))
+    start = target.start_at - half
+    end = target.end_at + half
+    ids = {
+        task.id
+        for task in tasks
+        if task.start_at < end and task.end_at > start
+    }
+    ids.add(target.id)
+
+    changed = True
+    while changed:
+        changed = False
+
+        for shift in solution.shift_assignments:
+            shift_ids = {task.id for task in _shift_tasks(solution, shift)}
+            if ids.intersection(shift_ids):
+                before = len(ids)
+                ids.update(shift_ids)
+                changed = changed or len(ids) != before
+
+        for match in solution.companion_matches:
+            pair = {match.rider_task_id, match.driver_task_id}
+            if ids.intersection(pair):
+                before = len(ids)
+                ids.update(pair)
+                changed = changed or len(ids) != before
+
+        for mission in solution.company_shuttle_missions:
+            mission_ids = set(mission.rider_task_ids)
+            if ids.intersection(mission_ids):
+                before = len(ids)
+                ids.update(mission_ids)
+                changed = changed or len(ids) != before
+
+    return ids
+
+
+def _merge_local_solution(
+    all_tasks: list[Task],
+    current: Solution,
+    local: Solution,
+    local_ids: set[str],
+) -> Solution:
+    """Splice an exact local CP-SAT result into the accepted global plan.
+
+    Assignments, shifts and logistics outside local_ids are frozen. Whole
+    touched shift/logistics components have already been included in the local
+    closure, so removing and replacing them cannot silently mutate the exterior.
+    The caller must still run validate_solution() on the resulting global plan.
+    """
+    candidate = deepcopy(current)
+
+    for route in candidate.routes.values():
+        route.tasks = [task for task in route.tasks if task.id not in local_ids]
+        route.transitions = {
+            task_id: transition
+            for task_id, transition in route.transitions.items()
+            if task_id not in local_ids
+        }
+
+    kept_shifts = []
+    for shift in current.shift_assignments:
+        shift_ids = {task.id for task in _shift_tasks(current, shift)}
+        if shift_ids.intersection(local_ids):
+            continue
+        kept_shifts.append(shift)
+    candidate.shift_assignments = kept_shifts
+
+    candidate.companion_matches = [
+        match
+        for match in current.companion_matches
+        if match.rider_task_id not in local_ids and match.driver_task_id not in local_ids
+    ]
+    candidate.company_shuttle_missions = [
+        mission
+        for mission in current.company_shuttle_missions
+        if not set(mission.rider_task_ids).intersection(local_ids)
+    ]
+
+    for worker_id, local_route in local.routes.items():
+        route = candidate.routes[worker_id]
+        route.tasks.extend(local_route.tasks)
+        route.tasks.sort(key=lambda task: (task.start_at, task.end_at, task.id))
+        for task in local_route.tasks:
+            if task.id in local_route.transitions:
+                route.transitions[task.id] = local_route.transitions[task.id]
+
+    candidate.shift_assignments.extend(local.shift_assignments)
+    candidate.shift_assignments.sort(key=lambda shift: (shift.worker_id, shift.start_at, shift.end_at))
+    candidate.companion_matches.extend(local.companion_matches)
+    candidate.company_shuttle_missions.extend(local.company_shuttle_missions)
+
+    assigned_ids = {
+        task.id
+        for route in candidate.routes.values()
+        for task in route.tasks
+    }
+    candidate.unassigned_task_ids = [
+        task.id for task in all_tasks if task.id not in assigned_ids
+    ]
+    candidate.coverage_count = len(assigned_ids)
+    candidate.solver_status = "FEASIBLE"
+    return candidate
+
+
 def reoptimize_not_proven(
     tasks: Iterable[Task],
     workers,
@@ -411,14 +530,13 @@ def reoptimize_not_proven(
     random_seed: int = 20260903,
     search_workers: int = 8,
 ) -> tuple[Solution, list[dict[str, object]]]:
-    """Try local CP-SAT repairs for unresolved audit rows without score regression.
+    """Try exact local CP-SAT repairs for unresolved audit rows without regression.
 
-    Each candidate task is forced into a local rolling window. The local model
-    must cover at least the number of currently assigned local tasks plus one.
-    A proposal is accepted only after rebuilding a global continuous plan and
-    passing the independent validator with coverage >= the current score.
+    The exterior of the local closure is frozen from the accepted global plan.
+    The audited task is mandatory. Local coverage may stay equal (safe swap) or
+    increase, but it may never drop. Every merged global candidate must pass the
+    independent validator and global coverage may never decrease.
     """
-    from .continuous_seed import build_continuous_seed
     from .horizon_solver_path import solve_horizon
     from .validator import validate_solution
 
@@ -429,6 +547,13 @@ def reoptimize_not_proven(
     events: list[dict[str, object]] = []
     max_candidates = max(0, int(cfg.audit_max_reoptimization_candidates))
     attempts = 0
+    seen_signatures = {
+        frozenset(
+            task.id
+            for route in current.routes.values()
+            for task in route.tasks
+        )
+    }
 
     while attempts < max_candidates:
         audits = audit_unassigned(tasks, current, cfg)
@@ -437,36 +562,22 @@ def reoptimize_not_proven(
             current.unassigned_audit = audits
             return current, events
 
-        improved = False
+        accepted = False
         for row in unresolved:
             if attempts >= max_candidates:
                 break
             attempts += 1
             target = task_by_id[str(row["task_id"])]
-            half = timedelta(minutes=max(60, cfg.audit_local_window_minutes // 2))
-            start = target.start_at - half
-            end = target.end_at + half
-            local_tasks = [task for task in tasks if task.start_at < end and task.end_at > start]
-            local_ids = {task.id for task in local_tasks}
+            local_ids = _local_reoptimization_ids(tasks, current, target, cfg)
+            local_tasks = [task for task in tasks if task.id in local_ids]
             current_assigned = {
                 task.id
                 for route in current.routes.values()
                 for task in route.tasks
                 if task.id in local_ids
             }
-            required_floor = min(len(local_tasks), len(current_assigned) + 1)
 
-            current_owner = {
-                task.id: worker_id
-                for worker_id, route in current.routes.items()
-                for task in route.tasks
-            }
-            local_seed = build_continuous_seed(
-                local_tasks,
-                workers,
-                cfg,
-                preferred_worker_by_task=current_owner,
-            )
+            required_floor = len(current_assigned)
 
             local = solve_horizon(
                 local_tasks,
@@ -475,14 +586,15 @@ def reoptimize_not_proven(
                 time_limit_seconds=max(0.5, float(cfg.audit_local_time_limit_seconds)),
                 random_seed=random_seed + attempts,
                 search_workers=search_workers,
-                seed_solution=local_seed,
+                seed_solution=None,
                 required_task_ids={target.id},
                 minimum_coverage=required_floor,
             )
 
+            local_errors = validate_solution(local, cfg) if local.solver_status in {"OPTIMAL", "FEASIBLE"} else []
             local_valid = (
                 local.solver_status in {"OPTIMAL", "FEASIBLE"}
-                and not validate_solution(local, cfg)
+                and not local_errors
                 and target.id not in local.unassigned_task_ids
                 and local.coverage_count >= required_floor
             )
@@ -491,63 +603,66 @@ def reoptimize_not_proven(
                     "task_id": target.id,
                     "status": "local_reoptimization_no_solution",
                     "local_task_count": len(local_tasks),
+                    "current_local_coverage": len(current_assigned),
                     "required_local_coverage": required_floor,
                     "solver_status": local.solver_status,
                     "local_coverage": local.coverage_count,
+                    "local_validation_error_count": len(local_errors),
                 })
                 continue
 
-            preferences = dict(current_owner)
-            for worker_id, route in local.routes.items():
-                for task in route.tasks:
-                    preferences[task.id] = worker_id
-
-            candidate = build_continuous_seed(
-                tasks,
-                workers,
-                cfg,
-                preferred_worker_by_task=preferences,
-            )
+            candidate = _merge_local_solution(tasks, current, local, local_ids)
             errors = validate_solution(candidate, cfg)
-            candidate_assigned = {
-                task.id for route in candidate.routes.values() for task in route.tasks
-            }
+            candidate_assigned = frozenset(
+                task.id
+                for route in candidate.routes.values()
+                for task in route.tasks
+            )
             target_kept = target.id in candidate_assigned
             non_regression = candidate.coverage_count >= current.coverage_count
+            repeated = candidate_assigned in seen_signatures
 
-            if errors or not target_kept or not non_regression:
+            if errors or not target_kept or not non_regression or repeated:
                 events.append({
                     "task_id": target.id,
-                    "status": "global_rebuild_rejected",
+                    "status": "global_merge_rejected",
                     "previous_coverage": current.coverage_count,
                     "candidate_coverage": candidate.coverage_count,
                     "target_kept": target_kept,
                     "validation_error_count": len(errors),
+                    "validation_errors": [error.code for error in errors[:20]],
+                    "repeated_assignment_signature": repeated,
+                    "local_task_count": len(local_tasks),
                 })
                 continue
 
-            delta = candidate.coverage_count - current.coverage_count
+            previous_coverage = current.coverage_count
+            delta = candidate.coverage_count - previous_coverage
             candidate.day_diagnostics = list(current.day_diagnostics)
             candidate.day_diagnostics.append({
                 "mode": "audit_local_reoptimization",
                 "task_id": target.id,
-                "previous_coverage": current.coverage_count,
+                "previous_coverage": previous_coverage,
                 "new_coverage": candidate.coverage_count,
                 "delta": delta,
                 "local_task_count": len(local_tasks),
+                "current_local_coverage": len(current_assigned),
+                "new_local_coverage": local.coverage_count,
             })
             current = candidate
+            seen_signatures.add(candidate_assigned)
             events.append({
                 "task_id": target.id,
                 "status": "improved" if delta > 0 else "safe_swap",
-                "previous_coverage": current.coverage_count - delta,
+                "previous_coverage": previous_coverage,
                 "new_coverage": current.coverage_count,
                 "delta": delta,
+                "local_task_count": len(local_tasks),
             })
-            improved = True
+            accepted = True
             break
 
-        if not improved:
+        if not accepted:
             current.unassigned_audit = audit_unassigned(tasks, current, cfg)
             return current, events
 
