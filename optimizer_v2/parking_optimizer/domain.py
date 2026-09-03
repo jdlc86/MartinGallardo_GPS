@@ -118,6 +118,10 @@ class Solution:
     shift_assignments: list[ShiftAssignment] = field(default_factory=list)
     objective_value: int | None = None
     solver_status: str = "UNKNOWN"
+    coverage_count: int = 0
+    coverage_best_bound: float | None = None
+    coverage_relative_gap: float | None = None
+    operational_day_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +145,7 @@ class OptimizerConfig:
     intensive_shift_duration_minutes: int = 18 * 60    # 06:00 -> 00:00 next day
     max_effort_shift_duration_minutes: int = 22 * 60   # 06:00 -> 04:00 next day
 
-    # Secondary objective only: coverage always dominates these costs.
+    # Secondary objective only. Coverage is optimized in a separate first phase.
     normal_shift_cost: int = 0
     intensive_shift_cost: int = 120
     max_effort_shift_cost: int = 300
