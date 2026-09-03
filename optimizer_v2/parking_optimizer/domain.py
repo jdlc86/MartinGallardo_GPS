@@ -49,7 +49,7 @@ class CompanionMatch:
 
 @dataclass(frozen=True, slots=True)
 class CompanyShuttleMission:
-    """One rescue mission. Vehicle always starts and finishes at PARKING."""
+    """One company-car mission. Vehicle always starts and finishes at PARKING."""
     vehicle_index: int
     mission_id: str
     depart_parking_at: datetime
@@ -60,6 +60,7 @@ class CompanyShuttleMission:
 
 @dataclass(frozen=True, slots=True)
 class ShiftAssignment:
+    """A real flexible work block, not a fixed calendar-day window."""
     worker_id: str; operational_day: date; shift_type: ShiftType; start_at: datetime; end_at: datetime
 
 @dataclass(slots=True)
@@ -82,7 +83,10 @@ class OptimizerConfig:
     terminal_shuttle_access_minutes: int = 5; terminal_shuttle_wait_day_minutes: int = 5; terminal_shuttle_wait_night_minutes: int = 20
     terminal_shuttle_day_start_hour: int = 6; terminal_shuttle_day_end_hour: int = 22; max_logistics_passengers: int = 1
     global_work_mode: ShiftType = "max_effort"; shift_start_hour: int = 6; shift_start_minute: int = 0
+    # Maximum duration of one work block.
     normal_shift_duration_minutes: int = 720; intensive_shift_duration_minutes: int = 1080; max_effort_shift_duration_minutes: int = 1320
+    # Minimum rest required BEFORE starting the next work block of this type.
+    normal_rest_minutes: int = 720; intensive_rest_minutes: int = 360; max_effort_rest_minutes: int = 120
     normal_shift_cost: int = 0; intensive_shift_cost: int = 120; max_effort_shift_cost: int = 300
     # Rescue fleet. Count/capacity are data, never code assumptions. A mission must return to PARKING.
     company_shuttle_vehicle_count: int = 1
