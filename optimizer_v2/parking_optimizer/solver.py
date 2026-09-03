@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from .back_forward_solver import solve_back_forward
 from .domain import OptimizerConfig, Solution, Task, Worker
-from .hybrid_solver import solve_hybrid
 
 
 def solve(
@@ -15,13 +15,13 @@ def solve(
     random_seed: int = 20260903,
     search_workers: int = 8,
 ) -> Solution:
-    """Public optimizer entry point: robust continuous 24/7 planning.
+    """Public optimizer entry point: adaptive Back-Forward rolling horizon.
 
-    A proven daily CP-SAT solution is first built as a safe incumbent/fallback.
-    The continuous-horizon CP-SAT model then receives the remaining budget to
-    improve coverage while respecting policy rest and physical continuity.
+    The parking is modeled as a continuous 24/7 timeline. FAST and OPTIMAL
+    differ only in anchor selection; both share the same forward/backward
+    expansion and continuity stitching.
     """
-    return solve_hybrid(
+    return solve_back_forward(
         tasks,
         workers,
         cfg,
