@@ -116,8 +116,16 @@ def _worker_audit(task: Task, worker_id: str, solution: Solution, cfg: Optimizer
         }
 
     # 2) Can it be a new standalone work block? At a new shift start the worker
-    # may travel by their own means to PARKING or any terminal.
-    for shift_type in allowed_shift_types(cfg):
+    # may travel by their own means to PARKING or any terminal. A new block can
+    # never be opened inside/overlapping an already active work block.
+    overlapping_shifts = [
+        shift for shift in shifts
+        if task.start_at < shift.end_at and shift.start_at < task.end_at
+    ]
+    if overlapping_shifts:
+        blockers.append("existing_shift_overlap")
+    else:
+        for shift_type in allowed_shift_types(cfg):
         duration = int((task.end_at - task.start_at).total_seconds() // 60)
         if duration > shift_duration_minutes(shift_type, cfg):
             blockers.append("task_exceeds_shift_duration")
