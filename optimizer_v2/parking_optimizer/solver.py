@@ -6,6 +6,70 @@ from typing import Iterable
 from .daily_solver import solve_day
 from .domain import OptimizerConfig, Solution, Task, Worker, WorkerRoute
 from .shifts import operational_day
+from .transitions import build_transition
+
+
+def _mobility_diagnostics(day_tasks: list[Task], cfg: OptimizerConfig) -> dict[str, object]:
+    """Describe structural transport limits without changing feasibility rules.
+
+    The diagnostic deliberately uses the same canonical transition builder as the
+    solver/validator.  It is therefore an explanation of the current domain model,
+    not a second approximation of physical feasibility.
+    """
+    ordered = sorted(day_tasks, key=lambda task: (task.start_at, task.end_at, task.id))
+    pickup_count = sum(task.task_type == "pickup" for task in ordered)
+    delivery_count = len(ordered) - pickup_count
+    direct_pairs = 0
+    ride_out_pairs = 0
+    ride_in_pairs = 0
+
+    for index, previous in enumerate(ordered):
+        for current in ordered[index + 1 :]:
+            transition = build_transition(previous, current, cfg)
+            if not transition.feasible:
+                continue
+            if transition.kind == "ride_out":
+                ride_out_pairs += 1
+            elif transition.kind == "ride_in":
+                ride_in_pairs += 1
+            elif not transition.requires_companion:
+                direct_pairs += 1
+
+    bottleneck = "none"
+    detail = None
+    if ordered and delivery_count == len(ordered) and direct_pairs == 0:
+        bottleneck = "airport_stranding_no_return_vehicle"
+        detail = (
+            "All tasks are deliveries. After a worker reaches the airport, the current "
+            "model has no pickup vehicle that can return that worker to PARKING."
+        )
+    elif ordered and pickup_count == len(ordered) and direct_pairs == 0:
+        bottleneck = "parking_stranding_no_outbound_vehicle"
+        detail = (
+            "All tasks are pickups. After a worker reaches PARKING, the current model "
+            "has no delivery vehicle that can take that worker back to the airport."
+        )
+    elif pickup_count > 0 and delivery_count > 0:
+        larger = max(pickup_count, delivery_count)
+        smaller = min(pickup_count, delivery_count)
+        if smaller > 0 and larger >= 4 * smaller:
+            bottleneck = "strong_directional_imbalance"
+            scarce = "deliveries" if pickup_count > delivery_count else "pickups"
+            detail = (
+                f"Task flow is strongly directional ({pickup_count} pickups / "
+                f"{delivery_count} deliveries); {scarce} are the scarce vehicle flow "
+                "needed to reposition workers."
+            )
+
+    return {
+        "pickup_count": pickup_count,
+        "delivery_count": delivery_count,
+        "direct_non_companion_pair_count": direct_pairs,
+        "ride_out_pair_count": ride_out_pairs,
+        "ride_in_pair_count": ride_in_pairs,
+        "mobility_bottleneck": bottleneck,
+        "mobility_bottleneck_detail": detail,
+    }
 
 
 def solve(
@@ -61,8 +125,10 @@ def solve(
     day_diagnostics: list[dict[str, object]] = []
 
     for index, day in enumerate(days):
+        day_tasks = by_day[day]
+        mobility = _mobility_diagnostics(day_tasks, cfg)
         day_solution = solve_day(
-            by_day[day],
+            day_tasks,
             workers,
             cfg,
             time_limit_seconds=per_day_seconds,
@@ -77,14 +143,14 @@ def solve(
         day_bound = (
             day_solution.coverage_best_bound
             if day_solution.coverage_best_bound is not None
-            else float(len(by_day[day]))
+            else float(len(day_tasks))
         )
         bound += day_bound
         objective += day_solution.objective_value or 0
 
         day_diagnostics.append({
             "operational_day": str(day),
-            "task_count": len(by_day[day]),
+            "task_count": len(day_tasks),
             "coverage_count": day_solution.coverage_count,
             "unassigned_count": len(day_solution.unassigned_task_ids),
             "coverage_best_bound": day_bound,
@@ -93,6 +159,7 @@ def solve(
             "shift_count": len(day_solution.shift_assignments),
             "companion_count": len(day_solution.companion_matches),
             "time_budget_seconds": per_day_seconds,
+            **mobility,
         })
 
         for worker_id, day_route in day_solution.routes.items():
