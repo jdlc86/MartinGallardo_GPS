@@ -26,6 +26,8 @@ def solve_horizon(
     random_seed: int = 20260903,
     search_workers: int = 8,
     seed_solution: Solution | None = None,
+    required_task_ids: set[str] | None = None,
+    minimum_coverage: int | None = None,
 ) -> Solution:
     tasks = _ordered_tasks(tasks)
     workers = list(workers)
@@ -35,6 +37,10 @@ def solve_horizon(
 
     tb = {t.id: t for t in tasks}
     wb = {w.id: w for w in workers}
+    required_task_ids = set(required_task_ids or ())
+    missing_required = required_task_ids.difference(tb)
+    if missing_required:
+        raise ValueError(f"required tasks missing from horizon: {sorted(missing_required)}")
     allowed = allowed_shift_types(cfg)
     max_shift = max(shift_duration_minutes(st, cfg) for st in allowed)
     min_rest = min(shift_rest_minutes(st, cfg) for st in allowed)
@@ -77,6 +83,8 @@ def solve_horizon(
             if t.fixed_worker_id and t.fixed_worker_id != w.id:
                 model.add(x[k] == 0)
         model.add(sum(x[t.id, w.id] for w in workers) <= 1)
+        if t.id in required_task_ids:
+            model.add(sum(x[t.id, w.id] for w in workers) == 1)
         if t.fixed_worker_id:
             if t.fixed_worker_id not in wb:
                 raise ValueError(f"fixed worker is not active: {t.fixed_worker_id}")
@@ -236,6 +244,8 @@ def solve_horizon(
             model.add_no_overlap(ivs)
 
     coverage = sum(x.values())
+    if minimum_coverage is not None:
+        model.add(coverage >= int(minimum_coverage))
     loads = []
     for w in workers:
         load = model.new_int_var(0, len(tasks), f"load_{w.id}")
