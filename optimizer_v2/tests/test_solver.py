@@ -104,8 +104,8 @@ def test_intensive_rest_opens_new_shift_and_resets_location():
 def test_rest_shorter_than_policy_cannot_fake_repositioning():
     worker = Worker("A", "A")
     tasks = [
-        pickup("p1", "T1", dt(8, 0), "A"),
-        pickup("p2", "T4", dt(13, 0), "A"),
+        pickup("p1", "T1", dt(8, 0)),
+        pickup("p2", "T4", dt(13, 0)),
     ]
     cfg = OptimizerConfig(
         global_work_mode="intensive",
