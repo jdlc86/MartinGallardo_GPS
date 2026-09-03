@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from .domain import CompanionMatch, OptimizerConfig, Solution
+from .shifts import allowed_shift_types, operational_day, shift_window
 from .transitions import build_transition, terminal_transfer
 
 
@@ -16,15 +17,23 @@ class ValidationError:
 
 
 def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[ValidationError]:
-    """Validate a plan without trusting solver-produced movement timestamps.
-
-    All physical transitions and companion compatibility are reconstructed from
-    canonical task data. This module is intentionally independent from CP-SAT.
-    """
-
+    """Independent physical and work-policy validation."""
     errors: list[ValidationError] = []
     task_owner: dict[str, str] = {}
     task_index = {task.id: task for route in solution.routes.values() for task in route.tasks}
+
+    shifts: dict[tuple[str, object], object] = {}
+    allowed = set(allowed_shift_types(cfg))
+    for shift in solution.shift_assignments:
+        key = (shift.worker_id, shift.operational_day)
+        if key in shifts:
+            errors.append(ValidationError("duplicate_shift_assignment", shift.worker_id, detail=str(shift.operational_day)))
+        shifts[key] = shift
+        if shift.shift_type not in allowed:
+            errors.append(ValidationError("shift_type_not_allowed", shift.worker_id, detail=shift.shift_type))
+        canonical_start, canonical_end = shift_window(shift.operational_day, shift.shift_type, cfg)
+        if shift.start_at != canonical_start or shift.end_at != canonical_end:
+            errors.append(ValidationError("noncanonical_shift_window", shift.worker_id, detail=str(shift.operational_day)))
 
     matches_by_rider: dict[tuple[str, str], CompanionMatch] = {}
     matches_by_driver_task: dict[tuple[str, str], list[CompanionMatch]] = {}
@@ -41,11 +50,21 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
             errors.append(ValidationError("route_not_chronological", worker_id))
 
         previous = None
+        previous_day = None
         for task in ordered:
+            day = operational_day(task.start_at, cfg)
+            shift = shifts.get((worker_id, day))
+            if shift is None:
+                errors.append(ValidationError("missing_shift_assignment", worker_id, task.id, str(day)))
+            elif task.start_at < shift.start_at or task.end_at > shift.end_at:
+                errors.append(ValidationError("task_outside_shift", worker_id, task.id, shift.shift_type))
+
+            if day != previous_day:
+                previous = None
+
             owner = task_owner.setdefault(task.id, worker_id)
             if owner != worker_id:
                 errors.append(ValidationError("task_assigned_twice", worker_id, task.id, f"also assigned to {owner}"))
-
             if task.fixed_worker_id and task.fixed_worker_id != worker_id:
                 errors.append(ValidationError("manual_assignment_changed", worker_id, task.id, task.fixed_worker_id))
 
@@ -60,7 +79,9 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
                     _validate_match(errors, solution, worker_id, previous, task, transition, match, cfg, task_index)
             elif (worker_id, task.id) in matches_by_rider:
                 errors.append(ValidationError("unexpected_companion", worker_id, task.id, transition.kind))
+
             previous = task
+            previous_day = day
 
     assigned_ids = set(task_owner)
     for task_id in sorted(assigned_ids.intersection(solution.unassigned_task_ids)):
@@ -74,14 +95,7 @@ def validate_solution(solution: Solution, cfg: OptimizerConfig) -> list[Validati
                 errors.append(ValidationError("companion_driver_task_missing", match.rider_worker_id, match.rider_task_id))
             continue
         if len(matches) > cfg.max_logistics_passengers:
-            errors.append(
-                ValidationError(
-                    "companion_capacity_exceeded",
-                    driver_worker_id,
-                    driver_task_id,
-                    f"{len(matches)}>{cfg.max_logistics_passengers}",
-                )
-            )
+            errors.append(ValidationError("companion_capacity_exceeded", driver_worker_id, driver_task_id, f"{len(matches)}>{cfg.max_logistics_passengers}"))
 
     return errors
 
@@ -97,6 +111,9 @@ def _validate_match(errors, solution, rider_worker_id, previous, current, transi
     driver_route = solution.routes.get(match.driver_worker_id)
     if driver_task is None or driver_route is None or driver_task not in driver_route.tasks:
         errors.append(ValidationError("companion_driver_task_missing", rider_worker_id, current.id))
+        return
+    if operational_day(driver_task.start_at, cfg) != operational_day(current.start_at, cfg):
+        errors.append(ValidationError("companion_crosses_operational_day", rider_worker_id, current.id))
         return
 
     expected_direction = "out" if driver_task.task_type == "delivery" else "in"
