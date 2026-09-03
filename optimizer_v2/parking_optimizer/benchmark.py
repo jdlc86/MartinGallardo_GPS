@@ -14,6 +14,7 @@ from .shifts import operational_day
 from .solver import solve
 from .transitions import build_transition
 from .validator import validate_solution
+from .unassigned_audit import audit_summary
 from .worker import _config, _prepare_tasks, _task_json, _transition_json, _iso, _shift_json
 
 BENCHMARK_URL = "https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservation-optimizer-benchmark-v1"
@@ -110,6 +111,7 @@ def _serialize_solution(payload: dict, tasks, solution, errors, result: dict, cf
         "routes": routes,
         "companion_matches": companions,
         "unassigned_task_ids": list(solution.unassigned_task_ids),
+        "unassigned_audit": solution.unassigned_audit,
         "validation_errors": [{
             "code": error.code,
             "worker_id": error.worker_id,
@@ -152,6 +154,7 @@ def main() -> None:
     for shift in solution.shift_assignments:
         shift_counts[shift.shift_type] += 1
 
+    unassigned_summary = audit_summary(solution.unassigned_audit)
     result = {
         "benchmark": payload["contract"],
         "task_count": len(tasks),
@@ -166,6 +169,7 @@ def main() -> None:
         "global_work_mode": cfg.global_work_mode,
         "shift_counts": shift_counts,
         "validation_error_count": len(errors),
+        "unassigned_audit": unassigned_summary,
         "solver_status": solution.solver_status,
         "secondary_objective_value": solution.objective_value,
         "elapsed_seconds": round(elapsed, 3),
