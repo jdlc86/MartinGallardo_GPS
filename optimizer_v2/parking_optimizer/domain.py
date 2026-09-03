@@ -76,6 +76,7 @@ class Solution:
     objective_value: int | None = None; solver_status: str = "UNKNOWN"; coverage_count: int = 0
     coverage_best_bound: float | None = None; coverage_relative_gap: float | None = None; operational_day_count: int = 0
     day_diagnostics: list[dict[str,object]] = field(default_factory=list)
+    unassigned_audit: list[dict[str,object]] = field(default_factory=list)
 
 @dataclass(frozen=True, slots=True)
 class OptimizerConfig:
