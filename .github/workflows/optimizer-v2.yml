@@ -22,6 +22,8 @@ jobs:
     defaults:
       run:
         working-directory: optimizer_v2
+    env:
+      PYTHONPATH: ${{ github.workspace }}/optimizer_v2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
