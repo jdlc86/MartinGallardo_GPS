@@ -128,6 +128,9 @@ def _config(raw: dict) -> OptimizerConfig:
         back_forward_candidate_step_minutes=int(raw.get("back_forward_candidate_step_minutes", 60)),
         back_forward_max_anchor_candidates=int(raw.get("back_forward_max_anchor_candidates", 12)),
         back_forward_optimal_explore_ratio=float(raw.get("back_forward_optimal_explore_ratio", 0.35)),
+        audit_local_window_minutes=int(raw.get("audit_local_window_minutes", 1440)),
+        audit_local_time_limit_seconds=float(raw.get("audit_local_time_limit_seconds", 2.0)),
+        audit_max_reoptimization_candidates=int(raw.get("audit_max_reoptimization_candidates", 64)),
     )
 
 def _prepare_tasks(raw_tasks: list[dict], matrix: dict, cfg: OptimizerConfig) -> list[Task]:
