@@ -35,6 +35,8 @@ class Task:
     end_node: Node
     terminal: Node
     version: int
+    vehicle_leg_depart_at: datetime
+    vehicle_leg_arrive_at: datetime
     plate: str | None = None
     customer_name: str | None = None
     fixed_worker_id: str | None = None
