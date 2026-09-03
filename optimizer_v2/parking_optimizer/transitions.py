@@ -27,12 +27,6 @@ def _wait_minutes(at, cfg: OptimizerConfig) -> int:
 
 
 def terminal_transfer(origin: str, destination: str, ready_at, cfg: OptimizerConfig):
-    """Return the fastest supported shuttle path at a concrete departure time.
-
-    The network is tiny, so an exhaustive search of simple terminal paths is both
-    deterministic and safer than maintaining ad-hoc composite cases (T3->T4,
-    T1->T3, etc.) in several places.
-    """
     if origin == destination:
         return 0, ()
     if origin not in _TERMINALS or destination not in _TERMINALS:
@@ -68,16 +62,18 @@ def terminal_transfer(origin: str, destination: str, ready_at, cfg: OptimizerCon
 
 
 def build_transition(previous: Task | None, current: Task, cfg: OptimizerConfig) -> Transition:
+    """Build a physical transition inside one operational shift.
+
+    A long idle gap never grants repositioning. Repositioning freedom exists only
+    at an explicit shift start, represented by previous=None and controlled by
+    the shift model in CP-SAT.
+    """
     if previous is None:
         return Transition(None, current.id, "shift_start", True, None, current.start_at)
 
     ready = previous.end_at
     if current.start_at < ready:
         return Transition(previous.id, current.id, "same_location", False, ready, None, reason="time_overlap")
-
-    gap_minutes = int((current.start_at - ready).total_seconds() // 60)
-    if gap_minutes >= cfg.operator_shift_reset_minutes:
-        return Transition(previous.id, current.id, "shift_reset", True, ready, current.start_at)
 
     if previous.end_node == current.start_node:
         return Transition(previous.id, current.id, "same_location", True, ready, ready)
