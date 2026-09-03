@@ -38,7 +38,7 @@ def _serialize_solution(payload: dict, solution, errors, result: dict, cfg) -> d
     } for match in solution.companion_matches]
 
     return {
-        "contract": "optimizer_v2_benchmark_plan_v2_daily_shifts",
+        "contract": "optimizer_v2_benchmark_plan_v3_lexicographic_daily",
         "benchmark": payload["contract"],
         "metrics": result,
         "work_policy": {
@@ -51,7 +51,11 @@ def _serialize_solution(payload: dict, solution, errors, result: dict, cfg) -> d
         "shift_assignments": [_shift_json(shift) for shift in solution.shift_assignments],
         "solver": {
             "status": solution.solver_status,
-            "objective_value": solution.objective_value,
+            "secondary_objective_value": solution.objective_value,
+            "coverage_count": solution.coverage_count,
+            "coverage_best_bound": solution.coverage_best_bound,
+            "coverage_relative_gap": solution.coverage_relative_gap,
+            "operational_day_count": solution.operational_day_count,
             "physical_feasible": len(errors) == 0,
         },
         "routes": routes,
@@ -100,12 +104,15 @@ def main() -> None:
         "assigned_count": assigned,
         "unassigned_count": len(solution.unassigned_task_ids),
         "coverage_pct": round(assigned * 100 / len(tasks), 2),
+        "coverage_best_bound": solution.coverage_best_bound,
+        "coverage_relative_gap_pct": None if solution.coverage_relative_gap is None else round(solution.coverage_relative_gap * 100, 3),
+        "operational_day_count": solution.operational_day_count,
         "companion_count": len(solution.companion_matches),
         "global_work_mode": cfg.global_work_mode,
         "shift_counts": shift_counts,
         "validation_error_count": len(errors),
         "solver_status": solution.solver_status,
-        "objective_value": solution.objective_value,
+        "secondary_objective_value": solution.objective_value,
         "elapsed_seconds": round(elapsed, 3),
         "tasks_by_worker": by_worker,
         "validation_errors": [{
