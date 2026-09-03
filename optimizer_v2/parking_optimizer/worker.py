@@ -112,6 +112,15 @@ def _config(raw: dict) -> OptimizerConfig:
         normal_shift_cost=int(raw.get("normal_shift_cost", 0)),
         intensive_shift_cost=int(raw.get("intensive_shift_cost", 120)),
         max_effort_shift_cost=int(raw.get("max_effort_shift_cost", 300)),
+        company_shuttle_vehicle_count=int(raw.get("company_shuttle_vehicle_count", 1)),
+        company_shuttle_passenger_capacity=int(raw.get("company_shuttle_passenger_capacity", 4)),
+        company_shuttle_mission_cost=int(raw.get("company_shuttle_mission_cost", 500)),
+        back_forward_mode=str(raw.get("back_forward_mode", "fast")),
+        back_forward_window_minutes=int(raw.get("back_forward_window_minutes", 1440)),
+        back_forward_overlap_minutes=int(raw.get("back_forward_overlap_minutes", 360)),
+        back_forward_candidate_step_minutes=int(raw.get("back_forward_candidate_step_minutes", 60)),
+        back_forward_max_anchor_candidates=int(raw.get("back_forward_max_anchor_candidates", 12)),
+        back_forward_optimal_explore_ratio=float(raw.get("back_forward_optimal_explore_ratio", 0.35)),
     )
 
 
