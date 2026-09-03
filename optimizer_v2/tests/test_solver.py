@@ -78,3 +78,62 @@ def test_companion_is_part_of_same_cp_sat_solution():
     assert match.driver_worker_id == "B"
     assert match.driver_task_id == "d1"
     assert validate_solution(solution, cfg) == []
+
+
+def test_intensive_rest_opens_new_shift_and_resets_location():
+    worker = Worker("A", "A")
+    tasks = [
+        pickup("p1", "T1", dt(8, 0), "A"),
+        pickup("p2", "T4", dt(15, 0), "A"),
+    ]
+    cfg = OptimizerConfig(
+        global_work_mode="intensive",
+        company_shuttle_vehicle_count=0,
+        normal_rest_minutes=720,
+        intensive_rest_minutes=360,
+    )
+    solution = solve(tasks, [worker], cfg, time_limit_seconds=5)
+
+    assert not solution.unassigned_task_ids
+    assert len(solution.shift_assignments) == 2
+    assert solution.shift_assignments[1].shift_type == "intensive"
+    assert solution.routes["A"].transitions["p2"].kind == "shift_start"
+    assert validate_solution(solution, cfg) == []
+
+
+def test_rest_shorter_than_policy_cannot_fake_repositioning():
+    worker = Worker("A", "A")
+    tasks = [
+        pickup("p1", "T1", dt(8, 0), "A"),
+        pickup("p2", "T4", dt(13, 0), "A"),
+    ]
+    cfg = OptimizerConfig(
+        global_work_mode="intensive",
+        company_shuttle_vehicle_count=0,
+        normal_rest_minutes=720,
+        intensive_rest_minutes=360,
+    )
+    solution = solve(tasks, [worker], cfg, time_limit_seconds=5)
+
+    assert solution.coverage_count == 1
+    assert len(solution.unassigned_task_ids) == 1
+    assert validate_solution(solution, cfg) == []
+
+
+def test_max_effort_allows_two_hour_rest_restart():
+    worker = Worker("A", "A")
+    tasks = [
+        pickup("p1", "T1", dt(8, 0), "A"),
+        pickup("p2", "T4", dt(11, 0), "A"),
+    ]
+    cfg = OptimizerConfig(
+        global_work_mode="max_effort",
+        company_shuttle_vehicle_count=0,
+        max_effort_rest_minutes=120,
+    )
+    solution = solve(tasks, [worker], cfg, time_limit_seconds=5)
+
+    assert not solution.unassigned_task_ids
+    assert len(solution.shift_assignments) == 2
+    assert solution.shift_assignments[1].shift_type == "max_effort"
+    assert validate_solution(solution, cfg) == []
