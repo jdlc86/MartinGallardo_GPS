@@ -115,7 +115,7 @@ def _config(raw: dict) -> OptimizerConfig:
         company_shuttle_vehicle_count=int(raw.get("company_shuttle_vehicle_count", 1)),
         company_shuttle_passenger_capacity=int(raw.get("company_shuttle_passenger_capacity", 4)),
         company_shuttle_mission_cost=int(raw.get("company_shuttle_mission_cost", 500)),
-        back_forward_mode=str(raw.get("back_forward_mode", "fast")),
+        back_forward_mode=back_forward_mode,
         back_forward_window_minutes=int(raw.get("back_forward_window_minutes", 1440)),
         back_forward_overlap_minutes=int(raw.get("back_forward_overlap_minutes", 360)),
         back_forward_candidate_step_minutes=int(raw.get("back_forward_candidate_step_minutes", 60)),
@@ -277,7 +277,7 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
     plan_rows = backend.insert("ai_dispatch_plans", {
         "created_by_telegram_user_id": job["created_by_telegram_user_id"], "writer_epoch": job["writer_epoch"],
         "horizon_start": job["horizon_start"], "horizon_end": job["horizon_end"], "status": "proposal",
-        "solver_engine": "optimizer_v2_cp_sat_daily_shifts_v2", "input_snapshot": snapshot, "plan": plan, "reports": {},
+        "solver_engine": "optimizer_v2_back_forward_v1", "input_snapshot": snapshot, "plan": plan, "reports": {},
     })
     plan_id = plan_rows[0]["id"]
     backend.rpc("complete_optimization_job", {"p_job_id": job_id, "p_worker_id": worker_id, "p_result_plan_id": plan_id, "p_metrics": metrics, "p_progress": {"stage": "completed", "percent": 100}})
