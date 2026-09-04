@@ -120,7 +120,7 @@
   function actionFor(type) {
     if (type.includes("task_")) return { label: "VER MIS TAREAS", href: "operations.html?v=20260901TASK3" };
     if (type.includes("permission") || type.includes("write_") || type.includes("transfer")) {
-      return { label: "ABRIR GESTIÓN DE RESERVAS", href: "reservations-admin.html?v=20260901R3" };
+      return { label: "ABRIR GESTIÓN DE RESERVAS", href: "reservations-admin.html?v=20260904R14" };
     }
     return null;
   }
