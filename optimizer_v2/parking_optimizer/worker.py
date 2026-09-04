@@ -17,6 +17,8 @@ from .validator import validate_solution
 from .unassigned_audit import audit_summary
 
 _MADRID = ZoneInfo("Europe/Madrid")
+OPTIMIZER_VERSION = "2.1.0"
+OPTIMIZER_BUILD = "2026.09.04.02"
 
 
 class Backend:
@@ -271,6 +273,8 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
 
     snapshot = {
         "contract": "optimizer_v2_snapshot_v2_shifts",
+        "optimizer_version": OPTIMIZER_VERSION,
+        "optimizer_build": OPTIMIZER_BUILD,
         "task_versions": {task.id: task.version for task in tasks},
         "active_worker_ids": [worker.id for worker in workers],
         "selected_worker_ids": sorted(selected_worker_ids),
@@ -324,6 +328,7 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
 
     plan = {
         "contract": "optimizer_v2_plan_v2_shifts", "physical_feasible": True,
+        "optimizer_version": OPTIMIZER_VERSION, "optimizer_build": OPTIMIZER_BUILD,
         "assignments": assignments,
         "unassigned": solution.unassigned_audit,
         "routes": routes_json, "companion_matches": companions,
