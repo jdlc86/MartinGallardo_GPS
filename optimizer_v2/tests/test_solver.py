@@ -185,3 +185,24 @@ def test_back_forward_global_closure_never_reduces_coverage():
     assert solution.coverage_count >= 1
     assert solution.coverage_count == len(tasks) - len(solution.unassigned_task_ids)
     assert validate_solution(solution, cfg) == []
+
+
+def test_excluded_worker_keeps_fixed_tasks_but_gets_no_new_tasks():
+    selected = Worker("A", "A", auto_assignable=True)
+    fixed_only = Worker("B", "B", auto_assignable=False)
+    tasks = [
+        pickup("fixed", "T1", dt(8, 0), "B"),
+        pickup("free", "T2", dt(9, 0)),
+    ]
+    cfg = OptimizerConfig(global_work_mode="max_effort")
+
+    solution = solve(tasks, [selected, fixed_only], cfg, time_limit_seconds=8)
+
+    owner = {
+        task.id: worker_id
+        for worker_id, route in solution.routes.items()
+        for task in route.tasks
+    }
+    assert owner["fixed"] == "B"
+    assert owner.get("free") != "B"
+    assert validate_solution(solution, cfg) == []
