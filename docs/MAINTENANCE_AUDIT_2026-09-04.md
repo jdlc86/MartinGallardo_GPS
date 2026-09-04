@@ -215,6 +215,24 @@ Se verificó que las versiones desplegadas:
 El camino productivo de Telegram queda concentrado en `telegram-gateway` y las funciones modernas explícitamente utilizadas por la Mini App.
 
 
+
+## Edge Functions adicionales neutralizadas
+
+Se neutralizaron de forma reversible dos endpoints sin referencias en el repositorio actual y sin tráfico observado en la ventana revisada:
+
+- `telegram-router` v6;
+- `reservation-ai-seed-v1` v2.
+
+Motivo de seguridad:
+
+- `telegram-router` conservaba acceso a `TELEGRAM_BOT_TOKEN`, claves de servicio, escrituras y capacidad `setWebhook`;
+- `reservation-ai-seed-v1` era una utilidad de inicialización con privilegios de escritura y acceso al bot.
+
+Ambos responden ahora únicamente `410 endpoint_retired` y se verificó que ya no leen secretos, no escriben en Supabase y no ejecutan `setWebhook`.
+
+No se han tocado todavía `vehicle-share-api`, `vehicle-report-api`, `performance-report-sender` ni `modern-live-team-api`, porque aunque no presentaron tráfico en la ventana revisada pueden tener consumidores externos o programados que requieren más evidencia.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
