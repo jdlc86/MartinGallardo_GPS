@@ -193,6 +193,28 @@ Validación del cambio:
 Antes de neutralizar físicamente las funciones heredadas debe hacerse una prueba funcional breve del bot y, preferiblemente, una prueba de solicitud de acceso desde una cuenta no autorizada.
 
 
+
+## Cadena Telegram heredada neutralizada
+
+Tras desacoplar `telegram-gateway` y validar producción, se neutralizaron de forma reversible las funciones heredadas:
+
+- `telegram-entry` v10;
+- `telegram-router3` v16;
+- `telegram-bot` v26.
+
+Las tres conservan su slug pero responden únicamente `410 endpoint_retired`.
+
+Se verificó que las versiones desplegadas:
+
+- no leen `TELEGRAM_BOT_TOKEN`;
+- no leen claves ni variables Supabase;
+- no ejecutan `setWebhook`;
+- no acceden a base de datos;
+- no conservan lógica operativa.
+
+El camino productivo de Telegram queda concentrado en `telegram-gateway` y las funciones modernas explícitamente utilizadas por la Mini App.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
