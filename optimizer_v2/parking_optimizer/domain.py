@@ -101,7 +101,8 @@ class OptimizerConfig:
     back_forward_candidate_step_minutes: int = 60
     back_forward_max_anchor_candidates: int = 12
     back_forward_optimal_explore_ratio: float = 0.35
-    # Mandatory audit/reoptimization phase for unassigned operations.
+    # Experimental Phase 2 only: local reoptimization of unresolved audit rows.
+    # These settings do not affect the completed Fast/Optimal Phase 1 planner.
     audit_local_window_minutes: int = 1440
     audit_local_time_limit_seconds: float = 2.0
     audit_max_reoptimization_candidates: int = 64
