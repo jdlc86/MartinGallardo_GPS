@@ -386,3 +386,18 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - toda reparación reconstruida debe pasar el validador global;
 - medir tareas recuperadas, `not_proven` restantes, `proven_unavailable`, tiempo extra, mejoras reales y swaps seguros;
 - si no se demuestra una reparación válida, conservar `not_proven`.
+
+## 21. Release baseline 1.4.0 / 2026.09.04.02
+
+Antes de promover un build posterior:
+
+- la home conserva los grupos Operación / Gestión / Sistema;
+- las etiquetas funcionales coinciden con `docs/STABLE_RELEASE.md`;
+- tarjetas `ADMIN` permanecen ocultas para Operario y sus APIs rechazan acceso no autorizado;
+- Root no aparece en asignación manual ni en participantes del reparto;
+- tareas manuales siguen siendo constraints duras;
+- participantes excluidos no reciben tareas nuevas;
+- Información del sistema muestra versión/build coherentes;
+- el Service Worker no sirve una home anterior tras actualizar el build;
+- Fase 1 mantiene 0 errores físicos;
+- Fase 2 no altera `solve()` estable.
