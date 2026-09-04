@@ -35,8 +35,8 @@ Mini App
 
 ## Reglas de seguridad
 
-- V6 permanece desplegado mientras V2 no supere los quality gates.
-- V2 nunca confirma ni escribe asignaciones operativas durante pruebas; genera propuestas.
+- Fase 1 V2 es el planificador estable usado por la Mini App en modo propuesta.
+- El worker V2 genera propuestas; la aplicación de asignaciones sigue siendo una acción explícita y separada.
 - Un plan no puede marcarse `physical_feasible=true` si el validador independiente devuelve errores.
 - Un job usa snapshot de entrada. Cambios posteriores en tareas/versiones invalidan la aplicación del plan.
 - El worker usa service-role solo en servidor; nunca en Mini App.
@@ -75,9 +75,9 @@ La prioridad 1 se implementa con un peso dominante respecto al resto para que un
 
 ## Quality gates antes de activar V2
 
-Benchmark fijo: Excel `150 reservas / 3 días` ya utilizado en pruebas.
+Benchmark fijo de referencia: 300 tareas sintéticas cargadas desde el Excel de pruebas. La duración temporal exacta depende de las fechas del fichero y no debe usarse como frontera algorítmica.
 
-V2 no sustituye V6 hasta cumplir simultáneamente:
+La Fase 1 estable debe conservar simultáneamente:
 
 - 0 errores del validador físico;
 - cobertura >= V6;
@@ -108,6 +108,45 @@ Variables requeridas por el worker:
 No se necesita API key para OR-Tools. Google Routes continúa alimentando `ai_dispatch_route_matrix` mediante el mecanismo existente.
 
 
+
+## Producción actual
+
+La Mini App encola trabajos durables mediante `reservation-optimization-jobs-v1`. El cálculo no corre dentro de la Edge Function:
+
+```text
+Mini App
+  -> optimization_jobs
+  -> worker Python/OR-Tools en Docker
+  -> ai_dispatch_plans (status=proposal)
+  -> Supabase Realtime + resincronización puntual
+  -> Telegram al usuario que lanzó la optimización
+```
+
+El worker de producción actual se ejecuta en Docker sobre un PC dedicado y usa `restart: unless-stopped`. Los secretos se cargan desde `.env`, que está excluido de Git. Los logs del contenedor están rotados y limitados para evitar crecimiento indefinido.
+
+Variables:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPTIMIZER_WORKER_ID` (opcional)
+- `OPTIMIZER_IDLE_SECONDS` (opcional)
+- `OPTIMIZER_TIME_LIMIT_SECONDS` (opcional; por defecto 120 s en worker)
+
+La UI no hace polling. Realtime sirve como aviso inmediato y `optimization_jobs` es la fuente de verdad; al abrir o recuperar primer plano se hace una única reconciliación.
+
+### UX de propuesta
+
+La propuesta muestra únicamente información útil para operación:
+
+- plan válido/no válido;
+- tareas asignadas;
+- tareas pendientes de asignación manual;
+- plan por operario en secciones expandibles;
+- traslados entre terminales, acompañamientos y coche/lanzadera cuando forman parte del plan.
+
+Los estados internos de auditoría (`not_proven`, `proven_unavailable_in_current_plan`, etc.) se conservan en datos/diagnóstico pero no se muestran al cliente.
+
+
 ## Estado de fases del algoritmo
 
 ### Fase 1 — COMPLETADA: Back-Forward Fast / Optimal
@@ -130,7 +169,10 @@ El entry point público `solve()` ejecuta exclusivamente esta Fase 1. También e
 Benchmark consolidado de referencia antes de introducir la Fase 2:
 
 - Fast: 221/300 = 73,67 %, 0 errores físicos;
-- Optimal: 223/300 = 74,33 %, 0 errores físicos.
+- Optimal: 223/300 = 74,33 %, 0 errores físicos;
+- prueba Docker/PC con las mismas 300 tareas y límite de 60 s: 221/300, 0 errores físicos, ~80,8 s medidos por el worker.
+
+La prueba confirmó que el salto observado a ~127 s estaba dominado por el límite de 120 s del worker, no por una pérdida funcional del algoritmo. No fijar todavía 60 s como política de producción semanal sin benchmark de 7 días.
 
 Las operaciones no demostradas como insertables permanecen como `not_proven`; no se etiquetan como imposibles.
 
