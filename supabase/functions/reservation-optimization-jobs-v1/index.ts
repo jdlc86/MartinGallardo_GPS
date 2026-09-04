@@ -6,7 +6,7 @@ const SECRET_KEYS_JSON = Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ORIGIN = "https://jdlc86.github.io";
 const BACKEND_VERSION = "1.4.0";
-const BACKEND_BUILD = "2026.09.04.02";
+const BACKEND_BUILD = "2026.09.04.03";
 
 const OPTIMIZER_DEFAULTS = {
   back_forward_mode: "fast",
@@ -133,6 +133,71 @@ async function rest(path: string, method = "GET", body?: unknown, query?: Record
 
 const rpc = (name: string, body: unknown) => rest(`rpc/${name}`, "POST", body);
 
+const ROUTE_PREFLIGHT_URL = `${SUPABASE_URL}/functions/v1/reservation-ai-planner-v2`;
+const MADRID_HOUR = new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",hour:"2-digit",hour12:false});
+function routeBand(at: Date) {
+  const h = Number(MADRID_HOUR.format(at));
+  return h < 6 ? "MADRUGADA" : h < 10 ? "PUNTA_MANANA" : h < 16 ? "VALLE_DIA" : h < 20 ? "PUNTA_TARDE" : "NOCHE";
+}
+function routeTerminal(value: unknown) {
+  const s=String(value||"").toUpperCase().replace(/\s+/g,"");
+  if(s.includes("4S")||s.includes("T4")||s.includes("TERMINAL4")) return "T4";
+  if(s.includes("T3")||s.includes("TERMINAL3")) return "T3";
+  if(s.includes("T2")||s.includes("TERMINAL2")) return "T2";
+  if(s.includes("T1")||s.includes("TERMINAL1")) return "T1";
+  return null;
+}
+async function routeNeeds(start: Date,end: Date) {
+  const tasks=await rest("reservation_tasks","GET",undefined,{
+    status:"in.(unassigned,assigned)",
+    scheduled_at:`gte.${start.toISOString()}`,
+    and:`(scheduled_at.lt.${end.toISOString()})`,
+    select:"id,task_type,scheduled_at,parking_bookings!inner(pickup_terminal,return_terminal,deleted_at)",
+    "parking_bookings.deleted_at":"is.null",
+    order:"scheduled_at.asc",
+  });
+  const bands=new Set<string>(),terminals=new Set<string>();
+  for(const row of tasks){
+    const booking=row.parking_bookings||{};
+    const t=routeTerminal(row.task_type==="pickup"?booking.pickup_terminal:booking.return_terminal);
+    if(t) terminals.add(t);
+    const at=new Date(row.scheduled_at);
+    for(const offset of [-90,0,90]) bands.add(routeBand(new Date(+at+offset*60000)));
+  }
+  return {bands:[...bands],terminals:[...terminals],task_count:tasks.length};
+}
+async function matrixReady(bands:string[],terminals:string[]) {
+  if(!bands.length||!terminals.length) return true;
+  const rows=await rest("ai_dispatch_route_matrix","GET",undefined,{
+    time_band:`in.(${bands.join(",")})`,
+    select:"origin,destination,time_band,current_duration_s",
+  });
+  for(const band of bands) for(const terminal of terminals){
+    for(const [origin,destination] of [["PARKING",terminal],[terminal,"PARKING"]]){
+      if(!rows.some((r:any)=>r.time_band===band&&r.origin===origin&&r.destination===destination&&Number(r.current_duration_s)>0)) return false;
+    }
+  }
+  return true;
+}
+async function prepareRoutes(initData:string,epoch:number,start:Date,end:Date){
+  const needs=await routeNeeds(start,end);
+  if(!needs.task_count||!needs.terminals.length) return {matrix_ready:true,skipped:true,reason:"no_route_tasks",...needs};
+  try{
+    const r=await fetch(ROUTE_PREFLIGHT_URL,{
+      method:"POST",
+      headers:headers({"Content-Type":"application/json"}),
+      body:JSON.stringify({initData,action:"refresh_routes",writer_epoch:epoch,force:false,required_bands:needs.bands,required_terminals:needs.terminals,auto:true}),
+    });
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d?.ok&&d?.matrix_ready) return {...d,...needs};
+    if(await matrixReady(needs.bands,needs.terminals)) return {matrix_ready:true,degraded:true,source:"cached_after_preflight_error",error:d?.error||d?.reason||"route_preflight_failed",...needs};
+    throw new AppError(String(d?.error||d?.reason||"route_preflight_failed"),503);
+  }catch(error){
+    if(await matrixReady(needs.bands,needs.terminals)) return {matrix_ready:true,degraded:true,source:"cached_after_preflight_exception",error:String((error as Error)?.message||error),...needs};
+    throw error;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
   if (req.method !== "POST") return response({ ok: false, error: "method_not_allowed" }, 405);
@@ -165,7 +230,7 @@ Deno.serve(async (req) => {
       const latest = jobs[0] || null;
       return response({
         ok: true,
-        backend: { version: BACKEND_VERSION, build: BACKEND_BUILD, function_version: 9 },
+        backend: { version: BACKEND_VERSION, build: BACKEND_BUILD, function_version: 10 },
         optimizer: latest ? {
           version: latest.input_snapshot?.optimizer_version || null,
           build: latest.input_snapshot?.optimizer_build || null,
@@ -235,6 +300,8 @@ Deno.serve(async (req) => {
         select: "id",
       }) : [];
       if (allowedWorkers.length !== selectedWorkerIds.length) throw new AppError("optimizer_invalid_participants");
+      const routePreflight = await prepareRoutes(String(body.initData || ""), epoch, start, end);
+      if (!routePreflight.matrix_ready) throw new AppError("route_preflight_failed", 503);
       const idempotencyKey = String(body.idempotency_key || crypto.randomUUID());
       try {
         const rows = await rest("optimization_jobs", "POST", {
@@ -245,9 +312,9 @@ Deno.serve(async (req) => {
           solver_version: "optimizer_v2_cp_sat",
           horizon_start: start.toISOString(),
           horizon_end: end.toISOString(),
-          request: { horizon_days: days, source: "miniapp", selected_worker_ids: selectedWorkerIds },
+          request: { horizon_days: days, source: "miniapp", selected_worker_ids: selectedWorkerIds, route_preflight: routePreflight },
         });
-        return response({ ok: true, job: rows[0], queued: true }, 202);
+        return response({ ok: true, job: rows[0], queued: true, route_preflight: routePreflight }, 202);
       } catch (error) {
         if ((error as AppError).status !== 409) throw error;
         const rows = await rest("optimization_jobs", "GET", undefined, {
