@@ -273,7 +273,10 @@ async function activeWorkers() {
     ]),
   );
   return workers
-    .filter((worker: Record<string, unknown>) => roleByTelegramId.has(Number(worker.telegram_user_id)))
+    .filter((worker: Record<string, unknown>) => {
+      const role = roleByTelegramId.get(Number(worker.telegram_user_id));
+      return role !== undefined && role !== "owner";
+    })
     .map((worker: Record<string, unknown>) => ({
       ...worker,
       role: roleByTelegramId.get(Number(worker.telegram_user_id)),
