@@ -140,3 +140,17 @@ Resuelto el 2026-09-04: `parking_booking_operational_snapshot(bigint)`, `vehicle
 ### search_path de triggers
 
 Resuelto el 2026-09-04: las 8 funciones trigger señaladas por el Security Advisor tienen ahora `search_path=''`. Todos los triggers siguen activos y el advisor ya no reporta `function_search_path_mutable`.
+
+## Candidato 2026.09.04.03 — pendiente de promoción
+
+Cambios bajo prueba:
+
+- el usuario ya no actualiza manualmente la matriz de trayectos;
+- al pulsar **Optimizar**, `enqueue` ejecuta un preflight de rutas antes de crear el job;
+- se refrescan únicamente franjas y terminales necesarios para el horizonte;
+- Google Routes sigue siendo la fuente preferente;
+- si Google falla, se reutiliza caché existente; si falta una relación se usa baseline histórica disponible o estimación dinámica por coordenadas;
+- el worker 2.1.1 añade margen conservador adicional según antigüedad/fuente del trayecto;
+- el botón **Actualizar trayectos** se retira de la interfaz normal.
+
+La baseline estable continúa siendo **2026.09.04.02** hasta superar el smoke test del optimizador con este build.
