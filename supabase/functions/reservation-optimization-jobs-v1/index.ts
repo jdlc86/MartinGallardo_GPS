@@ -142,6 +142,42 @@ Deno.serve(async (req) => {
     const actor = await authenticate(String(body.initData || ""));
     const action = String(body.action || "");
 
+
+    if (action === "participants") {
+      const actorRows = await rest("telegram_users", "GET", undefined, {
+        telegram_user_id: `eq.${actor}`,
+        active: "eq.true",
+        select: "telegram_user_id,role",
+        limit: "1",
+      });
+      if (!actorRows.length || !["owner","admin"].includes(String(actorRows[0].role))) {
+        throw new AppError("not_admin", 403);
+      }
+      const users = await rest("telegram_users", "GET", undefined, {
+        active: "eq.true",
+        role: "in.(admin,operario)",
+        select: "telegram_user_id,role",
+      });
+      const roleById = new Map(users.map((u: any) => [Number(u.telegram_user_id), String(u.role)]));
+      const ids = [...roleById.keys()];
+      if (!ids.length) return response({ ok: true, participants: [] });
+      const workers = await rest("workers", "GET", undefined, {
+        active: "eq.true",
+        telegram_user_id: `in.(${ids.join(",")})`,
+        select: "id,telegram_user_id,full_name,role,active",
+        order: "full_name.asc",
+      });
+      return response({
+        ok: true,
+        participants: workers.map((w: any) => ({
+          id: String(w.id),
+          telegram_user_id: Number(w.telegram_user_id),
+          full_name: String(w.full_name),
+          account_role: roleById.get(Number(w.telegram_user_id)),
+        })),
+      });
+    }
+
     if (action === "enqueue") {
       const epoch = Number(body.writer_epoch);
       await rpc("parking_booking_require_writer", { p_actor_telegram_user_id: actor, p_writer_epoch: epoch });
@@ -149,6 +185,23 @@ Deno.serve(async (req) => {
       const days = Math.min(Math.max(Number(body.horizon_days) || Number(cfg.default_horizon_days) || 7, 1), 31);
       const start = new Date();
       const end = new Date(+start + days * 86400000);
+      const selectedWorkerIds = Array.isArray(body.selected_worker_ids)
+        ? [...new Set(body.selected_worker_ids.map((x: unknown) => String(x)).filter((x: string) =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x)
+          ))]
+        : [];
+      if (!selectedWorkerIds.length) throw new AppError("optimizer_no_participants");
+      const allowedUsers = await rest("telegram_users", "GET", undefined, {
+        active: "eq.true", role: "in.(admin,operario)", select: "telegram_user_id,role",
+      });
+      const allowedTelegramIds = allowedUsers.map((u: any) => Number(u.telegram_user_id)).filter(Number.isFinite);
+      const allowedWorkers = allowedTelegramIds.length ? await rest("workers", "GET", undefined, {
+        active: "eq.true",
+        id: `in.(${selectedWorkerIds.join(",")})`,
+        telegram_user_id: `in.(${allowedTelegramIds.join(",")})`,
+        select: "id",
+      }) : [];
+      if (allowedWorkers.length !== selectedWorkerIds.length) throw new AppError("optimizer_invalid_participants");
       const idempotencyKey = String(body.idempotency_key || crypto.randomUUID());
       try {
         const rows = await rest("optimization_jobs", "POST", {
@@ -159,7 +212,7 @@ Deno.serve(async (req) => {
           solver_version: "optimizer_v2_cp_sat",
           horizon_start: start.toISOString(),
           horizon_end: end.toISOString(),
-          request: { horizon_days: days, source: "miniapp" },
+          request: { horizon_days: days, source: "miniapp", selected_worker_ids: selectedWorkerIds },
         });
         return response({ ok: true, job: rows[0], queued: true }, 202);
       } catch (error) {
