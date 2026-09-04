@@ -348,8 +348,21 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - worker Docker reclama el job y cambia `pending -> running -> succeeded/failed`;
 - no hay polling periódico en la Mini App;
 - perder un evento Realtime no pierde el resultado: al reabrir/volver a primer plano se reconcilia una vez;
-- mientras el job está `pending/running`, **Optimizar**, **Nueva optimización** y **Actualizar trayectos** permanecen bloqueados;
+- mientras el job está `pending/running`, **Optimizar** y **Nueva optimización** permanecen bloqueados;
 - no aparece un chip global redundante de “optimizando/terminado”.
+
+### Preflight automático de rutas
+
+- la interfaz no muestra botón manual **Actualizar trayectos**;
+- pulsar **Optimizar** prepara primero los trayectos necesarios;
+- solo se refrescan las franjas/terminales necesarios para el horizonte;
+- con Google disponible, la fuente preferente es `google_routes`;
+- si Google falla y existe caché reciente, se reutiliza;
+- si la caché es antigua, se aplica penalización conservadora antes de lanzar el solver;
+- si falta una relación, se usa baseline disponible o estimación dinámica por coordenadas;
+- no se crea el job si después del fallback sigue faltando una ruta requerida;
+- el resultado del preflight queda registrado en `optimization_jobs.request.route_preflight`;
+- probar una optimización con worker 2.1.1 y confirmar 0 errores físicos.
 
 ### Propuesta
 
