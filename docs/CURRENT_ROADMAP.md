@@ -1,3 +1,34 @@
+## Prioridad Optimizer V2 — estado actual
+
+### Fase 1 estable
+
+Completada y conectada a la Mini App en modo propuesta:
+
+- Back-Forward rolling horizon 24/7;
+- Fast/Optimal consolidados;
+- worker Docker externo a Edge Functions;
+- cola durable `optimization_jobs`;
+- Realtime + reconciliación puntual, sin polling;
+- informes operativos expandibles;
+- tareas no asignadas visibles como trabajo manual pendiente;
+- propuestas rechazadas no se recargan;
+- controles de optimización bloqueados mientras hay job activo;
+- 0 errores físicos como condición de aceptación.
+
+Referencia: Fast 221/300; Optimal 223/300.
+
+### Pendiente antes de considerar Fase 2 estable
+
+1. terminar benchmark reproducible de reoptimización local sobre los `not_proven`;
+2. medir cobertura antes/después, mejoras reales y swaps seguros;
+3. mantener `coverage_new >= coverage_old` y 0 errores físicos;
+4. benchmark específico de una semana completa antes de fijar el límite de tiempo definitivo del worker;
+5. automatizar actualización/rollback del contenedor de producción después de estabilizar la operación real.
+
+### Fase 2
+
+Continúa **experimental**. No debe incorporarse silenciosamente a `solve()` ni alterar el benchmark/score de Fase 1.
+
 # Roadmap técnico vigente
 
 Este documento contiene solo trabajo pendiente del sistema de producción actual.
