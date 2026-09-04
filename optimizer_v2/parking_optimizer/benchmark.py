@@ -84,8 +84,9 @@ def _serialize_solution(payload: dict, tasks, solution, errors, result: dict, cf
 
     assigned_ids = {task.id for route in solution.routes.values() for task in route.tasks}
     return {
-        "contract": "optimizer_v2_benchmark_plan_v5_full_input_graph_audit",
+        "contract": "optimizer_v2_phase1_benchmark_plan_v1",
         "benchmark": payload["contract"],
+        "algorithm_phase": "phase1_completed_back_forward",
         "metrics": result,
         "work_policy": {
             "global_work_mode": cfg.global_work_mode,
