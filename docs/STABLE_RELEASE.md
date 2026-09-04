@@ -112,3 +112,15 @@ Un cambio experimental no redefine esta release hasta que se promueva deliberada
 - Acceso directo de `anon` y `authenticated` revocado.
 - Acceso de producción únicamente desde backend/service-role.
 - Debe mantenerse smoke test de OCR en Recogida, Aparcar y Entrega, además de Expediente 360º e informe de vehículo.
+
+### Validación funcional 2026-09-04
+
+Smoke test de producción completado tras endurecer `plate_verifications`:
+
+- Recogida: OK
+- Aparcar: OK
+- Buscar: OK
+- Entrega: OK
+- Expediente 360º: OK
+
+El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verifications`. El aviso restante `rls_enabled_no_policy` es informativo y coherente con el diseño backend-only: no existen políticas cliente y `anon/authenticated` no tienen privilegios directos sobre la tabla.
