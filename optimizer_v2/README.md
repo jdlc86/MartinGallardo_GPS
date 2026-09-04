@@ -106,3 +106,45 @@ Variables requeridas por el worker:
 - `OPTIMIZER_WORKER_ID` (opcional; se genera uno si no existe)
 
 No se necesita API key para OR-Tools. Google Routes continúa alimentando `ai_dispatch_route_matrix` mediante el mecanismo existente.
+
+
+## Estado de fases del algoritmo
+
+### Fase 1 — COMPLETADA: Back-Forward Fast / Optimal
+
+La planificación principal queda consolidada como una fase independiente y estable:
+
+- línea temporal continua 24/7; no existen fronteras rígidas por día;
+- ventana rolling-horizon por defecto de 1440 min y solape de 360 min;
+- `fast`: selecciona como ancla la ventana de mayor densidad de operaciones;
+- `optimal`: evalúa ventanas candidatas por cobertura/factibilidad;
+- ambos modos utilizan exactamente el mismo motor forward/backward y el mismo stitching continuo;
+- descansos y duraciones máximas dependen del modo de trabajo;
+- tras cumplir descanso, una nueva jornada puede comenzar en PARKING o en cualquier terminal;
+- acompañamientos y coche de empresa/lanzadera forman parte del modelo físico;
+- la solución final debe pasar `validate_solution()`;
+- la auditoría conservadora de no asignadas forma parte del cierre de Fase 1, pero solo inserta una operación cuando la inserción directa queda validada.
+
+El entry point público `solve()` ejecuta exclusivamente esta Fase 1. También está disponible explícitamente como `solve_phase1()`.
+
+Benchmark consolidado de referencia antes de introducir la Fase 2:
+
+- Fast: 221/300 = 73,67 %, 0 errores físicos;
+- Optimal: 223/300 = 74,33 %, 0 errores físicos.
+
+Las operaciones no demostradas como insertables permanecen como `not_proven`; no se etiquetan como imposibles.
+
+### Fase 2 — EXPERIMENTAL: reoptimización logística local
+
+La reoptimización de los `not_proven` queda separada del algoritmo principal y se invoca únicamente mediante `run_phase2_reoptimization()`.
+
+Reglas de aceptación:
+
+- la solución de Fase 1 es el baseline de score;
+- la operación auditada se fuerza dentro del subproblema;
+- se permiten mejoras reales y swaps seguros;
+- nunca se acepta `coverage_new < coverage_old`;
+- toda propuesta debe reconstruir una solución global y pasar `validate_solution()` con 0 errores;
+- si no se demuestra una reparación válida, la operación continúa como `not_proven`.
+
+La Fase 2 no forma parte del benchmark de aceptación de Fast/Optimal ni de su tiempo de ejecución.
