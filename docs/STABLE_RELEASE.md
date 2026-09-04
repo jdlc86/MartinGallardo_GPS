@@ -132,3 +132,7 @@ Resuelto el 2026-09-04: `telegram_access_requests_visible_rejected` pasó a `sec
 ### RPC de expiración de solicitudes
 
 Resuelto el 2026-09-04: `expire_pending_access_requests()` conserva su ejecución interna mediante `pg_cron` cada 15 minutos, pero se revocó `EXECUTE` a `PUBLIC`, `anon` y `authenticated`. El Security Advisor ya no la reporta como función `SECURITY DEFINER` ejecutable por clientes.
+
+### RPC privilegiados de reservas y ciclo de vida
+
+Resuelto el 2026-09-04: `parking_booking_operational_snapshot(bigint)`, `vehicle_lifecycle_search(bigint,text)` y `vehicle_lifecycle_snapshot(bigint)` mantienen `SECURITY DEFINER` para su uso interno, pero `PUBLIC`, `anon` y `authenticated` ya no tienen `EXECUTE`. El acceso queda únicamente a `service_role`/backend. El Security Advisor ya no reporta estos RPC como ejecutables por clientes.
