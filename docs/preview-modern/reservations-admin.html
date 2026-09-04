@@ -155,7 +155,7 @@
 
     <div id="state" class="state">Cargando reservas…</div>
     <section id="content" hidden>
-      <div class="list-head"><h2>Reservas</h2><span id="resultCount">0 resultados</span></div>
+      <div class="list-head"><h2>Reservas</h2><div style="display:flex;align-items:center;gap:8px"><button id="selectAll" class="btn secondary small">Seleccionar todo</button><span id="resultCount">0 resultados</span></div></div>
       <div id="bookingList" class="booking-list"></div>
       <button id="back" class="back">← Volver al inicio</button>
     </section>
@@ -289,7 +289,7 @@
         });
         renderBulk();
       }
-      function renderBulk(){var count=selected.size;$('selectedCount').textContent=count;$('bulkbar').classList.toggle('on',count>0)}
+      function renderBulk(){var count=selected.size;$('selectedCount').textContent=count;$('bulkbar').classList.toggle('on',count>0);var rows=(data&&data.reservations)||[],all=rows.length>0&&rows.every(function(row){return selected.has(row.id)}),btn=$('selectAll');if(btn){btn.disabled=!canWrite()||!rows.length;btn.textContent=all?'Deseleccionar todo':'Seleccionar todo'}}
       function renderNotifications(){
         var pending=data.pending_requests||[];$('pendingRequestList').innerHTML=pending.map(function(request){
           var copy=request.request_kind==='transfer'?'<b>Transferencia pendiente</b><p>'+esc(request.requester_name)+' quiere transferirte Lectura/Escritura.</p>':'<b>Solicitud pendiente</b><p>'+esc(request.requester_name)+' solicita Lectura/Escritura.</p>';
@@ -360,7 +360,7 @@
       async function commitImport(){var selectedRows=Array.prototype.slice.call(document.querySelectorAll('.import-check:checked')).map(function(check){return Number(check.value)});if(!analysis||!selectedRows.length)return;try{busy(true,'Importando reservas…','La base comprobará de nuevo el permiso y guardará todo en una sola operación.');var response=await api('commit_import',{writer_epoch:epoch(),idempotency_key:uuid(),analysis_id:analysis.analysis_id,selected_source_rows:selectedRows});closeOverlay('importOverlay');pulse('success');toast(response.duplicate?'Ese archivo ya estaba importado':response.count+' reservas importadas');resetImport();await load(true)}catch(error){pulse('error');toast(friendly(error.message));if(/permission/.test(error.message))await load(true)}finally{busy(false)}}
       function bind(){
         $('permissionButton').onclick=openPermission;$('createButton').onclick=function(){openForm(null)};$('importButton').onclick=function(){if(!canWrite())return openPermission();resetImport();openOverlay('importOverlay')};
-        $('bookingForm').onsubmit=saveForm;$('clearSelection').onclick=function(){selected.clear();renderList()};$('deleteSelected').onclick=function(){deleteItems(Array.from(selected.values()))};$('markRead').onclick=markRead;
+        $('bookingForm').onsubmit=saveForm;$('selectAll').onclick=function(){if(!canWrite())return openPermission();var rows=(data&&data.reservations)||[],all=rows.length>0&&rows.every(function(row){return selected.has(row.id)});if(all)selected.clear();else rows.forEach(function(row){selected.set(row.id,{id:row.id,version:Number(row.version)})});renderList()};$('clearSelection').onclick=function(){selected.clear();renderList()};$('deleteSelected').onclick=function(){deleteItems(Array.from(selected.values()))};$('markRead').onclick=markRead;
         $('chooseFile').onclick=function(){$('importFile').click()};$('importFile').onchange=function(){var file=this.files&&this.files[0];if(file)analyzeFile(file)};$('commitImport').onclick=commitImport;$('cancelImport').onclick=function(){closeOverlay('importOverlay');resetImport()};
         $('search').oninput=function(){clearTimeout(searchTimer);searchTimer=setTimeout(function(){load(false)},320)};$('back').onclick=function(){location.href='./?v=20260901R1'};
         Array.prototype.forEach.call(document.querySelectorAll('[data-close]'),function(button){button.onclick=function(){closeOverlay(this.getAttribute('data-close'))}});
