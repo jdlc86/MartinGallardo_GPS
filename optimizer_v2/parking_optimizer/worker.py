@@ -12,6 +12,7 @@ import httpx
 
 from .domain import OptimizerConfig, Task, Worker
 from .solver import solve
+from .reporting import build_reports
 from .validator import validate_solution
 from .unassigned_audit import audit_summary
 
@@ -261,6 +262,7 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         backend.rpc("fail_optimization_job", {"p_job_id": job_id, "p_worker_id": worker_id, "p_error_code": "physical_validation_failed", "p_error_detail": json.dumps([asdict(e) for e in validation_errors[:100]], ensure_ascii=False), "p_retryable": False, "p_metrics": metrics})
         return
 
+    reports = build_reports(solution)
     routes_json = {}
     assignments = []
     for wid, route in solution.routes.items():
@@ -268,6 +270,8 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         for task in route.tasks:
             if not task.fixed_worker_id:
                 assignments.append({"task_id": task.id, "version": task.version, "worker_id": wid})
+        if wid in reports:
+            reports[wid]["items"] = [_task_json(task) for task in route.tasks]
     companions = [{
         "rider_worker_id": m.rider_worker_id, "rider_task_id": m.rider_task_id,
         "driver_worker_id": m.driver_worker_id, "driver_task_id": m.driver_task_id,
@@ -281,6 +285,15 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         "assignments": assignments,
         "unassigned": solution.unassigned_audit,
         "routes": routes_json, "companion_matches": companions,
+        "company_shuttle_missions": [{
+            "vehicle_index": mission.vehicle_index,
+            "mission_id": mission.mission_id,
+            "depart_parking_at": _iso(mission.depart_parking_at),
+            "return_parking_at": _iso(mission.return_parking_at),
+            "stops": list(mission.stops),
+            "rider_worker_ids": list(mission.rider_worker_ids),
+            "rider_task_ids": list(mission.rider_task_ids),
+        } for mission in solution.company_shuttle_missions],
         "shift_assignments": [_shift_json(shift) for shift in solution.shift_assignments],
         "work_policy": {"global_work_mode": cfg.global_work_mode, "shift_start": f"{cfg.shift_start_hour:02d}:{cfg.shift_start_minute:02d}"},
         "validator": {"contract": "physical_validator_v2_shifts", "errors": []},
@@ -290,7 +303,7 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
     plan_rows = backend.insert("ai_dispatch_plans", {
         "created_by_telegram_user_id": job["created_by_telegram_user_id"], "writer_epoch": job["writer_epoch"],
         "horizon_start": job["horizon_start"], "horizon_end": job["horizon_end"], "status": "proposal",
-        "solver_engine": "optimizer_v2_back_forward_v1", "input_snapshot": snapshot, "plan": plan, "reports": {},
+        "solver_engine": "optimizer_v2_back_forward_v1", "input_snapshot": snapshot, "plan": plan, "reports": reports,
     })
     plan_id = plan_rows[0]["id"]
     backend.rpc("complete_optimization_job", {"p_job_id": job_id, "p_worker_id": worker_id, "p_result_plan_id": plan_id, "p_metrics": metrics, "p_progress": {"stage": "completed", "percent": 100}})
