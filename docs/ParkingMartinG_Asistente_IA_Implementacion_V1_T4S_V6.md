@@ -1,3 +1,5 @@
+> **DOCUMENTO HISTÓRICO — NO NORMATIVO.** Describe una etapa anterior del diseño del Asistente IA. Para comportamiento vigente consultar `README.md`, `docs/ARCHITECTURE.md`, `docs/STABLE_RELEASE.md`, `docs/TEST_PLAN.md` y `docs/MAINTENANCE_AUDIT_2026-09-04.md`. Ante contradicción, prevalece la documentación vigente.
+
 # ParkingMartin-G
 ## Asistente IA de asignación — Adenda V6: política T4S
 
