@@ -73,12 +73,19 @@ async function telegram(method: string, payload: unknown) {
 }
 
 function keyboard(notificationType: string) {
+  const optimizationNotice = notificationType.startsWith("optimizer_");
   const permissionNotice = notificationType.includes("permission") ||
     notificationType.includes("write_") || notificationType.includes("transfer");
-  const text = permissionNotice ? "📋 ABRIR GESTIÓN DE RESERVAS" : "⚡ VER MIS TAREAS";
-  const path = permissionNotice
-    ? "reservations-admin.html?v=20260901R3"
-    : "operations.html?v=20260901TASK3";
+  const text = optimizationNotice
+    ? "🧭 VER PROPUESTA"
+    : permissionNotice
+      ? "📋 ABRIR GESTIÓN DE RESERVAS"
+      : "⚡ VER MIS TAREAS";
+  const path = optimizationNotice
+    ? "ai-dispatch.html?v=20260904OPT1"
+    : permissionNotice
+      ? "reservations-admin.html?v=20260901R3"
+      : "operations.html?v=20260901TASK3";
   return { inline_keyboard: [[{ text, web_app: { url: `${MINI_APP_URL}${path}` } }]] };
 }
 

@@ -1,0 +1,22 @@
+name: Optimizer V2 Benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark-300:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONPATH: ${{ github.workspace }}/optimizer_v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: optimizer_v2/requirements.txt
+      - working-directory: optimizer_v2
+        run: pip install -r requirements.txt
+      - working-directory: optimizer_v2
+        run: python -m parking_optimizer.benchmark
