@@ -181,6 +181,26 @@ Deno.serve(async (req) => {
             ...(plans[0].plan || {}),
             reports: plans[0].reports || {},
           };
+          const unassigned = Array.isArray(proposal.unassigned) ? proposal.unassigned : [];
+          const ids = unassigned.map((row: any) => String(row.task_id || "")).filter(Boolean);
+          if (ids.length) {
+            const taskRows = await rest("reservation_tasks", "GET", undefined, {
+              id: `in.(${ids.join(",")})`,
+              select: "id,task_type,scheduled_at,parking_bookings!inner(vehicle_plate,customer_name,pickup_terminal,return_terminal)",
+            });
+            const taskMeta = Object.fromEntries(taskRows.map((row: any) => [String(row.id), row]));
+            proposal.unassigned = unassigned.map((row: any) => {
+              const meta = taskMeta[String(row.task_id)] || {};
+              const booking = meta.parking_bookings || {};
+              return {
+                ...row,
+                task_type: row.task_type || meta.task_type,
+                scheduled_at: row.scheduled_at || meta.scheduled_at,
+                plate: booking.vehicle_plate || null,
+                customer_name: booking.customer_name || null,
+              };
+            });
+          }
         }
       }
       return response({ ok: true, job, proposal });
@@ -216,6 +236,26 @@ Deno.serve(async (req) => {
             ...(plans[0].plan || {}),
             reports: plans[0].reports || {},
           };
+          const unassigned = Array.isArray(proposal.unassigned) ? proposal.unassigned : [];
+          const ids = unassigned.map((row: any) => String(row.task_id || "")).filter(Boolean);
+          if (ids.length) {
+            const taskRows = await rest("reservation_tasks", "GET", undefined, {
+              id: `in.(${ids.join(",")})`,
+              select: "id,task_type,scheduled_at,parking_bookings!inner(vehicle_plate,customer_name,pickup_terminal,return_terminal)",
+            });
+            const taskMeta = Object.fromEntries(taskRows.map((row: any) => [String(row.id), row]));
+            proposal.unassigned = unassigned.map((row: any) => {
+              const meta = taskMeta[String(row.task_id)] || {};
+              const booking = meta.parking_bookings || {};
+              return {
+                ...row,
+                task_type: row.task_type || meta.task_type,
+                scheduled_at: row.scheduled_at || meta.scheduled_at,
+                plate: booking.vehicle_plate || null,
+                customer_name: booking.customer_name || null,
+              };
+            });
+          }
         }
       }
       return response({ ok: true, job, proposal });
