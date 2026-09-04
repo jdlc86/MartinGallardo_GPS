@@ -1,0 +1,82 @@
+name: Deployed Release Verification
+
+on:
+  workflow_run:
+    workflows: ["pages build and deployment"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-pages:
+    name: Verify deployed Pages release
+    if: github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject failed Pages deployment
+        if: github.event.workflow_run.conclusion != 'success'
+        run: |
+          echo "Pages deployment failed for ${{ github.event.workflow_run.head_sha }}"
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+
+      - name: Determine whether this is the current production head
+        id: current
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_SHA="${{ github.event.workflow_run.head_sha }}"
+          MAIN_SHA="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          echo "run_sha=$RUN_SHA"
+          echo "main_sha=$MAIN_SHA"
+          if [ "$RUN_SHA" = "$MAIN_SHA" ]; then
+            echo "is_current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_current=false" >> "$GITHUB_OUTPUT"
+            echo "Historical Pages run: a newer main commit already exists. Live production will not be judged against this old SHA."
+          fi
+
+      - name: Read expected release
+        if: steps.current.outputs.is_current == 'true'
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import json
+          import re
+          m = json.load(open("release/manifest.json", encoding="utf-8"))
+          build = m["build"]
+          match = re.fullmatch(r"(\d{4})\.(\d{2})\.(\d{2})\.(\d{2})", build)
+          if not match:
+              raise SystemExit("invalid build in release manifest")
+          print(f"EXPECTED_VERSION={m['version']}")
+          print(f"EXPECTED_BUILD={build}")
+          print(f"EXPECTED_BUILD_TOKEN={build.replace('.', '')}")
+          print(f"EXPECTED_SW_CACHE={m['frontend']['service_worker_cache']}")
+          print(f"EXPECTED_SW_REV={m['frontend']['service_worker_cache'].rsplit('v',1)[-1]}")
+          PY
+
+      - name: Verify live GitHub Pages content
+        if: steps.current.outputs.is_current == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://jdlc86.github.io/MartinGallardo_GPS/preview-modern"
+          BUST="${{ github.event.workflow_run.head_sha }}"
+
+          curl -fsSL --retry 3 "$BASE/release.js?verify=$BUST" -o /tmp/release.js
+          curl -fsSL --retry 3 "$BASE/sw.js?verify=$BUST" -o /tmp/sw.js
+          curl -fsSL --retry 3 "$BASE/index.html?verify=$BUST" -o /tmp/index.html
+
+          grep -Fq "version:\"$EXPECTED_VERSION\"" /tmp/release.js
+          grep -Fq "build:\"$EXPECTED_BUILD\"" /tmp/release.js
+          grep -Fq "const CACHE='$EXPECTED_SW_CACHE';" /tmp/sw.js
+          grep -Fq "release.js?v=$EXPECTED_BUILD_TOKEN" /tmp/index.html
+          grep -Fq "sw.js?v=$EXPECTED_SW_REV" /tmp/index.html
+
+          echo "Live Pages release verified: v$EXPECTED_VERSION · Build $EXPECTED_BUILD"
+          echo "Service Worker verified: $EXPECTED_SW_CACHE"
