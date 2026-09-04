@@ -235,13 +235,13 @@ Protecciones actuales:
 - aislamiento de grupos;
 - RLS en tablas nuevas de live/reporting sin políticas cliente.
 
-Hallazgos abiertos del advisor de Supabase:
+Estado del Security Advisor (2026-09-04):
 
-1. `telegram_access_requests_visible_rejected` figura como `SECURITY DEFINER`.
-2. Varias funciones históricas de acceso tienen `search_path` mutable.
-3. `expire_pending_access_requests()` y otros RPC `SECURITY DEFINER` siguen siendo ejecutables por roles cliente y deben endurecerse.
+- **0 errores** y **0 warnings** de seguridad;
+- permanecen únicamente avisos informativos `rls_enabled_no_policy` en tablas diseñadas como backend-only;
+- `plate_verifications`, la vista de rechazados, los `search_path` de triggers y los RPC privilegiados señalados previamente ya fueron endurecidos.
 
-Resuelto el 2026-09-04: `plate_verifications` tiene RLS habilitado y acceso directo de `anon/authenticated` revocado; los flujos OCR continúan accediendo únicamente mediante backend/service-role.
+Las tablas backend-only mantienen RLS habilitado sin políticas cliente y acceso directo de `anon/authenticated` revocado deliberadamente.
 
 ## Documentación
 
