@@ -80,7 +80,7 @@ def solve_horizon(
                 model.add(origin[k] == sm[t.id]).only_enforce_if(sta)
             model.add(sum(tv) == x[k])
             model.add(sum(sv) == start_marker[k])
-            if t.fixed_worker_id and t.fixed_worker_id != w.id:
+            if (not w.auto_assignable and t.fixed_worker_id != w.id) or (t.fixed_worker_id and t.fixed_worker_id != w.id):
                 model.add(x[k] == 0)
         model.add(sum(x[t.id, w.id] for w in workers) <= 1)
         if t.id in required_task_ids:
