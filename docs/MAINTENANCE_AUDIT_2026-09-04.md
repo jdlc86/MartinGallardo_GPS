@@ -131,6 +131,27 @@ Para no romper enlaces históricos, no se eliminó el slug. Se sustituyó por un
 La nueva versión no accede a `TELEGRAM_BOT_TOKEN`, claves Supabase ni base de datos.
 
 
+
+## Cadena Telegram heredada — endurecimiento de setup
+
+Se reconstruyó la cadena vigente:
+
+`telegram-gateway -> telegram-entry -> telegram-router3 / telegram-bot`
+
+El webhook actual lo configura `telegram-gateway`. Sin embargo, varias funciones heredadas conservaban rutas públicas `GET ?setup=1` capaces de ejecutar `setWebhook`.
+
+Se neutralizó de forma reversible `?setup=1` en:
+
+- `telegram-entry` (v9);
+- `telegram-router3` (v15).
+
+Ambas responden ahora `410 setup_disabled` y mantienen intacto su procesamiento POST.
+
+`telegram-bot` sigue pendiente de este endurecimiento porque la herramienta de despliegue bloqueó el cambio antes de publicarlo. No se modificó.
+
+No deben retirarse todavía `telegram-entry`, `telegram-router3` ni `telegram-bot`: `telegram-entry` continúa delegando casos concretos, incluido el flujo heredado de foto de matrícula de recogida, y usa `telegram-router3` como fallback general.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
