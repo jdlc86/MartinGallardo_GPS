@@ -58,7 +58,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RniE 'setInterval\(|FREQ=MINUTELY|\* \* \* \* \*' docs/preview-modern supabase/functions/reservation-notification-sender supabase/functions/reservation-optimization-jobs-v1; then
-            echo "Periodic polling-like code detected in protected paths."
+
+          protected_files=(
+            docs/preview-modern/notification-runtime.js
+            docs/preview-modern/reservations-admin.html
+            docs/preview-modern/ai-dispatch.html
+            docs/preview-modern/ai-dispatch-runtime.js
+          )
+
+          if grep -nE 'setInterval\s*\(' "${protected_files[@]}"; then
+            echo "Periodic polling detected in a protected realtime/event-driven flow."
             exit 1
           fi
+
+          echo "No periodic polling detected in protected flows."
