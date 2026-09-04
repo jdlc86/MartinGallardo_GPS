@@ -39,9 +39,9 @@ Este documento contiene solo trabajo pendiente del sistema de producción actual
 
 El 2026-09-04 se habilitó RLS y se revocó el acceso directo de `anon/authenticated`. El acceso de producción queda backend-only mediante service-role. Debe mantenerse el smoke test de Recogida, Aparcar, Entrega, Expediente e informe de vehículo.
 
-### 1. Vista `telegram_access_requests_visible_rejected`
+### Resuelto: vista `telegram_access_requests_visible_rejected`
 
-Revisar el `SECURITY DEFINER` y preferir `SECURITY INVOKER` si es compatible.
+El 2026-09-04 se cambió a `SECURITY INVOKER`, se revocó el acceso directo de `anon/authenticated` y quedó backend-only mediante `service_role`. El Security Advisor ya no reporta `security_definer_view` para esta vista.
 
 ### 2. Funciones históricas con `search_path` mutable
 
