@@ -237,10 +237,11 @@ Protecciones actuales:
 
 Hallazgos abiertos del advisor de Supabase:
 
-1. `plate_verifications` tiene RLS desactivado.
-2. `telegram_access_requests_visible_rejected` figura como `SECURITY DEFINER`.
-3. Varias funciones históricas de acceso tienen `search_path` mutable.
-4. `expire_pending_access_requests()` sigue siendo `SECURITY DEFINER` ejecutable por roles cliente y debe endurecerse.
+1. `telegram_access_requests_visible_rejected` figura como `SECURITY DEFINER`.
+2. Varias funciones históricas de acceso tienen `search_path` mutable.
+3. `expire_pending_access_requests()` y otros RPC `SECURITY DEFINER` siguen siendo ejecutables por roles cliente y deben endurecerse.
+
+Resuelto el 2026-09-04: `plate_verifications` tiene RLS habilitado y acceso directo de `anon/authenticated` revocado; los flujos OCR continúan accediendo únicamente mediante backend/service-role.
 
 ## Documentación
 
