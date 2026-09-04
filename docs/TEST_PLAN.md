@@ -338,3 +338,51 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - reimportar exactamente el mismo archivo no duplica reservas;
 - commit comprueba de nuevo titular y `epoch`;
 - sin IA configurada, la importación se bloquea y el alta manual sigue disponible.
+
+## 20. Optimizer V2
+
+### Cola y worker
+
+- pulsar **Optimizar** crea un job y responde sin esperar al solver;
+- solo el usuario que lo lanza recibe el aviso de Telegram correspondiente;
+- worker Docker reclama el job y cambia `pending -> running -> succeeded/failed`;
+- no hay polling periódico en la Mini App;
+- perder un evento Realtime no pierde el resultado: al reabrir/volver a primer plano se reconcilia una vez;
+- mientras el job está `pending/running`, **Optimizar**, **Nueva optimización** y **Actualizar trayectos** permanecen bloqueados;
+- no aparece un chip global redundante de “optimizando/terminado”.
+
+### Propuesta
+
+- una propuesta `succeeded` carga sus asignaciones y logística;
+- cada operario aparece en bloque expandible/contraíble;
+- el texto respeta el ancho de móvil vertical y no produce scroll horizontal;
+- se muestran transferencias entre terminales, acompañamientos y coche/lanzadera cuando proceda;
+- se muestra el total de tareas asignadas y las pendientes de organizar manualmente;
+- no se muestran al cliente códigos internos de auditoría;
+- **Rechazar** oculta la propuesta y esta no vuelve a aparecer al reabrir la pantalla;
+- confirmar/rechazar nunca reutiliza una propuesta con estado distinto de `proposal`.
+
+### Fase 1
+
+- Fast benchmark: 221/300 o superior con 0 errores físicos;
+- Optimal benchmark: 223/300 o superior con 0 errores físicos;
+- `validate_solution()` debe devolver 0 errores antes de persistir un plan válido;
+- no reintroducir fronteras por día;
+- descansos y máximos de jornada se validan en línea temporal continua;
+- tareas manuales no cambian de operario;
+- ninguna tarea asignada puede quedar con traslado físico no resuelto.
+
+### Rendimiento
+
+- registrar `elapsed_seconds`, número de tareas y cobertura;
+- comparar 60/90/120 s sobre un dataset idéntico antes de cambiar el límite de producción;
+- hacer benchmark de una semana completa realista antes de decidir el límite definitivo;
+- comprobar que los logs Docker no crecen sin límite.
+
+### Fase 2 experimental
+
+- partir siempre del resultado aceptado de Fase 1;
+- no aceptar ninguna reparación con menor cobertura;
+- toda reparación reconstruida debe pasar el validador global;
+- medir tareas recuperadas, `not_proven` restantes, `proven_unavailable`, tiempo extra, mejoras reales y swaps seguros;
+- si no se demuestra una reparación válida, conservar `not_proven`.
