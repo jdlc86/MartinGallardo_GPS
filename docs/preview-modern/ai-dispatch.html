@@ -78,7 +78,42 @@ function v2Report(route,d){
 }
 function auditLabel(row){if(row.status==='proven_unavailable_in_current_plan')return'Sin hueco directo validado en el plan actual';if(row.status==='not_proven')return'Pendiente de reoptimización logística';if(row.status==='available_in_current_plan')return'Insertable en el plan actual';return String(row.status||'No asignada')}
 function renderUnassigned(d){const rows=Array.isArray(d.unassigned)?d.unassigned:[];const host=$('unassignedList');if(!rows.length){host.innerHTML='';return}const ordered=[...rows].sort((a,b)=>String(a.scheduled_at||'').localeCompare(String(b.scheduled_at||'')));host.innerHTML='<details class="accordion"><summary><span>Tareas pendientes de asignar manualmente · '+ordered.length+'</span></summary><div class="accordion-body"><div class="meta" style="margin-bottom:10px">Estas son las operaciones que debes organizar manualmente.</div>'+ordered.map(row=>{const when=row.scheduled_at?new Date(row.scheduled_at).toLocaleString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Sin hora';const kind=row.task_type==='pickup'?'RECOGIDA':row.task_type==='delivery'?'ENTREGA':'TAREA';return '<div class="diag-row" style="display:block;margin-top:7px"><div><b>'+esc(when)+' · '+esc(kind)+' · '+esc(row.terminal||'—')+'</b></div><div style="margin-top:3px">'+esc(row.plate||'—')+(row.customer_name?' · '+esc(row.customer_name):'')+'</div></div>'}).join('')+'</div></details>'}
-function renderProposal(d){plan=d;renderUnassigned(d);let reports=Object.values(d.reports||{}).filter(r=>r?.items?.length);if(!reports.length&&d.routes){reports=Object.values(d.routes).filter(r=>r?.tasks?.length).map(r=>({worker:r.worker,items:r.tasks,text:v2Report(r,d)}))}$('reports').innerHTML=reports.length?reports.map(r=>'<details class="accordion"><summary><span>'+esc(r.worker?.full_name||'Operario')+' · '+((r.items||[]).length)+' tareas</span></summary><div class="accordion-body"><pre>'+esc(r.text||'')+'</pre></div></details>').join(''):'<div class="state">No hay tareas asignadas en este horizonte.</div>';renderDiagnostics(d);const totalAssigned=d.routes?Object.values(d.routes).reduce((n,r)=>n+(r.tasks?.length||0),0):(d.assignments?.length||0);const fixed=Math.max(0,totalAssigned-(d.assignments?.length||0));$('summary').textContent=totalAssigned+' asignadas · '+fixed+' manuales';$('proposal').hidden=false;$('confirm').hidden=false;$('reject').hidden=false;if(d.physical_feasible===true)state('Propuesta V2 Fase 1 generada. Revísala completa antes de confirmar.');else state('La propuesta no ha superado la validación física y no se aplicará ninguna asignación.',true)}
+function companyShuttleReport(d){
+  const missions=[...(d.company_shuttle_missions||[])].sort((a,b)=>String(a.depart_parking_at||'').localeCompare(String(b.depart_parking_at||'')));
+  if(!missions.length)return'';
+  const routes=d.routes||{};
+  const workerName=id=>routes[id]?.worker?.full_name||id||'Operario';
+  const taskLabel=id=>{
+    for(const r of Object.values(routes)){
+      const t=(r.tasks||[]).find(x=>x.id===id);
+      if(t)return (t.type==='pickup'?'RECOGIDA':'ENTREGA')+' '+(t.terminal||'')+(t.plate?' · '+t.plate:'');
+    }
+    return id||'Tarea';
+  };
+  const byVehicle=new Map();
+  for(const m of missions){
+    const idx=Number(m.vehicle_index||0)+1;
+    if(!byVehicle.has(idx))byVehicle.set(idx,[]);
+    byVehicle.get(idx).push(m);
+  }
+  return [...byVehicle.entries()].sort((a,b)=>a[0]-b[0]).map(([idx,rows])=>{
+    const lines=['🚐 Coche de empresa '+idx];
+    let day='';
+    for(const m of rows){
+      const dayKey=new Date(m.depart_parking_at).toLocaleDateString('sv-SE');
+      if(dayKey!==day){day=dayKey;lines.push('\n🗓️ '+fmtDay(m.depart_parking_at).replace(/^./,x=>x.toUpperCase()))}
+      lines.push(fmtHm(m.depart_parking_at)+' · Salida de Parking');
+      lines.push('Ruta · '+['Parking',...(m.stops||[]),'Parking'].join(' → '));
+      const riders=(m.rider_worker_ids||[]).map(workerName);
+      if(riders.length)lines.push('👥 Operarios · '+riders.join(', '));
+      const tasks=(m.rider_task_ids||[]).map(taskLabel);
+      if(tasks.length)lines.push('📋 Servicio · '+tasks.join(' | '));
+      lines.push(fmtHm(m.return_parking_at)+' · Regreso previsto a Parking');
+    }
+    return '<details class="accordion"><summary><span>🚐 Coche de empresa '+idx+' · '+rows.length+' viaje'+(rows.length===1?'':'s')+'</span></summary><div class="accordion-body"><pre>'+esc(lines.join('\n'))+'</pre></div></details>';
+  }).join('');
+}
+function renderProposal(d){plan=d;renderUnassigned(d);let reports=Object.values(d.reports||{}).filter(r=>r?.items?.length);if(!reports.length&&d.routes){reports=Object.values(d.routes).filter(r=>r?.tasks?.length).map(r=>({worker:r.worker,items:r.tasks,text:v2Report(r,d)}))}const shuttleReport=companyShuttleReport(d);$('reports').innerHTML=shuttleReport+(reports.length?reports.map(r=>'<details class="accordion"><summary><span>'+esc(r.worker?.full_name||'Operario')+' · '+((r.items||[]).length)+' tareas</span></summary><div class="accordion-body"><pre>'+esc(r.text||'')+'</pre></div></details>').join(''):'<div class="state">No hay tareas asignadas en este horizonte.</div>');renderDiagnostics(d);const totalAssigned=d.routes?Object.values(d.routes).reduce((n,r)=>n+(r.tasks?.length||0),0):(d.assignments?.length||0);const fixed=Math.max(0,totalAssigned-(d.assignments?.length||0));$('summary').textContent=totalAssigned+' asignadas · '+fixed+' manuales';$('proposal').hidden=false;$('confirm').hidden=false;$('reject').hidden=false;if(d.physical_feasible===true)state('Propuesta V2 Fase 1 generada. Revísala completa antes de confirmar.');else state('La propuesta no ha superado la validación física y no se aplicará ninguna asignación.',true)}
 
 function setOptimizerRunning(running){$('optimize').disabled=running;$('refreshRoutes').disabled=running;$('reoptimize').disabled=running}
 async function refreshRoutes(){const active=window.PMGOptimizer?.getActiveJob?.();if(busy||!permission?.can_write||['pending','running'].includes(active?.status))return;setBusy(true);state('Actualizando matriz de trayectos…');try{const d=await call(AI,'refresh_routes',{writer_epoch:permission.epoch,force:true});if(d.matrix_ready)state('Matriz actualizada: '+(d.refreshed||0)+' trayectos/franjas refrescados.');else state(friendly(d.reason),true);await loadStatus()}catch(e){state(friendly(e.message),true)}finally{setBusy(false)}}async function optimize(){const active=window.PMGOptimizer?.getActiveJob?.();if(busy||!permission?.can_write||['pending','running'].includes(active?.status))return;setBusy(true);setOptimizerRunning(true);try{if(plan?.plan_id){try{await call(AI,'reject',{writer_epoch:permission.epoch,plan_id:plan.plan_id})}catch{}}plan=null;$('proposal').hidden=true;state('Iniciando optimización V2 Fase 1…');const enq=await call(JOBS,'enqueue',{writer_epoch:permission.epoch,horizon_days:Number($('days').value)||7,idempotency_key:uuid()});const jobId=enq.job?.id;if(!jobId)throw new Error('optimizer_job_not_created');try{localStorage.setItem('pmg-optimizer-active-job',JSON.stringify({id:jobId,status:enq.job?.status||'pending',updated_at:enq.job?.updated_at||null}))}catch{};window.PMGOptimizer?.setActiveJob({id:jobId,status:enq.job?.status||'pending',updated_at:enq.job?.updated_at||null});state('Optimización en curso… Puedes seguir trabajando en la aplicación. Te avisaremos cuando termine.')}catch(e){setOptimizerRunning(false);if(e.message==='write_permission_changed'||e.message==='write_permission_required'){permission.can_write=false;showNoWrite();state('Tu permiso de Lectura/Escritura cambió. La sesión anterior se ha cerrado.',true)}else state(friendly(e.message),true)}finally{setBusy(false)}}
