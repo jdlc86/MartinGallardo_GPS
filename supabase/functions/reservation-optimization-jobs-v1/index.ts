@@ -6,7 +6,7 @@ const SECRET_KEYS_JSON = Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ORIGIN = "https://jdlc86.github.io";
 const BACKEND_VERSION = "1.4.0";
-const BACKEND_BUILD = "2026.09.04.03";
+const BACKEND_BUILD = "2026.09.04.04";
 
 const OPTIMIZER_DEFAULTS = {
   back_forward_mode: "fast",
