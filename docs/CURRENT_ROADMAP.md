@@ -55,9 +55,9 @@ Endurecer tras revisar dependencias:
 - `sync_access_request_with_active_user`;
 - `enforce_access_request_user_state`.
 
-### 3. `expire_pending_access_requests()`
+### Resuelto: `expire_pending_access_requests()`
 
-Revocar permisos cliente si solo lo usa backend/cron.
+El 2026-09-04 se revocó `EXECUTE` a `PUBLIC`, `anon` y `authenticated`; el cron interno `expire_telegram_access_requests` sigue activo cada 15 minutos y sus últimas ejecuciones continúan en estado `succeeded`.
 
 ## Prioridad 1 — Versionar backend
 
