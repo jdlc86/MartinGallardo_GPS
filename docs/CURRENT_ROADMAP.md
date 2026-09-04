@@ -35,23 +35,15 @@ Este documento contiene solo trabajo pendiente del sistema de producción actual
 
 ## Prioridad 0 — Seguridad de base de datos
 
-### 1. `plate_verifications` sin RLS
+### Resuelto: `plate_verifications`
 
-Supabase sigue marcándola como error porque está en `public` y RLS está desactivado.
+El 2026-09-04 se habilitó RLS y se revocó el acceso directo de `anon/authenticated`. El acceso de producción queda backend-only mediante service-role. Debe mantenerse el smoke test de Recogida, Aparcar, Entrega, Expediente e informe de vehículo.
 
-Antes de habilitar RLS:
-
-1. inventariar Edge Functions que leen/escriben la tabla;
-2. confirmar acceso backend-only;
-3. definir política/estrategia;
-4. habilitar RLS;
-5. probar Recogida, Aparcar, Entrega, Expediente e informes OCR.
-
-### 2. Vista `telegram_access_requests_visible_rejected`
+### 1. Vista `telegram_access_requests_visible_rejected`
 
 Revisar el `SECURITY DEFINER` y preferir `SECURITY INVOKER` si es compatible.
 
-### 3. Funciones históricas con `search_path` mutable
+### 2. Funciones históricas con `search_path` mutable
 
 Endurecer tras revisar dependencias:
 
@@ -63,7 +55,7 @@ Endurecer tras revisar dependencias:
 - `sync_access_request_with_active_user`;
 - `enforce_access_request_user_state`.
 
-### 4. `expire_pending_access_requests()`
+### 3. `expire_pending_access_requests()`
 
 Revocar permisos cliente si solo lo usa backend/cron.
 
