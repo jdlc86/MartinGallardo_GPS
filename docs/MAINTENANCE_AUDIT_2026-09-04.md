@@ -98,6 +98,25 @@ Los siguientes documentos contienen decisiones antiguas o etapas diagnósticas q
 
 No deben usarse como fuente normativa actual. Ya fueron movidos a `docs/archive/optimizer/`; la información vigente continúa en README / ARCHITECTURE / STABLE_RELEASE / TEST_PLAN.
 
+
+## Endpoints de prueba/diagnóstico retirados en Supabase
+
+Tras comprobar ausencia de tráfico observado en las últimas 24 horas y revisar su comportamiento, se neutralizaron de forma reversible los siguientes endpoints desplegados:
+
+- `miniapp-launch-test`;
+- `telegram-diagnostics`;
+- `telegram-keyboard-reset`.
+
+Motivo:
+
+- no forman parte del código actual del repositorio;
+- no presentaban tráfico observado;
+- exponían capacidades innecesarias relacionadas con Telegram;
+- su existencia aumentaba la superficie de ataque.
+
+No se borraron físicamente de la plataforma. Se sustituyeron por un tombstone que responde `410 endpoint_retired` y no lee `TELEGRAM_BOT_TOKEN`, claves Supabase ni base de datos.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
