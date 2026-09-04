@@ -1,0 +1,9 @@
+-- Harden trigger functions by pinning search_path.
+alter function public.protect_owner_telegram_user() set search_path = '';
+alter function public.sync_access_request_when_user_exists() set search_path = '';
+alter function public.set_access_request_expiry() set search_path = '';
+alter function public.set_access_request_rejected_at() set search_path = '';
+alter function public.reopen_rejected_access_request_on_new_contact() set search_path = '';
+alter function public.sync_access_request_with_active_user() set search_path = '';
+alter function public.enforce_access_request_user_state() set search_path = '';
+alter function public.notify_parking_reservation_change() set search_path = '';
