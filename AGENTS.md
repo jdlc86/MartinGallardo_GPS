@@ -280,3 +280,18 @@ Ver `docs/TEST_PLAN.md`.
 - trayectorias históricas de trabajadores;
 - navegación para vehículos no `parked`;
 - URLs públicas permanentes de evidencias.
+
+## Release estable protegida
+
+Baseline vigente: **ParkingMartin-G v1.4.0 · Build 2026.09.04.02**.
+
+Antes de modificar comportamiento estable, leer `docs/STABLE_RELEASE.md`.
+
+Reglas:
+
+- no cambiar silenciosamente interfaz, permisos, contratos backend o semántica del optimizador;
+- todo cambio visible o funcional debe incrementar `docs/preview-modern/release.js`;
+- cambios de Mini App que puedan quedar cacheados deben invalidar el Service Worker;
+- cambios de backend/worker deben actualizar su sello de versión/build cuando proceda;
+- Fase 2 experimental no se fusiona en el flujo estable sin decisión explícita y pruebas de no regresión;
+- si un cambio altera la baseline documentada, actualizar `docs/STABLE_RELEASE.md` en el mismo cambio.
