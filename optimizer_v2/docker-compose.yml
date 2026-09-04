@@ -10,6 +10,7 @@ services:
     environment:
       OPTIMIZER_WORKER_ID: ${OPTIMIZER_WORKER_ID:-parking-pc-docker}
       OPTIMIZER_IDLE_SECONDS: ${OPTIMIZER_IDLE_SECONDS:-2}
+      OPTIMIZER_JOB_TIME_LIMIT_SECONDS: ${OPTIMIZER_JOB_TIME_LIMIT_SECONDS:-300}
       TZ: Europe/Madrid
     healthcheck:
       test: ["CMD", "python", "-c", "import parking_optimizer.worker; print('ok')"]
