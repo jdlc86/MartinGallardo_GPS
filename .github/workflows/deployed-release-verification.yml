@@ -73,3 +73,41 @@ jobs:
 
           echo "Live Pages release verified: v$EXPECTED_VERSION · Build $EXPECTED_BUILD"
           echo "Service Worker verified: $EXPECTED_SW_CACHE"
+
+      - name: Verify live Supabase Edge Function attestations
+        if: steps.current.outputs.is_current == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1"
+
+          python3 - <<'PY' > /tmp/pmg-attestations.tsv
+          import json
+          m=json.load(open("release/manifest.json",encoding="utf-8"))
+          for slug,revision in m["backend"]["attestations"].items():
+              print(f"{slug}\t{revision}\t{m['backend']['version']}\t{m['backend']['build']}")
+          PY
+
+          while IFS=\t' read -r slug revision version build; do
+            url="$BASE/$slug?attest=1"
+            curl -fsSL --retry 3 --connect-timeout 10 --max-time 20 "$url" -o "/tmp/$slug.json"
+            python3 - "$slug" "$revision" "$version" "$build" "/tmp/$slug.json" <<'PY'
+          import json,sys
+          slug,revision,version,build,path=sys.argv[1:]
+          data=json.load(open(path,encoding="utf-8"))
+          expected={
+              "ok": True,
+              "product": "ParkingMartin-G",
+              "function": slug,
+              "version": version,
+              "build": build,
+              "source_revision": revision,
+          }
+          mismatches={k:(data.get(k),v) for k,v in expected.items() if data.get(k)!=v}
+          if mismatches:
+              raise SystemExit(f"{slug} attestation mismatch: {mismatches}")
+          print(f"{slug}: attestation OK")
+          PY
+          done < /tmp/pmg-attestations.tsv
+
+          echo "All critical Supabase Edge Function attestations verified."
