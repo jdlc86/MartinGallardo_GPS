@@ -43,6 +43,28 @@ Google Cloud Vision
   +-- OCR de matrícula en Recogida, Aparcar y Salida/Entrega
 ```
 
+## Optimización de asignaciones
+
+La asignación automática usa **Optimizer V2 Fase 1** (Back-Forward rolling horizon 24/7) mediante un worker Python/OR-Tools fuera de las Edge Functions.
+
+```text
+Mini App -> reservation-optimization-jobs-v1 -> optimization_jobs
+         -> worker Docker -> OR-Tools -> ai_dispatch_plans
+         -> Realtime / Telegram -> revisión de propuesta
+```
+
+Reglas vigentes:
+
+- no existen fronteras rígidas por día;
+- modos `fast` y `optimal` comparten el mismo motor forward/backward;
+- la solución aceptada debe pasar el validador físico independiente con 0 errores;
+- acompañamientos, transferencias entre terminales y coche/lanzadera forman parte de la logística física;
+- Fase 2 de reoptimización local permanece **experimental y separada**;
+- la UI muestra el resultado operativo y las tareas pendientes de asignación manual, no los códigos internos de auditoría;
+- Realtime es aviso, no fuente de verdad: `optimization_jobs` permite reconciliar el estado sin polling.
+
+Referencia estable Fast: **221/300 (73,67 %) con 0 errores físicos**. Optimal: **223/300 (74,33 %) con 0 errores físicos**.
+
 ## Acceso desde Telegram
 
 Para un usuario activo, `/start` muestra una bienvenida y un único botón:
