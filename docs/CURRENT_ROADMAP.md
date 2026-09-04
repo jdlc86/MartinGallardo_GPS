@@ -214,3 +214,7 @@ Smoke test de producción completado tras endurecer `plate_verifications`:
 - Expediente 360º: OK
 
 El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verifications`. El aviso restante `rls_enabled_no_policy` es informativo y coherente con el diseño backend-only: no existen políticas cliente y `anon/authenticated` no tienen privilegios directos sobre la tabla.
+
+### Resuelto: RPC privilegiados de reservas y ciclo de vida
+
+El 2026-09-04 se retiró `EXECUTE` de `PUBLIC`, `anon` y `authenticated` para `parking_booking_operational_snapshot(bigint)`, `vehicle_lifecycle_search(bigint,text)` y `vehicle_lifecycle_snapshot(bigint)`. Los endpoints de producción siguen accediendo mediante backend/service-role.
