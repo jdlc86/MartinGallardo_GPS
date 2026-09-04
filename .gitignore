@@ -1,1 +1,21 @@
 supabase/.temp/
+
+# Local secrets / runtime configuration
+.env
+.env.*
+!.env.example
+optimizer_v2/.env
+
+# Python / test / benchmark artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+optimizer_v2/benchmark_plan.json
+
+# Local editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
