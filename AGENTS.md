@@ -237,16 +237,16 @@ Nunca:
 - aceptar `initData` sin validación HMAC/edad;
 - procesar lógica privada dentro de grupos.
 
-### Deuda de seguridad vigente
+### Estado de seguridad vigente
 
-Mantener visible hasta resolver:
+A 2026-09-04 el Security Advisor no reporta errores ni warnings de seguridad. Los avisos restantes `rls_enabled_no_policy` son informativos para tablas backend-only con acceso cliente directo revocado.
 
-- `plate_verifications` sin RLS;
-- `telegram_access_requests_visible_rejected` security-definer;
-- funciones históricas con search_path mutable;
-- `expire_pending_access_requests()` con ejecución/security-definer a revisar.
+Mantener:
 
-Las funciones de informes nuevas deben mantener `EXECUTE` revocado a `anon/authenticated`.
+- RLS habilitado en tablas backend-only;
+- `EXECUTE` revocado a `PUBLIC`, `anon` y `authenticated` para RPC privilegiados;
+- `search_path=''` en funciones `SECURITY DEFINER`/triggers;
+- acceso a datos sensibles únicamente mediante backend/service-role.
 
 ## Esquema
 
