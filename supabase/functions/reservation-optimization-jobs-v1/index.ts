@@ -163,7 +163,29 @@ Deno.serve(async (req) => {
         limit: "1",
       });
       if (!rows.length) throw new AppError("job_not_found", 404);
-      return response({ ok: true, job: rows[0] });
+      const job = rows[0];
+      let proposal = null;
+      if (job.status === "succeeded" && job.result_plan_id) {
+        const plans = await rest("ai_dispatch_plans", "GET", undefined, {
+          id: `eq.${job.result_plan_id}`,
+          created_by_telegram_user_id: `eq.${actor}`,
+          select: "id,status,solver_engine,horizon_start,horizon_end,plan,reports,created_at",
+          limit: "1",
+        });
+        if (plans.length) {
+          proposal = {
+            plan_id: plans[0].id,
+            status: plans[0].status,
+            solver_engine: plans[0].solver_engine,
+            horizon_start: plans[0].horizon_start,
+            horizon_end: plans[0].horizon_end,
+            created_at: plans[0].created_at,
+            ...(plans[0].plan || {}),
+            reports: plans[0].reports || {},
+          };
+        }
+      }
+      return response({ ok: true, job, proposal });
     }
 
     if (action === "cancel") {
