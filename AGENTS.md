@@ -173,6 +173,24 @@ Reglas:
 - usuario existente debe quedar coherente con `approved`;
 - no borrar auditoría para limpiar la UI.
 
+## Optimizer V2
+
+Reglas de mantenimiento del planificador:
+
+- `solve()` representa exclusivamente **Fase 1 estable**;
+- Fast y Optimal son dos modos del mismo Back-Forward rolling horizon 24/7;
+- no introducir fronteras artificiales por día;
+- no aceptar ningún plan con errores de `validate_solution()`;
+- no llamar “imposible” a una tarea si la auditoría solo puede demostrar `not_proven`;
+- Fase 2 de reoptimización local permanece separada y experimental;
+- una reparación de Fase 2 nunca puede reducir cobertura global;
+- la UI debe mostrar resultado operativo, no códigos internos de auditoría;
+- Realtime es señal de actualización, no fuente de verdad: el estado durable está en `optimization_jobs`;
+- el worker debe ejecutar fuera de Edge Functions y cargar secretos únicamente desde entorno servidor;
+- no commitear `.env`, artefactos de benchmark ni cachés Python;
+- cambios de rendimiento deben compararse sobre el mismo dataset y con el mismo límite de tiempo antes de atribuir diferencias al entorno.
+
+
 ## Backend heredado
 
 `telegram-entry`, `telegram-router3`, `telegram-bot` y utilidades antiguas pueden seguir desplegadas mientras existan dependencias de acceso.
