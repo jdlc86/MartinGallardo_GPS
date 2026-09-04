@@ -89,6 +89,52 @@ El worker estable sella:
 - `optimizer_version = 2.1.2`
 - `optimizer_build = 2026.09.04.04`
 
+
+## Contrato y verificación de release
+
+Desde la build **2026.09.04.04**, la fuente canónica de versión es:
+
+`release/manifest.json`
+
+Ese manifiesto declara producto, estado de release, versión/build de Mini App, identificador del Service Worker, versión/build de backend, versión/build independiente del optimizer y las Edge Functions críticas.
+
+El pipeline distingue ahora dos niveles:
+
+1. **Stable Release Guard / Release contract**
+   - valida el manifiesto;
+   - comprueba que `release.js`, esta documentación, backend, Telegram, Service Worker e identificadores de caché son coherentes con él;
+   - comprueba que las Edge Functions críticas declaradas existen en el repositorio;
+   - mantiene las protecciones de regresión del flujo event-driven.
+
+2. **Deployed Release Verification**
+   - se ejecuta a partir de eventos reales de despliegue de GitHub Pages;
+   - ignora despliegues históricos sustituidos por un commit posterior;
+   - para el HEAD actual comprueba contra la URL pública que la versión/build y Service Worker servidos corresponden al manifiesto.
+
+Por tanto:
+
+- un **fallo de contrato** significa incoherencia en la release declarada;
+- un **fallo de Pages** significa que GitHub no pudo publicar el commit;
+- un **fallo de verificación desplegada** significa que Pages terminó pero el contenido servido no corresponde a la release esperada;
+- un run antiguo cancelado o sustituido no se interpreta como fallo de la producción actual.
+
+### Verificación externa pendiente de automatización completa
+
+Supabase y Telegram siguen siendo componentes externos al despliegue de Pages.
+
+Para esta baseline se ha comprobado directamente que las siguientes Edge Functions desplegadas en Supabase son idénticas a `main`:
+
+- `reservation-optimization-jobs-v1`
+- `telegram-gateway`
+- `telegram-modern-action`
+- `modern-parking-api`
+- `modern-relocate-api`
+
+La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260904B04`.
+
+La siguiente evolución del pipeline será convertir estas comprobaciones externas en una verificación automática mediante credenciales de despliegue/gestión, sin exponer secretos en el repositorio. Hasta entonces, un Release contract verde certifica coherencia del código y un Deployed Release Verification verde certifica Pages, pero no debe interpretarse por sí solo como prueba automática del estado remoto de Supabase/Telegram.
+
+
 ## Regla de protección
 
 No modificar silenciosamente esta baseline.
