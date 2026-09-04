@@ -135,6 +135,8 @@
       <button id="permissionButton" class="permission-badge read">LECTURA</button>
     </section>
 
+    <section id="pendingPermissionBanner" hidden style="margin:12px 0"></section>
+
     <section class="dashboard">
       <div class="metric"><b id="statActive">—</b><span>Reservas activas</span></div>
       <div class="metric"><b id="statToday">—</b><span>Recogidas hoy</span></div>
@@ -291,10 +293,13 @@
       }
       function renderBulk(){var count=selected.size;$('selectedCount').textContent=count;$('bulkbar').classList.toggle('on',count>0);var rows=(data&&data.reservations)||[],all=rows.length>0&&rows.every(function(row){return selected.has(row.id)}),btn=$('selectAll');if(btn){btn.disabled=!canWrite()||!rows.length;btn.textContent=all?'Deseleccionar todo':'Seleccionar todo'}}
       function renderNotifications(){
-        var pending=data.pending_requests||[];$('pendingRequestList').innerHTML=pending.map(function(request){
-          var copy=request.request_kind==='transfer'?'<b>Transferencia pendiente</b><p>'+esc(request.requester_name)+' quiere transferirte Lectura/Escritura.</p>':'<b>Solicitud pendiente</b><p>'+esc(request.requester_name)+' solicita Lectura/Escritura.</p>';
+        var pending=data.pending_requests||[];
+        var cards=pending.map(function(request){
+          var copy=request.request_kind==='transfer'?'<b>Transferencia de permiso pendiente</b><p>'+esc(request.requester_name)+' quiere transferirte Lectura/Escritura.</p>':'<b>Solicitud de permiso pendiente</b><p>'+esc(request.requester_name)+' solicita Lectura/Escritura.</p>';
           return '<div class="request-card" data-request="'+esc(request.id)+'">'+copy+'<div class="request-actions"><button class="btn small accept-request">Aceptar</button><button class="btn secondary small reject-request">Rechazar</button></div></div>';
         }).join('');
+        $('pendingRequestList').innerHTML=cards;
+        var banner=$('pendingPermissionBanner');banner.hidden=!pending.length;banner.innerHTML=cards;
         Array.prototype.forEach.call(document.querySelectorAll('[data-request]'),function(card){var id=card.getAttribute('data-request');card.querySelector('.accept-request').onclick=function(){respondPermission(id,'accept')};card.querySelector('.reject-request').onclick=function(){respondPermission(id,'reject')}});
         var visibleAfter=Date.now()-30*24*60*60*1000;var notices=(data.notifications||[]).filter(function(notice){return !notice.read_at||Date.parse(notice.created_at)>=visibleAfter});$('notificationList').innerHTML=notices.length?notices.map(function(notice){return '<div class="notice '+(notice.read_at?'':'unread')+'"><b>'+esc(notice.title)+'</b><p>'+esc(notice.body)+'</p><time>'+esc(dateTime(notice.created_at))+'</time></div>'}).join(''):'<div class="empty">No tienes notificaciones.</div>';
       }
