@@ -239,8 +239,14 @@ def solve_back_forward(
             return local
         return base_seed
 
+    # Reserve part of the budget for a final global CP-SAT logistics closure.
+    # The rolling-horizon phase discovers a strong assignment/stitching incumbent;
+    # the closure is responsible for preserving/rebuilding companion and company-
+    # shuttle decisions on the final continuous 24/7 plan.
+    closure_ratio = 0.25
+    rolling_budget = max(1.0, time_limit_seconds * (1.0 - closure_ratio))
     explore_ratio = cfg.back_forward_optimal_explore_ratio if selected_mode == "optimal" else 0.12
-    anchor_budget = max(1.0, time_limit_seconds * explore_ratio)
+    anchor_budget = max(1.0, rolling_budget * explore_ratio)
     anchor_start, anchor_solution, diagnostics = _select_anchor(
         tasks, workers, cfg,
         mode=selected_mode,
@@ -268,7 +274,7 @@ def solve_back_forward(
         starts.append(("backward", cur))
         cur -= timedelta(minutes=stride)
 
-    remaining = max(1.0, time_limit_seconds - anchor_budget)
+    remaining = max(1.0, rolling_budget - anchor_budget)
     per_window = max(0.5, remaining / max(1, len(starts)))
     for index, (direction, start) in enumerate(starts):
         subset = _window_tasks(tasks, start, window)
@@ -305,7 +311,37 @@ def solve_back_forward(
 
     # Never regress from the independent continuous baseline.
     chosen = stitched if not stitched_errors and stitched.coverage_count >= base_seed.coverage_count else base_seed
-    chosen.day_diagnostics = [{
+    pre_closure_coverage = chosen.coverage_count
+
+    # Final global logistics closure.
+    #
+    # Window solutions may contain companion/company-shuttle decisions, but the
+    # deterministic stitcher only rebuilds worker continuity. Run the canonical
+    # CP-SAT path model once over the complete continuous timeline, warm-started
+    # from the stitched assignment and with a hard coverage floor. Therefore:
+    #   * coverage can improve but can never decrease;
+    #   * company-shuttle fleet capacity is enforced globally;
+    #   * companion seats are coupled globally;
+    #   * the result remains a single 24/7 plan, not a set of day plans.
+    closure_seconds = max(1.0, time_limit_seconds * closure_ratio)
+    closure = solve_horizon(
+        tasks,
+        workers,
+        cfg,
+        time_limit_seconds=closure_seconds,
+        random_seed=random_seed + 10000,
+        search_workers=search_workers,
+        seed_solution=chosen,
+        minimum_coverage=pre_closure_coverage,
+    )
+    closure_errors = validate_solution(closure, cfg)
+    closure_valid = (
+        closure.solver_status in {"OPTIMAL", "FEASIBLE"}
+        and not closure_errors
+        and closure.coverage_count >= pre_closure_coverage
+    )
+    final = closure if closure_valid else chosen
+    final.day_diagnostics = [{
         "mode": f"back_forward_{selected_mode}",
         "window_minutes": window,
         "overlap_minutes": overlap,
@@ -314,6 +350,12 @@ def solve_back_forward(
         "anchor_coverage_count": anchor_solution.coverage_count,
         "stitched_coverage_count": stitched.coverage_count,
         "baseline_coverage_count": base_seed.coverage_count,
+        "pre_closure_coverage_count": pre_closure_coverage,
+        "closure_coverage_count": closure.coverage_count,
+        "closure_valid": closure_valid,
+        "closure_validation_error_count": len(closure_errors),
+        "closure_companion_count": len(closure.companion_matches),
+        "closure_company_shuttle_mission_count": len(closure.company_shuttle_missions),
         "window_count": 1 + len(starts),
-    }, *diagnostics]
-    return chosen
+    }, *diagnostics, *closure.day_diagnostics]
+    return final
