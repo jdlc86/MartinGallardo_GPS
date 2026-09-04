@@ -6,6 +6,12 @@ La interfaz operativa de producción es la **Mini App ParkingMartin-G**. El chat
 
 Volumen inicial de diseño: **un parking y ~150 vehículos/día**.
 
+## Release estable actual
+
+La baseline de producción vigente es **ParkingMartin-G v1.4.0 · Build 2026.09.04.02**.
+
+El contrato funcional y las reglas de protección de esta release están registrados en `docs/STABLE_RELEASE.md`. Cualquier cambio que altere interfaz, permisos, flujos o comportamiento del optimizador debe incrementar el build y actualizar la documentación correspondiente.
+
 ## Producción
 
 ```text
