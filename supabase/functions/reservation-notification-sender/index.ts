@@ -73,12 +73,19 @@ async function telegram(method: string, payload: unknown) {
 }
 
 function keyboard(notificationType: string) {
+  const optimizationNotice = notificationType.startsWith("optimizer_");
   const permissionNotice = notificationType.includes("permission") ||
     notificationType.includes("write_") || notificationType.includes("transfer");
-  const text = permissionNotice ? "📋 ABRIR GESTIÓN DE RESERVAS" : "⚡ VER MIS TAREAS";
-  const path = permissionNotice
-    ? "reservations-admin.html?v=20260901R3"
-    : "operations.html?v=20260901TASK3";
+  const text = optimizationNotice
+    ? "🧭 VER PROPUESTA"
+    : permissionNotice
+      ? "📋 ABRIR GESTIÓN DE RESERVAS"
+      : "⚡ VER MIS TAREAS";
+  const path = optimizationNotice
+    ? "ai-dispatch.html?v=20260904OPT1"
+    : permissionNotice
+      ? "reservations-admin.html?v=20260904R14"
+      : "operations.html?v=20260901TASK3";
   return { inline_keyboard: [[{ text, web_app: { url: `${MINI_APP_URL}${path}` } }]] };
 }
 
@@ -97,10 +104,19 @@ Deno.serve(async (request) => {
   }
   if (!authorized) return json({ ok: false, error: "not_authorized" }, 403);
 
+  let requestBody: Record<string, unknown> = {};
+  try { requestBody = await request.json(); } catch { requestBody = {}; }
+
   let claimed: Array<Record<string, unknown>> = [];
   try {
-    const result = await rpc("parking_booking_claim_telegram_notifications", { p_limit: 25 });
-    claimed = Array.isArray(result) ? result : [];
+    const notificationId = Number(requestBody.notification_id || 0);
+    if (notificationId > 0) {
+      const result = await rpc("parking_booking_claim_telegram_notification", { p_notification_id: notificationId });
+      claimed = result ? [result] : [];
+    } else {
+      const result = await rpc("parking_booking_claim_telegram_notifications", { p_limit: 25 });
+      claimed = Array.isArray(result) ? result : [];
+    }
   } catch (error) {
     console.error("claim_reservation_notifications", error);
     return json({ ok: false, error: "notification_claim_failed" }, 500);
