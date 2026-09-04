@@ -4,81 +4,128 @@ on:
   push:
     branches: [main]
     paths:
+      - 'release/manifest.json'
       - 'docs/preview-modern/**'
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
       - 'supabase/functions/reservation-optimization-jobs-v1/**'
       - 'supabase/functions/telegram-gateway/**'
       - 'supabase/functions/telegram-modern-action/**'
-      - 'supabase/functions/telegram-gateway/**'
-      - 'supabase/functions/telegram-modern-action/**'
+      - 'supabase/functions/modern-parking-api/**'
+      - 'supabase/functions/modern-relocate-api/**'
   pull_request:
     paths:
+      - 'release/manifest.json'
       - 'docs/preview-modern/**'
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
       - 'supabase/functions/reservation-optimization-jobs-v1/**'
+      - 'supabase/functions/telegram-gateway/**'
+      - 'supabase/functions/telegram-modern-action/**'
+      - 'supabase/functions/modern-parking-api/**'
+      - 'supabase/functions/modern-relocate-api/**'
 
 jobs:
-  guard:
+  release-contract:
+    name: Release contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify release contract
+      - name: Validate canonical release manifest
         shell: bash
         run: |
           set -euo pipefail
 
-          VERSION="$(sed -n 's/.*version:"\([^"]*\)".*/\1/p' docs/preview-modern/release.js | head -n1)"
-          BUILD="$(sed -n 's/.*build:"\([^"]*\)".*/\1/p' docs/preview-modern/release.js | head -n1)"
-          BUILD_TOKEN="$(printf '%s' "$BUILD" | tr -d '.')"
-          BUILD_DATE="$(printf '%s' "$BUILD" | cut -d. -f1-3 | tr -d '.')"
-          BUILD_SEQ="${BUILD##*.}"
-          APP_REV="${BUILD_DATE}B${BUILD_SEQ}"
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import re
 
-          test -n "$VERSION"
-          test -n "$BUILD"
+          root = pathlib.Path(".")
+          manifest = json.loads((root / "release/manifest.json").read_text(encoding="utf-8"))
 
-          echo "Release: v$VERSION · Build $BUILD"
+          required = {"schema","product","release_status","version","build","released_at","frontend","backend","optimizer"}
+          missing = sorted(required - manifest.keys())
+          if missing:
+              raise SystemExit(f"manifest missing keys: {missing}")
+          if manifest["schema"] != 1:
+              raise SystemExit("unsupported release manifest schema")
+          if manifest["product"] != "ParkingMartin-G":
+              raise SystemExit("unexpected product")
+          if manifest["release_status"] not in {"candidate","stable"}:
+              raise SystemExit("release_status must be candidate or stable")
 
-          grep -Fq "**Versión:** $VERSION" docs/STABLE_RELEASE.md
-          grep -Fq "**Build estable:** $BUILD" docs/STABLE_RELEASE.md
-          grep -Fq "`v$VERSION · Build $BUILD`" docs/STABLE_RELEASE.md
+          version = manifest["version"]
+          build = manifest["build"]
+          if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+              raise SystemExit(f"invalid version: {version}")
+          m = re.fullmatch(r"(\d{4})\.(\d{2})\.(\d{2})\.(\d{2})", build)
+          if not m:
+              raise SystemExit(f"invalid build: {build}")
 
-          grep -Fq "release.js?v=$BUILD_TOKEN" docs/preview-modern/system-info.html
-          grep -Fq "./release.js?v=$BUILD_TOKEN" docs/preview-modern/sw.js
+          build_token = build.replace(".", "")
+          app_rev = f"{m.group(1)}{m.group(2)}{m.group(3)}B{m.group(4)}"
+          sw_cache = manifest["frontend"]["service_worker_cache"]
 
-          grep -Fq "const BACKEND_VERSION = \"$VERSION\";" supabase/functions/reservation-optimization-jobs-v1/index.ts
-          grep -Fq "const BACKEND_BUILD = \"$BUILD\";" supabase/functions/reservation-optimization-jobs-v1/index.ts
+          def read(path):
+              return (root / path).read_text(encoding="utf-8")
 
-          grep -Fq "preview-modern/?v=$APP_REV" supabase/functions/telegram-gateway/index.ts
-          grep -Fq "preview-modern/?v=$APP_REV" supabase/functions/telegram-modern-action/index.ts
+          release_js = read("docs/preview-modern/release.js")
+          stable_doc = read("docs/STABLE_RELEASE.md")
+          system_info = read("docs/preview-modern/system-info.html")
+          sw = read("docs/preview-modern/sw.js")
+          index = read("docs/preview-modern/index.html")
+          backend = read("supabase/functions/reservation-optimization-jobs-v1/index.ts")
+          gateway = read("supabase/functions/telegram-gateway/index.ts")
+          modern_action = read("supabase/functions/telegram-modern-action/index.ts")
 
-          grep -Fq 'PLANIFICACIÓN · ADMIN' docs/preview-modern/index.html
-          grep -Fq 'RESERVAS · ADMIN' docs/preview-modern/index.html
-          grep -Fq 'ACCESOS · ADMIN' docs/preview-modern/index.html
-          grep -Fq 'OPTIMIZACIÓN · ADMIN' docs/preview-modern/index.html
-          grep -Fq 'SOPORTE · ADMIN' docs/preview-modern/index.html
-          grep -Fq 'DIAGNÓSTICO' docs/preview-modern/index.html
-          grep -Fq 'admin-only' docs/preview-modern/index.html
-          grep -Fq 'Root/desarrollador no participa' docs/preview-modern/ai-dispatch.html
+          checks = [
+              (f'version:"{version}"' in release_js, "release.js version"),
+              (f'build:"{build}"' in release_js, "release.js build"),
+              (f"**Versión:** {version}" in stable_doc, "STABLE_RELEASE version"),
+              (f"**Build estable:** {build}" in stable_doc, "STABLE_RELEASE build"),
+              (f"v{version} · Build {build}" in stable_doc, "STABLE_RELEASE display build"),
+              (f"release.js?v={build_token}" in system_info, "system-info release asset token"),
+              (f"./release.js?v={build_token}" in sw, "service worker release asset token"),
+              (f"release.js?v={build_token}" in index, "index release asset token"),
+              (f"const CACHE='{sw_cache}';" in sw, "service worker cache id"),
+              (f'const BACKEND_VERSION = "{manifest["backend"]["version"]}";' in backend, "backend version"),
+              (f'const BACKEND_BUILD = "{manifest["backend"]["build"]}";' in backend, "backend build"),
+              (f"preview-modern/?v={app_rev}" in gateway, "telegram-gateway app revision"),
+              (f"preview-modern/?v={app_rev}" in modern_action, "telegram-modern-action app revision"),
+              (f'optimizer_version = {manifest["optimizer"]["version"]}' in stable_doc, "optimizer version documentation"),
+              (f'optimizer_build = {manifest["optimizer"]["build"]}' in stable_doc, "optimizer build documentation"),
+          ]
 
-      - name: Verify no polling regression
+          failures = [name for ok, name in checks if not ok]
+          if failures:
+              for name in failures:
+                  print(f"FAIL: {name}")
+              raise SystemExit("release contract mismatch")
+
+          for slug in manifest["backend"]["critical_edge_functions"]:
+              path = root / "supabase/functions" / slug / "index.ts"
+              if not path.is_file():
+                  raise SystemExit(f"critical Edge Function missing from repository: {slug}")
+
+          print(f"Release contract OK: v{version} · Build {build}")
+          print(f"Telegram revision: {app_rev}")
+          print(f"Service Worker: {sw_cache}")
+          PY
+
+      - name: Verify protected realtime flows have no polling regression
         shell: bash
         run: |
           set -euo pipefail
-
           protected_files=(
             docs/preview-modern/notification-runtime.js
             docs/preview-modern/reservations-admin.html
             docs/preview-modern/ai-dispatch.html
             docs/preview-modern/ai-dispatch-runtime.js
           )
-
           if grep -nE 'setInterval\s*\(' "${protected_files[@]}"; then
             echo "Periodic polling detected in a protected realtime/event-driven flow."
             exit 1
           fi
-
           echo "No periodic polling detected in protected flows."
