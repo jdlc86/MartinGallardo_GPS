@@ -8,6 +8,10 @@ on:
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
       - 'supabase/functions/reservation-optimization-jobs-v1/**'
+      - 'supabase/functions/telegram-gateway/**'
+      - 'supabase/functions/telegram-modern-action/**'
+      - 'supabase/functions/telegram-gateway/**'
+      - 'supabase/functions/telegram-modern-action/**'
   pull_request:
     paths:
       - 'docs/preview-modern/**'
@@ -29,6 +33,9 @@ jobs:
           VERSION="$(sed -n 's/.*version:"\([^"]*\)".*/\1/p' docs/preview-modern/release.js | head -n1)"
           BUILD="$(sed -n 's/.*build:"\([^"]*\)".*/\1/p' docs/preview-modern/release.js | head -n1)"
           BUILD_TOKEN="$(printf '%s' "$BUILD" | tr -d '.')"
+          BUILD_DATE="$(printf '%s' "$BUILD" | cut -d. -f1-3 | tr -d '.')"
+          BUILD_SEQ="${BUILD##*.}"
+          APP_REV="${BUILD_DATE}B${BUILD_SEQ}"
 
           test -n "$VERSION"
           test -n "$BUILD"
@@ -44,6 +51,9 @@ jobs:
 
           grep -Fq "const BACKEND_VERSION = \"$VERSION\";" supabase/functions/reservation-optimization-jobs-v1/index.ts
           grep -Fq "const BACKEND_BUILD = \"$BUILD\";" supabase/functions/reservation-optimization-jobs-v1/index.ts
+
+          grep -Fq "preview-modern/?v=$APP_REV" supabase/functions/telegram-gateway/index.ts
+          grep -Fq "preview-modern/?v=$APP_REV" supabase/functions/telegram-modern-action/index.ts
 
           grep -Fq 'PLANIFICACIÓN · ADMIN' docs/preview-modern/index.html
           grep -Fq 'RESERVAS · ADMIN' docs/preview-modern/index.html
