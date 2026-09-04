@@ -246,7 +246,15 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         "select": "id,telegram_user_id,full_name",
         "order": "full_name.asc",
     })
-    workers = [Worker(str(w["id"]), w["full_name"], w.get("telegram_user_id")) for w in workers_raw]
+    workers = [
+        Worker(
+            str(w["id"]),
+            w["full_name"],
+            w.get("telegram_user_id"),
+            auto_assignable=str(w["id"]) in selected_worker_ids,
+        )
+        for w in workers_raw
+    ]
     if not workers:
         raise RuntimeError("no_active_workers")
 
