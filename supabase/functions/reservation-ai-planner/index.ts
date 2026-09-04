@@ -84,7 +84,14 @@ async function refreshRoutes(force=false,bandInput:any=null,terminalInput:any=nu
     const fallbackWrites:any[]=[];
     for(const [origin,destination] of needed){
       const prior=rows.find((x:any)=>x.origin===origin&&x.destination===destination);
-      if(prior?.current_duration_s){cachedUsed++;continue}
+      if(prior?.current_duration_s){
+        const ageHours=Math.max(0,(Date.now()-Date.parse(prior.fetched_at||0))/3600000);
+        if(ageHours<=2){cachedUsed++;continue}
+        const ref=Math.max(Number(prior?.baseline_duration_s)||0,Number(prior.current_duration_s)||0);
+        const penalty=ageHours>48?1.35:ageHours>12?1.25:1.15;
+        fallbackWrites.push({origin,destination,time_band:bn,distance_m:Number(prior?.distance_m)||0,baseline_duration_s:Number(prior?.baseline_duration_s)||ref,current_duration_s:Math.ceil(ref*penalty),deviation_pct:Number((penalty-1).toFixed(4)),is_anomaly:false,source:'cached_stale',fetched_at:prior.fetched_at||new Date().toISOString()});
+        continue;
+      }
       const base=Number(prior?.baseline_duration_s);
       if(base>0){
         fallbackWrites.push({origin,destination,time_band:bn,distance_m:Number(prior?.distance_m)||0,baseline_duration_s:base,current_duration_s:Math.ceil(base*1.20),deviation_pct:0.20,is_anomaly:false,source:'historical_baseline',fetched_at:new Date().toISOString()});
