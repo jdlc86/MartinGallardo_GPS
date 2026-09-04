@@ -152,6 +152,24 @@ Ambas responden ahora `410 setup_disabled` y mantienen intacto su procesamiento 
 No deben retirarse todavía `telegram-entry`, `telegram-router3` ni `telegram-bot`: `telegram-entry` continúa delegando casos concretos, incluido el flujo heredado de foto de matrícula de recogida, y usa `telegram-router3` como fallback general.
 
 
+
+## Alta de usuarios desconocidos migrada al gateway
+
+`telegram-gateway` v21 registra directamente usuarios desconocidos en `telegram_access_requests`.
+
+Comportamiento:
+
+- si no existe una solicitud rechazada, crea o refresca la solicitud como `pending`;
+- si la solicitud ya estaba `rejected`, conserva ese estado;
+- actualiza nombre, username y `last_seen_at`;
+- responde al usuario indicando si está pendiente o rechazado;
+- no introduce credenciales nuevas ni cambia el modelo de secretos.
+
+La cadena `telegram-entry -> telegram-router3 -> telegram-bot` se conserva temporalmente solo como fallback técnico para actualizaciones anómalas. Ya no es necesaria para el alta normal de un usuario desconocido.
+
+Antes de retirar ese fallback debe probarse en producción el alta desde una cuenta Telegram no autorizada.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
