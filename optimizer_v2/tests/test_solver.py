@@ -137,3 +137,51 @@ def test_max_effort_allows_two_hour_rest_restart():
     assert len(solution.shift_assignments) == 2
     assert solution.shift_assignments[1].shift_type == "max_effort"
     assert validate_solution(solution, cfg) == []
+
+
+def test_back_forward_global_closure_preserves_company_shuttle():
+    a = Worker("A", "A")
+    tasks = [
+        pickup("p1", "T1", dt(8, 0), "A"),
+        pickup("p2", "T4", dt(9, 0), "A"),
+    ]
+    cfg = OptimizerConfig(
+        global_work_mode="max_effort",
+        company_shuttle_vehicle_count=1,
+        company_shuttle_passenger_capacity=4,
+        terminal_shuttle_access_minutes=0,
+        terminal_shuttle_wait_day_minutes=0,
+        terminal_shuttle_wait_night_minutes=0,
+        back_forward_window_minutes=30,
+        back_forward_overlap_minutes=5,
+    )
+
+    solution = solve(tasks, [a], cfg, time_limit_seconds=8)
+
+    assert solution.coverage_count == 2
+    assert not solution.unassigned_task_ids
+    assert len(solution.company_shuttle_missions) >= 1
+    assert any(t.kind == "company_shuttle" for t in solution.routes["A"].transitions.values())
+    assert validate_solution(solution, cfg) == []
+
+
+def test_back_forward_global_closure_never_reduces_coverage():
+    workers = [Worker("A", "A"), Worker("B", "B")]
+    tasks = [
+        delivery("d1", "T1", dt(8, 0)),
+        pickup("p1", "T1", dt(8, 40)),
+        delivery("d2", "T4", dt(9, 20)),
+        pickup("p2", "T4", dt(10, 0)),
+    ]
+    cfg = OptimizerConfig(
+        global_work_mode="max_effort",
+        company_shuttle_vehicle_count=2,
+        back_forward_window_minutes=45,
+        back_forward_overlap_minutes=10,
+    )
+
+    solution = solve(tasks, workers, cfg, time_limit_seconds=8)
+
+    assert solution.coverage_count >= 1
+    assert solution.coverage_count == len(tasks) - len(solution.unassigned_task_ids)
+    assert validate_solution(solution, cfg) == []
