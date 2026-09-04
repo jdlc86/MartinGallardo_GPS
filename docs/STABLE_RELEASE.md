@@ -124,3 +124,7 @@ Smoke test de producción completado tras endurecer `plate_verifications`:
 - Expediente 360º: OK
 
 El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verifications`. El aviso restante `rls_enabled_no_policy` es informativo y coherente con el diseño backend-only: no existen políticas cliente y `anon/authenticated` no tienen privilegios directos sobre la tabla.
+
+### Vista de solicitudes rechazadas
+
+Resuelto el 2026-09-04: `telegram_access_requests_visible_rejected` pasó a `security_invoker=true` y se revocó el acceso directo de `anon/authenticated`. El acceso queda backend-only mediante `service_role`. El Security Advisor ya no reporta `security_definer_view` para esta vista.
