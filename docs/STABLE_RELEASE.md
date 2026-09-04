@@ -1,0 +1,106 @@
+# ParkingMartin-G — Release estable
+
+## Baseline actual
+
+- **Producto:** ParkingMartin-G
+- **Versión:** 1.4.0
+- **Build estable:** 2026.09.04.02
+- **Fecha de consolidación:** 2026-09-04
+- **Rama de producción:** `main`
+
+Esta release se considera la **línea base estable de producción** de la Mini App hasta que se publique explícitamente un build posterior.
+
+## Alcance protegido de esta release
+
+### Pantalla principal
+
+La home está organizada en tres grupos:
+
+**Operación**
+- Centro de Operaciones
+- Asignación de tareas
+- Vehículos
+- Equipo en vivo
+- Actividad reciente
+
+**Gestión**
+- Gestión de reservas
+- Equipo & Accesos
+- Expediente 360º
+
+**Sistema**
+- Configuración de optimización
+- Información del sistema
+- GPS Pro · Diagnóstico
+
+Etiquetas funcionales vigentes:
+
+- Centro de Operaciones → `OPERACIÓN`
+- Asignación de tareas → `PLANIFICACIÓN · ADMIN`
+- Vehículos → `FLOTA`
+- Equipo en vivo → `SEGUIMIENTO`
+- Actividad reciente → `TRAZABILIDAD`
+- Gestión de reservas → `RESERVAS · ADMIN`
+- Equipo & Accesos → `ACCESOS · ADMIN`
+- Expediente 360º → `EXPEDIENTES`
+- Configuración de optimización → `OPTIMIZACIÓN · ADMIN`
+- Información del sistema → `SOPORTE · ADMIN`
+- GPS Pro · Diagnóstico → `DIAGNÓSTICO`
+
+Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus backends deben volver a comprobar autorización; ocultar la tarjeta nunca sustituye la autorización servidor.
+
+### Asignación manual
+
+- Root/Owner no puede aparecer como trabajador asignable.
+- Admin y Operarios activos sí pueden ser responsables.
+- La última asignación manual confirmada es la válida.
+- Las tareas manuales son constraints duras del optimizador.
+
+### Asistente IA / Optimizer V2
+
+- selección explícita de participantes;
+- Root/Owner excluido del reparto;
+- un participante seleccionado puede recibir nuevas tareas;
+- un trabajador excluido conserva sus tareas manuales pero no recibe nuevas tareas;
+- Fast/Optimal pertenecen a Fase 1 estable;
+- línea temporal continua 24/7;
+- validación física con 0 errores obligatoria;
+- acompañamientos y coche de empresa forman parte de la logística física;
+- la planificación visual muestra misiones de coche cuando existan;
+- Realtime es señal; `optimization_jobs` es fuente de verdad;
+- no existe polling periódico;
+- Fase 2 de reoptimización permanece experimental y separada.
+
+### Versionado y soporte
+
+La Mini App muestra:
+
+`v1.4.0 · Build 2026.09.04.02`
+
+Root/Admin dispone de **Información del sistema**, que identifica:
+
+- versión/build de Mini App;
+- versión/build de backend;
+- versión/build del último worker que ejecutó una optimización;
+- último job asociado.
+
+El worker estable sella:
+
+- `optimizer_version = 2.1.0`
+- `optimizer_build = 2026.09.04.02`
+
+## Regla de protección
+
+No modificar silenciosamente esta baseline.
+
+Cualquier cambio posterior que afecte interfaz, permisos, flujo operativo, contrato backend o comportamiento del optimizador debe:
+
+1. actualizar código y pruebas;
+2. incrementar `build` en `docs/preview-modern/release.js`;
+3. actualizar la versión del backend/worker cuando corresponda;
+4. invalidar la caché del Service Worker cuando afecte la Mini App;
+5. pasar los tests/smoke aplicables;
+6. actualizar este documento si cambia el comportamiento estable;
+7. mantener Fase 2 fuera del camino estable salvo promoción explícita.
+
+Un cambio experimental no redefine esta release hasta que se promueva deliberadamente a estable.
