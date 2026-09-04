@@ -136,3 +136,7 @@ Resuelto el 2026-09-04: `expire_pending_access_requests()` conserva su ejecució
 ### RPC privilegiados de reservas y ciclo de vida
 
 Resuelto el 2026-09-04: `parking_booking_operational_snapshot(bigint)`, `vehicle_lifecycle_search(bigint,text)` y `vehicle_lifecycle_snapshot(bigint)` mantienen `SECURITY DEFINER` para su uso interno, pero `PUBLIC`, `anon` y `authenticated` ya no tienen `EXECUTE`. El acceso queda únicamente a `service_role`/backend. El Security Advisor ya no reporta estos RPC como ejecutables por clientes.
+
+### search_path de triggers
+
+Resuelto el 2026-09-04: las 8 funciones trigger señaladas por el Security Advisor tienen ahora `search_path=''`. Todos los triggers siguen activos y el advisor ya no reporta `function_search_path_mutable`.
