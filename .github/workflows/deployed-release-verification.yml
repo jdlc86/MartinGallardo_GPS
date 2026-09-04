@@ -79,35 +79,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE="https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1"
-
-          python3 - <<'PY' > /tmp/pmg-attestations.tsv
+          python3 - <<'PY'
           import json
-          m=json.load(open("release/manifest.json",encoding="utf-8"))
-          for slug,revision in m["backend"]["attestations"].items():
-              print(f"{slug}\t{revision}\t{m['backend']['version']}\t{m['backend']['build']}")
-          PY
+          import urllib.request
 
-          while IFS=\t' read -r slug revision version build; do
-            url="$BASE/$slug?attest=1"
-            curl -fsSL --retry 3 --connect-timeout 10 --max-time 20 "$url" -o "/tmp/$slug.json"
-            python3 - "$slug" "$revision" "$version" "$build" "/tmp/$slug.json" <<'PY'
-          import json,sys
-          slug,revision,version,build,path=sys.argv[1:]
-          data=json.load(open(path,encoding="utf-8"))
-          expected={
-              "ok": True,
-              "product": "ParkingMartin-G",
-              "function": slug,
-              "version": version,
-              "build": build,
-              "source_revision": revision,
-          }
-          mismatches={k:(data.get(k),v) for k,v in expected.items() if data.get(k)!=v}
-          if mismatches:
-              raise SystemExit(f"{slug} attestation mismatch: {mismatches}")
-          print(f"{slug}: attestation OK")
-          PY
-          done < /tmp/pmg-attestations.tsv
+          base = "https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1"
+          with open("release/manifest.json", encoding="utf-8") as fh:
+              manifest = json.load(fh)
 
-          echo "All critical Supabase Edge Function attestations verified."
+          version = manifest["backend"]["version"]
+          build = manifest["backend"]["build"]
+          attestations = manifest["backend"]["attestations"]
+
+          for slug, revision in attestations.items():
+              url = f"{base}/{slug}?attest=1"
+              req = urllib.request.Request(url, headers={"User-Agent": "ParkingMartin-G-release-verifier/1"})
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  data = json.load(response)
+
+              expected = {
+                  "ok": True,
+                  "product": "ParkingMartin-G",
+                  "function": slug,
+                  "version": version,
+                  "build": build,
+                  "source_revision": revision,
+              }
+              mismatches = {k: (data.get(k), v) for k, v in expected.items() if data.get(k) != v}
+              if mismatches:
+                  raise SystemExit(f"{slug} attestation mismatch: {mismatches}")
+              print(f"{slug}: attestation OK")
+
+          print("All critical Supabase Edge Function attestations verified.")
+          PY
