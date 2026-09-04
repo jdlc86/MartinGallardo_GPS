@@ -1,9 +1,8 @@
 name: Deployed Release Verification
 
 on:
-  workflow_run:
-    workflows: ["pages build and deployment"]
-    types: [completed]
+  deployment_status:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,20 +10,20 @@ permissions:
 jobs:
   verify-pages:
     name: Verify deployed Pages release
-    if: github.event.workflow_run.head_branch == 'main'
+    if: github.event_name == 'workflow_dispatch' || (github.event.deployment.environment == 'github-pages' && github.event.deployment_status.state == 'success')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.deployment.sha || github.sha }}
           fetch-depth: 1
 
-      - name: Determine whether this is the current production head
+      - name: Determine whether this deployment is the current production head
         id: current
         shell: bash
         run: |
           set -euo pipefail
-          RUN_SHA="${{ github.event.workflow_run.head_sha }}"
+          RUN_SHA="${{ github.event.deployment.sha || github.sha }}"
           MAIN_SHA="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
           echo "run_sha=$RUN_SHA"
           echo "main_sha=$MAIN_SHA"
@@ -32,17 +31,11 @@ jobs:
             echo "is_current=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_current=false" >> "$GITHUB_OUTPUT"
-            echo "Historical Pages run: a newer main commit already exists. Live production will not be judged against this old SHA."
+            echo "Historical deployment: a newer main commit exists. Live production will not be judged against this old SHA."
           fi
 
-      - name: Reject failed current Pages deployment
-        if: steps.current.outputs.is_current == 'true' && github.event.workflow_run.conclusion != 'success'
-        run: |
-          echo "Current Pages deployment failed for ${{ github.event.workflow_run.head_sha }}"
-          exit 1
-
       - name: Read expected release
-        if: steps.current.outputs.is_current == 'true' && github.event.workflow_run.conclusion == 'success'
+        if: steps.current.outputs.is_current == 'true'
         shell: bash
         run: |
           python3 - <<'PY' >> "$GITHUB_ENV"
@@ -61,12 +54,12 @@ jobs:
           PY
 
       - name: Verify live GitHub Pages content
-        if: steps.current.outputs.is_current == 'true' && github.event.workflow_run.conclusion == 'success'
+        if: steps.current.outputs.is_current == 'true'
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://jdlc86.github.io/MartinGallardo_GPS/preview-modern"
-          BUST="${{ github.event.workflow_run.head_sha }}"
+          BUST="${{ github.event.deployment.sha || github.sha }}"
 
           curl -fsSL --retry 3 "$BASE/release.js?verify=$BUST" -o /tmp/release.js
           curl -fsSL --retry 3 "$BASE/sw.js?verify=$BUST" -o /tmp/sw.js
