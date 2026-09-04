@@ -2,15 +2,9 @@ name: Optimizer V2 Benchmark
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'refactor/optimizer-v2-ortools'
-    paths:
-      - 'optimizer_v2/**'
-      - '.github/workflows/optimizer-v2-benchmark.yml'
 
 jobs:
-  benchmark-150:
+  benchmark-300:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
