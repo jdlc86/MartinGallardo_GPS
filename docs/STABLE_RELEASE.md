@@ -128,3 +128,7 @@ El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verificat
 ### Vista de solicitudes rechazadas
 
 Resuelto el 2026-09-04: `telegram_access_requests_visible_rejected` pasó a `security_invoker=true` y se revocó el acceso directo de `anon/authenticated`. El acceso queda backend-only mediante `service_role`. El Security Advisor ya no reporta `security_definer_view` para esta vista.
+
+### RPC de expiración de solicitudes
+
+Resuelto el 2026-09-04: `expire_pending_access_requests()` conserva su ejecución interna mediante `pg_cron` cada 15 minutos, pero se revocó `EXECUTE` a `PUBLIC`, `anon` y `authenticated`. El Security Advisor ya no la reporta como función `SECURITY DEFINER` ejecutable por clientes.
