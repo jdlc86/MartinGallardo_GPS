@@ -142,7 +142,7 @@ Coexisten `telegram_users` y `workers`. Reducir duplicidad sin romper referencia
 
 - confirmar en Android/iOS el evento de fin de compartición;
 - valorar `live_until` como expiración anticipada;
-- usar Realtime solo si polling ~10 s deja de ser suficiente;
+- mantener Equipo en vivo y avisos en arquitectura dirigida por eventos/Realtime; **no introducir polling periódico**;
 - no introducir trayectorias salvo decisión explícita.
 
 ## Prioridad 9 — Informes de desempeño
