@@ -170,6 +170,29 @@ La cadena `telegram-entry -> telegram-router3 -> telegram-bot` se conserva tempo
 Antes de retirar ese fallback debe probarse en producción el alta desde una cuenta Telegram no autorizada.
 
 
+
+## Gateway desacoplado de la cadena Telegram heredada
+
+`telegram-gateway` v22 ya no referencia ni reenvía tráfico a `telegram-entry`.
+
+Estado observado tras el despliegue:
+
+- `telegram-gateway`: tráfico reciente;
+- `telegram-entry`: 0 accesos observados en el mismo intervalo;
+- `telegram-router3`: 0 accesos observados;
+- `telegram-bot`: 0 accesos observados.
+
+Las funciones heredadas se mantienen temporalmente desplegadas únicamente como rollback. Ya no forman parte del camino productivo normal.
+
+Validación del cambio:
+
+- Stable Release Guard #85: SUCCESS;
+- GitHub Pages #448: SUCCESS;
+- Deployed Release Verification #60: SUCCESS.
+
+Antes de neutralizar físicamente las funciones heredadas debe hacerse una prueba funcional breve del bot y, preferiblemente, una prueba de solicitud de acceso desde una cuenta no autorizada.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
