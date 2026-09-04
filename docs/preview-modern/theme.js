@@ -34,9 +34,8 @@
     const chip=ensureOptimizerChip();
     if(!job?.id){chip.style.display='none';chip.classList.remove('done');return}
     chip.style.display='block';chip.classList.toggle('done',['succeeded','failed'].includes(job.status));
-    if(job.status==='succeeded')chip.textContent='✅ Optimización terminada · Ver propuesta';
-    else if(job.status==='failed')chip.textContent='⚠️ Optimización no completada · Ver estado';
-    else chip.textContent='⏳ Optimización en curso… Puedes seguir trabajando';
+    if(['succeeded','failed','cancelled'].includes(job.status)){chip.style.display='none';chip.classList.remove('done');return}
+    chip.textContent='⏳ Optimización en curso… Puedes seguir trabajando';
   }
   async function optimizerStatusOnce(){
     const active=readOptimizerJob(),tg=window.Telegram?.WebApp;
