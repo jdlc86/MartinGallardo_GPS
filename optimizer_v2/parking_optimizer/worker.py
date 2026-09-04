@@ -241,7 +241,8 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
     }
     backend.patch("optimization_jobs", {"id": f"eq.{job_id}", "claimed_by": f"eq.{worker_id}"}, {"input_snapshot": snapshot, "progress": {"stage": "cp_sat", "percent": 20}, "updated_at": datetime.now(timezone.utc).isoformat()})
 
-    solution = solve(tasks, workers, cfg, time_limit_seconds=120.0)
+    solve_limit_seconds = float(os.getenv("OPTIMIZER_TIME_LIMIT_SECONDS", "120"))
+    solution = solve(tasks, workers, cfg, time_limit_seconds=solve_limit_seconds)
     validation_errors = validate_solution(solution, cfg)
     solve_seconds = time.monotonic() - started
     shift_counts = {"normal": 0, "intensive": 0, "max_effort": 0}
