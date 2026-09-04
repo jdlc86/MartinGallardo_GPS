@@ -104,3 +104,11 @@ Cualquier cambio posterior que afecte interfaz, permisos, flujo operativo, contr
 7. mantener Fase 2 fuera del camino estable salvo promoción explícita.
 
 Un cambio experimental no redefine esta release hasta que se promueva deliberadamente a estable.
+
+## Seguridad aplicada a esta baseline
+
+- **plate_verifications RLS:** resuelto el 2026-09-04.
+- RLS habilitado.
+- Acceso directo de `anon` y `authenticated` revocado.
+- Acceso de producción únicamente desde backend/service-role.
+- Debe mantenerse smoke test de OCR en Recogida, Aparcar y Entrega, además de Expediente 360º e informe de vehículo.
