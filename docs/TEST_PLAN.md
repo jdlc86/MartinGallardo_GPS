@@ -348,7 +348,7 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - worker Docker reclama el job y cambia `pending -> running -> succeeded/failed`;
 - no hay polling periódico en la Mini App;
 - perder un evento Realtime no pierde el resultado: al reabrir/volver a primer plano se reconcilia una vez;
-- mientras el job está `pending/running`, **Optimizar** y **Nueva optimización** permanecen bloqueados;
+- mientras el job está `pending/running`, **Optimizar**, **Nueva optimización**, el horizonte y la selección de participantes permanecen bloqueados;
 - no aparece un chip global redundante de “optimizando/terminado”.
 
 ### Preflight automático de rutas
@@ -362,7 +362,7 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - si falta una relación, se usa baseline disponible o estimación dinámica por coordenadas;
 - no se crea el job si después del fallback sigue faltando una ruta requerida;
 - el resultado del preflight queda registrado en `optimization_jobs.request.route_preflight`;
-- probar una optimización con worker 2.1.1 y confirmar 0 errores físicos.
+- probar una optimización con worker 2.1.2 / Build 2026.09.04.04 y confirmar 0 errores físicos.
 
 ### Propuesta
 
@@ -384,6 +384,13 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - descansos y máximos de jornada se validan en línea temporal continua;
 - tareas manuales no cambian de operario;
 - ninguna tarea asignada puede quedar con traslado físico no resuelto.
+
+### Límite global del job
+
+- cada job dispone de un límite global de **5 minutos / 300 s**;
+- el solver debe reservar tiempo para validación, informes y persistencia;
+- superar el presupuesto termina de forma controlada con `optimizer_job_time_limit`;
+- ningún job puede permanecer ejecutándose indefinidamente.
 
 ### Rendimiento
 
