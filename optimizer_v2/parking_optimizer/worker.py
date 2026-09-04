@@ -217,11 +217,6 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
 
     cfg_raw = backend.select("ai_dispatch_config", {"id": "eq.1", "select": "*", "limit": "1"})[0]
     cfg = _config(cfg_raw)
-    workers_raw = backend.select("workers", {"active": "eq.true", "role": "eq.operator", "select": "id,telegram_user_id,full_name", "order": "full_name.asc"})
-    workers = [Worker(str(w["id"]), w["full_name"], w.get("telegram_user_id")) for w in workers_raw]
-    if not workers:
-        raise RuntimeError("no_active_workers")
-
     matrix_rows = backend.select("ai_dispatch_route_matrix", {"origin": "neq.T4S", "destination": "neq.T4S", "select": "origin,destination,time_band,current_duration_s,distance_m,is_anomaly,fetched_at"})
     matrix = {(r["origin"], r["destination"], r["time_band"]): r for r in matrix_rows}
     raw_tasks = backend.select("reservation_tasks", {
@@ -230,12 +225,56 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         "select": "id,booking_id,task_type,scheduled_at,assigned_worker_id,status,version,parking_bookings!inner(id,pickup_terminal,return_terminal,vehicle_plate,customer_name,deleted_at),workers(id,telegram_user_id,full_name)",
         "parking_bookings.deleted_at": "is.null", "order": "scheduled_at.asc",
     })
+
+    selected_worker_ids = {
+        str(worker_id)
+        for worker_id in (job.get("request") or {}).get("selected_worker_ids", [])
+        if worker_id
+    }
+    if not selected_worker_ids:
+        raise RuntimeError("optimizer_no_participants")
+
+    fixed_worker_ids = {
+        str(raw["assigned_worker_id"])
+        for raw in raw_tasks
+        if raw.get("assigned_worker_id")
+    }
+    solver_worker_ids = selected_worker_ids | fixed_worker_ids
+    workers_raw = backend.select("workers", {
+        "active": "eq.true",
+        "id": f"in.({','.join(sorted(solver_worker_ids))})",
+        "select": "id,telegram_user_id,full_name",
+        "order": "full_name.asc",
+    })
+    workers = [
+        Worker(
+            str(w["id"]),
+            w["full_name"],
+            w.get("telegram_user_id"),
+            auto_assignable=str(w["id"]) in selected_worker_ids,
+        )
+        for w in workers_raw
+    ]
+    if not workers:
+        raise RuntimeError("no_active_workers")
+
     tasks = _prepare_tasks(raw_tasks, matrix, cfg)
+
+    # Workers excluded by the admin may remain in the model only to preserve
+    # already-fixed/manual tasks. Prevent them from receiving new automatic work.
+    selected = selected_worker_ids
+    for task in tasks:
+        if task.fixed_worker_id is None:
+            continue
+        if task.fixed_worker_id not in solver_worker_ids:
+            raise RuntimeError(f"fixed_worker_missing:{task.fixed_worker_id}")
 
     snapshot = {
         "contract": "optimizer_v2_snapshot_v2_shifts",
         "task_versions": {task.id: task.version for task in tasks},
         "active_worker_ids": [worker.id for worker in workers],
+        "selected_worker_ids": sorted(selected_worker_ids),
+        "fixed_only_worker_ids": sorted(fixed_worker_ids.difference(selected_worker_ids)),
         "config": asdict(cfg),
         "route_matrix_fetched_at": max((r.get("fetched_at") or "" for r in matrix_rows), default=None),
         "task_count": len(tasks),
