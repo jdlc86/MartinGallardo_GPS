@@ -65,15 +65,17 @@ Importante: los nombres `planner-v2` y `seed-v1` parecen históricos, pero sigue
 Requieren prueba de ausencia de tráfico/dependencias antes de desactivar:
 
 - `reservation-ai-global-solver`;
-- `reservation-ai-global-solver-v2` — actualmente wrapper de compatibilidad;
-- runtimes históricos que ya no carga la UI actual:
-  - `access-runtime.js`;
-  - `assignment-runtime.js`;
-  - `guide-image.js`;
-  - `task-dispatch-runtime.js`;
-  - `ai-dispatch-runtime.js`.
+- `reservation-ai-global-solver-v2` — actualmente wrapper de compatibilidad.
 
-Por ahora se han retirado del precache, pero no se han borrado físicamente.
+### Runtimes históricos retirados
+
+Se comprobó que no estaban referenciados por las pantallas activas ni por el Service Worker, y se retiraron físicamente:
+
+- `access-runtime.js`;
+- `assignment-runtime.js`;
+- `guide-image.js`;
+- `task-dispatch-runtime.js`;
+- `ai-dispatch-runtime.js`.
 
 ## Elementos que deben conservarse hasta verificar enlaces externos
 
