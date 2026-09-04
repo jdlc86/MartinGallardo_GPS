@@ -6,6 +6,27 @@ const SECRET_KEYS_JSON = Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ORIGIN = "https://jdlc86.github.io";
 
+const OPTIMIZER_DEFAULTS = {
+  back_forward_mode: "fast",
+  global_work_mode: "max_effort",
+  company_shuttle_vehicle_count: 1,
+  company_shuttle_passenger_capacity: 4,
+  normal_shift_duration_minutes: 720,
+  intensive_shift_duration_minutes: 1080,
+  max_effort_shift_duration_minutes: 1320,
+  normal_rest_minutes: 720,
+  intensive_rest_minutes: 360,
+  max_effort_rest_minutes: 120,
+  back_forward_window_minutes: 1440,
+  back_forward_overlap_minutes: 360,
+  back_forward_candidate_step_minutes: 60,
+  back_forward_max_anchor_candidates: 12,
+  back_forward_optimal_explore_ratio: 0.35,
+  optimizer_time_limit_seconds: 120,
+};
+const OPTIMIZER_CONFIG_FIELDS = Object.keys(OPTIMIZER_DEFAULTS);
+
+
 class AppError extends Error {
   status: number;
   constructor(message: string, status = 400) {
@@ -259,6 +280,79 @@ Deno.serve(async (req) => {
         }
       }
       return response({ ok: true, job, proposal });
+    }
+
+
+    if (action === "config_get") {
+      const users = await rest("telegram_users", "GET", undefined, {
+        telegram_user_id: `eq.${actor}`,
+        active: "eq.true",
+        select: "telegram_user_id,role",
+        limit: "1",
+      });
+      const user = users[0];
+      if (!user || !["owner", "admin"].includes(String(user.role))) throw new AppError("not_admin", 403);
+      const dashboard = await rpc("parking_booking_dashboard", {
+        p_actor_telegram_user_id: actor, p_query: "", p_limit: 1, p_offset: 0,
+      });
+      const cfgRows = await rest("ai_dispatch_config", "GET", undefined, {
+        id: "eq.1",
+        select: OPTIMIZER_CONFIG_FIELDS.join(","),
+        limit: "1",
+      });
+      return response({
+        ok: true,
+        config: cfgRows[0] || OPTIMIZER_DEFAULTS,
+        defaults: OPTIMIZER_DEFAULTS,
+        permission: dashboard?.permission || null,
+      });
+    }
+
+    if (action === "config_update") {
+      const epoch = Number(body.writer_epoch);
+      await rpc("parking_booking_require_writer", { p_actor_telegram_user_id: actor, p_writer_epoch: epoch });
+      const incoming = body.config && typeof body.config === "object" ? body.config : {};
+      const patch: Record<string, unknown> = {};
+      for (const key of OPTIMIZER_CONFIG_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(incoming, key)) patch[key] = incoming[key];
+      }
+      if (!Object.keys(patch).length) throw new AppError("optimizer_config_empty");
+
+      const mode = String(patch.back_forward_mode ?? "fast");
+      const work = String(patch.global_work_mode ?? "max_effort");
+      if (!["fast", "optimal"].includes(mode)) throw new AppError("optimizer_config_invalid");
+      if (!["normal", "intensive", "max_effort"].includes(work)) throw new AppError("optimizer_config_invalid");
+
+      const ints = [
+        "company_shuttle_vehicle_count","company_shuttle_passenger_capacity",
+        "normal_shift_duration_minutes","intensive_shift_duration_minutes","max_effort_shift_duration_minutes",
+        "normal_rest_minutes","intensive_rest_minutes","max_effort_rest_minutes",
+        "back_forward_window_minutes","back_forward_overlap_minutes",
+        "back_forward_candidate_step_minutes","back_forward_max_anchor_candidates",
+      ];
+      for (const key of ints) if (key in patch) {
+        const n = Number(patch[key]);
+        if (!Number.isInteger(n)) throw new AppError("optimizer_config_invalid");
+        patch[key] = n;
+      }
+      for (const key of ["back_forward_optimal_explore_ratio","optimizer_time_limit_seconds"]) if (key in patch) {
+        const n = Number(patch[key]);
+        if (!Number.isFinite(n)) throw new AppError("optimizer_config_invalid");
+        patch[key] = n;
+      }
+      patch.updated_at = new Date().toISOString();
+      const rows = await rest("ai_dispatch_config", "PATCH", patch, { id: "eq.1" });
+      return response({ ok: true, config: rows?.[0] || patch });
+    }
+
+    if (action === "config_reset") {
+      const epoch = Number(body.writer_epoch);
+      await rpc("parking_booking_require_writer", { p_actor_telegram_user_id: actor, p_writer_epoch: epoch });
+      const rows = await rest("ai_dispatch_config", "PATCH", {
+        ...OPTIMIZER_DEFAULTS,
+        updated_at: new Date().toISOString(),
+      }, { id: "eq.1" });
+      return response({ ok: true, config: rows?.[0] || OPTIMIZER_DEFAULTS, defaults: OPTIMIZER_DEFAULTS });
     }
 
     if (action === "cancel") {
