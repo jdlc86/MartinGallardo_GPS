@@ -4,7 +4,7 @@ const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
 const SECRET_KEYS_JSON=Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ALLOW_ORIGIN="https://jdlc86.github.io";
-const APP_URL="https://jdlc86.github.io/MartinGallardo_GPS/preview-modern/?v=20260904PROD2";
+const APP_URL="https://jdlc86.github.io/MartinGallardo_GPS/preview-modern/?v=20260904B04";
 const INIT_DATA_MAX_AGE_SECONDS=86400;
 function serverKey(){if(SECRET_KEYS_JSON){try{const p=JSON.parse(SECRET_KEYS_JSON);if(p?.default)return p.default;const v=Object.values(p??{})[0];if(typeof v==="string")return v}catch{}}if(LEGACY_SERVICE_ROLE_KEY)return LEGACY_SERVICE_ROLE_KEY;throw new Error("No server key")}
 function hdr(extra:Record<string,string>={}){const k=serverKey();return{apikey:k,Authorization:`Bearer ${k}`,...extra}}
