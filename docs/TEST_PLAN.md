@@ -401,3 +401,15 @@ Antes de promover un build posterior:
 - el Service Worker no sirve una home anterior tras actualizar el build;
 - Fase 1 mantiene 0 errores físicos;
 - Fase 2 no altera `solve()` estable.
+
+### Validación funcional 2026-09-04
+
+Smoke test de producción completado tras endurecer `plate_verifications`:
+
+- Recogida: OK
+- Aparcar: OK
+- Buscar: OK
+- Entrega: OK
+- Expediente 360º: OK
+
+El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verifications`. El aviso restante `rls_enabled_no_policy` es informativo y coherente con el diseño backend-only: no existen políticas cliente y `anon/authenticated` no tienen privilegios directos sobre la tabla.
