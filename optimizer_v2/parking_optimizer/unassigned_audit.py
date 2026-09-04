@@ -295,7 +295,11 @@ def audit_unassigned(tasks: Iterable[Task], solution: Solution, cfg: OptimizerCo
             })
             continue
 
-        worker_ids = [task.fixed_worker_id] if task.fixed_worker_id else sorted(solution.routes)
+        worker_ids = [task.fixed_worker_id] if task.fixed_worker_id else sorted(
+            worker_id
+            for worker_id, route in solution.routes.items()
+            if route.worker.auto_assignable
+        )
         checks: list[dict[str, object]] = []
         for worker_id in worker_ids:
             if worker_id not in solution.routes:
