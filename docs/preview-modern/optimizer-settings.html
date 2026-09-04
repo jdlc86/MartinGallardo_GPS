@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<link rel="stylesheet" href="theme.css?v=9" data-pmg-theme>
+<script src="theme.js?v=12" data-pmg-theme></script>
+<script src="ux-errors.js?v=11"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<title>Configuración de optimización</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--pmg-bg);color:var(--pmg-text);font-family:Inter,system-ui,sans-serif}
+.app{max-width:760px;margin:auto;padding:calc(22px + env(safe-area-inset-top)) 12px calc(38px + env(safe-area-inset-bottom))}
+.ey{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--pmg-accent-text);font-weight:900}
+h1{margin:5px 0 7px;font-size:29px}
+.sub{font-size:12px;line-height:1.5;color:var(--pmg-muted)}
+.card{margin-top:14px;padding:15px;border-radius:18px;background:var(--pmg-surface);border:1px solid var(--pmg-border)}
+.card h2{font-size:14px;margin:0 0 12px}
+.field{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,180px);gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--pmg-border)}
+.field:first-of-type{border-top:0}
+.field label{font-size:12px;font-weight:800}
+.field small{display:block;margin-top:3px;color:var(--pmg-muted);font-size:10px;line-height:1.35;font-weight:500}
+select,input{width:100%;min-height:40px;border:1px solid var(--pmg-border);border-radius:11px;background:var(--pmg-input);color:var(--pmg-text);padding:0 10px}
+details{margin-top:14px;border:1px solid var(--pmg-border);border-radius:16px;background:var(--pmg-surface);overflow:hidden}
+summary{cursor:pointer;padding:14px;font-weight:900;font-size:13px;list-style:none}
+summary::-webkit-details-marker{display:none}
+.advanced{padding:0 14px 14px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px}
+.btn{min-height:44px;border:0;border-radius:12px;font-weight:900;padding:0 12px;background:var(--pmg-accent);color:#fff}
+.btn.secondary{background:var(--pmg-soft);color:var(--pmg-text);border:1px solid var(--pmg-border)}
+.btn.danger{background:#7f1d1d}
+.btn:disabled{opacity:.45}
+.state{margin-top:12px;padding:12px;border-radius:13px;background:var(--pmg-soft);color:var(--pmg-muted);font-size:11px;line-height:1.45}
+.changed{color:var(--pmg-warning-text);font-weight:800}
+.back{width:100%;margin-top:14px}
+@media(max-width:560px){.field{grid-template-columns:1fr}.actions{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="app">
+<div class="ey">Planificación</div>
+<h1>Configuración de optimización</h1>
+<div class="sub">Ajusta los parámetros de Fase 1. Los cambios se aplican a la siguiente optimización. La Fase 2 experimental no se configura desde esta pantalla.</div>
+
+<section class="card">
+<h2>Configuración operativa</h2>
+<div class="field"><label>Modo del optimizador<small>Fast prioriza velocidad. Optimal dedica más búsqueda a elegir la mejor ventana de anclaje.</small></label><select id="back_forward_mode"><option value="fast">Fast</option><option value="optimal">Optimal</option></select></div>
+<div class="field"><label>Régimen de trabajo<small>Determina duración máxima de jornada y descanso mínimo.</small></label><select id="global_work_mode"><option value="normal">Normal</option><option value="intensive">Intensiva</option><option value="max_effort">Máximo esfuerzo</option></select></div>
+<div class="field"><label>Coches de empresa / lanzadera<small>Número de vehículos disponibles para rescates y movimientos logísticos.</small></label><input id="company_shuttle_vehicle_count" type="number" min="0" max="20" step="1"></div>
+<div class="field"><label>Capacidad por coche<small>Número máximo de operarios transportados por misión.</small></label><input id="company_shuttle_passenger_capacity" type="number" min="1" max="20" step="1"></div>
+</section>
+
+<details>
+<summary>Configuración avanzada</summary>
+<div class="advanced">
+<div class="field"><label>Jornada Normal · duración máx.<small>Minutos. Predeterminado: 720 (12 h).</small></label><input id="normal_shift_duration_minutes" type="number" min="60" max="2880" step="30"></div>
+<div class="field"><label>Jornada Normal · descanso<small>Minutos. Predeterminado: 720 (12 h).</small></label><input id="normal_rest_minutes" type="number" min="0" max="2880" step="30"></div>
+<div class="field"><label>Intensiva · duración máx.<small>Minutos. Predeterminado: 1080 (18 h).</small></label><input id="intensive_shift_duration_minutes" type="number" min="60" max="2880" step="30"></div>
+<div class="field"><label>Intensiva · descanso<small>Minutos. Predeterminado: 360 (6 h).</small></label><input id="intensive_rest_minutes" type="number" min="0" max="2880" step="30"></div>
+<div class="field"><label>Máximo esfuerzo · duración máx.<small>Minutos. Predeterminado: 1320 (22 h).</small></label><input id="max_effort_shift_duration_minutes" type="number" min="60" max="2880" step="30"></div>
+<div class="field"><label>Máximo esfuerzo · descanso<small>Minutos. Predeterminado: 120 (2 h).</small></label><input id="max_effort_rest_minutes" type="number" min="0" max="2880" step="30"></div>
+<div class="field"><label>Ventana rolling horizon<small>Minutos. Predeterminado: 1440 (24 h). No crea fronteras por día.</small></label><input id="back_forward_window_minutes" type="number" min="60" max="10080" step="60"></div>
+<div class="field"><label>Solape entre ventanas<small>Minutos. Debe ser menor que la ventana.</small></label><input id="back_forward_overlap_minutes" type="number" min="0" max="5039" step="30"></div>
+<div class="field"><label>Paso de candidatos<small>Separación en minutos entre candidatos de anclaje.</small></label><input id="back_forward_candidate_step_minutes" type="number" min="5" max="1440" step="5"></div>
+<div class="field"><label>Máx. candidatos Optimal<small>Número máximo de anclas que evalúa Optimal.</small></label><input id="back_forward_max_anchor_candidates" type="number" min="1" max="100" step="1"></div>
+<div class="field"><label>Presupuesto de exploración Optimal<small>Fracción de 0,05 a 0,90. Predeterminado: 0,35.</small></label><input id="back_forward_optimal_explore_ratio" type="number" min=".05" max=".90" step=".05"></div>
+<div class="field"><label>Tiempo máximo del solver<small>Segundos. Predeterminado: 120.</small></label><input id="optimizer_time_limit_seconds" type="number" min="10" max="900" step="10"></div>
+</div>
+</details>
+
+<div id="state" class="state">Cargando configuración…</div>
+<div class="actions">
+<button id="save" class="btn">Guardar cambios</button>
+<button id="reset" class="btn danger">↺ Restablecer valores predeterminados</button>
+</div>
+<button id="back" class="btn secondary back">← Volver al inicio</button>
+</main>
+<script>
+const tg=window.Telegram?.WebApp,API='https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservation-optimization-jobs-v1',$=id=>document.getElementById(id);
+if(tg){tg.ready();tg.expand();window.PMGTheme?.apply()}
+const fields=['back_forward_mode','global_work_mode','company_shuttle_vehicle_count','company_shuttle_passenger_capacity','normal_shift_duration_minutes','intensive_shift_duration_minutes','max_effort_shift_duration_minutes','normal_rest_minutes','intensive_rest_minutes','max_effort_rest_minutes','back_forward_window_minutes','back_forward_overlap_minutes','back_forward_candidate_step_minutes','back_forward_max_anchor_candidates','back_forward_optimal_explore_ratio','optimizer_time_limit_seconds'];
+const numeric=new Set(fields.filter(x=>!['back_forward_mode','global_work_mode'].includes(x)));
+let data=null,busy=false;
+function friendly(e){return window.PMGFriendlyError?window.PMGFriendlyError(e):e}
+async function api(action,extra={}){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg?.initData||'',action,...extra})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'network_error');return d}
+function setBusy(v){busy=v;$('save').disabled=v||!data?.permission?.can_write;$('reset').disabled=v||!data?.permission?.can_write;fields.forEach(id=>$(id).disabled=v||!data?.permission?.can_write)}
+function fill(cfg){fields.forEach(id=>{if(cfg[id]!=null)$(id).value=String(cfg[id])});markChanged()}
+function read(){const out={};fields.forEach(id=>out[id]=numeric.has(id)?Number($(id).value):$(id).value);return out}
+function markChanged(){if(!data)return;let changed=0;fields.forEach(id=>{const a=String($(id).value),b=String(data.defaults?.[id]??'');const node=$(id).closest('.field')?.querySelector('label');if(node){node.classList.toggle('changed',a!==b);if(a!==b)changed++}});$('state').textContent=(data.permission?.can_write?'Puedes modificar estos parámetros.':'Configuración en modo lectura. El titular de Lectura / Escritura debe realizar los cambios.')+(changed?' · '+changed+' valores difieren de los predeterminados.':' · Todos los valores están en sus valores predeterminados.')}
+async function load(){try{data=await api('config_get');fill(data.config||{});setBusy(false)}catch(e){$('state').textContent=friendly(e.message);$('state').style.color='var(--pmg-danger-text)';$('save').disabled=$('reset').disabled=true}}
+async function save(){if(busy||!data?.permission?.can_write)return;const cfg=read();if(cfg.back_forward_overlap_minutes>=cfg.back_forward_window_minutes){alert('El solape debe ser menor que la ventana rolling horizon.');return}try{setBusy(true);const d=await api('config_update',{writer_epoch:data.permission.epoch,config:cfg});data.config={...data.config,...cfg};fill(data.config);$('state').textContent='Configuración guardada. Se aplicará a la siguiente optimización.'}catch(e){alert(friendly(e.message));await load()}finally{setBusy(false)}}
+async function reset(){if(busy||!data?.permission?.can_write)return;if(!confirm('¿Restablecer todos los parámetros de Fase 1 a sus valores predeterminados? No se modifican reservas, trabajadores ni planes existentes.'))return;try{setBusy(true);const d=await api('config_reset',{writer_epoch:data.permission.epoch});data.config=d.config||d.defaults;fill(data.config);$('state').textContent='Valores predeterminados restaurados. Se aplicarán a la siguiente optimización.'}catch(e){alert(friendly(e.message));await load()}finally{setBusy(false)}}
+fields.forEach(id=>$(id).addEventListener('input',markChanged));
+$('save').onclick=save;$('reset').onclick=reset;$('back').onclick=()=>location.href='./';
+load();
+</script>
+</body>
+</html>
