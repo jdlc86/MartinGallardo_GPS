@@ -17,8 +17,8 @@ from .validator import validate_solution
 from .unassigned_audit import audit_summary
 
 _MADRID = ZoneInfo("Europe/Madrid")
-OPTIMIZER_VERSION = "2.1.0"
-OPTIMIZER_BUILD = "2026.09.04.02"
+OPTIMIZER_VERSION = "2.1.1"
+OPTIMIZER_BUILD = "2026.09.04.03"
 
 
 class Backend:
@@ -89,6 +89,22 @@ def _road_minutes(matrix: dict[tuple[str, str, str], dict], origin: str, destina
         raise MatrixMissing(f"route matrix missing: {origin}>{destination}@{_band(at)}")
     base = (int(row["current_duration_s"]) + 59) // 60
     uncertainty = max(cfg.road_uncertainty_min_minutes, int(base * cfg.road_uncertainty_pct + 0.999999))
+    source = str(row.get("source") or "google_routes")
+    fetched_at = row.get("fetched_at")
+    age_hours = 0.0
+    if fetched_at:
+        try:
+            age_hours = max(0.0, (datetime.now(timezone.utc) - _parse(str(fetched_at))).total_seconds() / 3600.0)
+        except Exception:
+            age_hours = 999.0
+    if source != "google_routes":
+        uncertainty = max(uncertainty, 5, int(base * 0.25 + 0.999999))
+    elif age_hours > 48:
+        uncertainty = max(uncertainty, 8, int(base * 0.35 + 0.999999))
+    elif age_hours > 12:
+        uncertainty = max(uncertainty, 5, int(base * 0.25 + 0.999999))
+    elif age_hours > 2:
+        uncertainty = max(uncertainty, 3, int(base * 0.15 + 0.999999))
     return base + uncertainty
 
 
@@ -219,7 +235,7 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
 
     cfg_raw = backend.select("ai_dispatch_config", {"id": "eq.1", "select": "*", "limit": "1"})[0]
     cfg = _config(cfg_raw)
-    matrix_rows = backend.select("ai_dispatch_route_matrix", {"origin": "neq.T4S", "destination": "neq.T4S", "select": "origin,destination,time_band,current_duration_s,distance_m,is_anomaly,fetched_at"})
+    matrix_rows = backend.select("ai_dispatch_route_matrix", {"origin": "neq.T4S", "destination": "neq.T4S", "select": "origin,destination,time_band,current_duration_s,distance_m,is_anomaly,source,fetched_at"})
     matrix = {(r["origin"], r["destination"], r["time_band"]): r for r in matrix_rows}
     raw_tasks = backend.select("reservation_tasks", {
         "status": "in.(unassigned,assigned)", "scheduled_at": f"gte.{job['horizon_start']}",
@@ -281,6 +297,10 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         "fixed_only_worker_ids": sorted(fixed_worker_ids.difference(selected_worker_ids)),
         "config": asdict(cfg),
         "route_matrix_fetched_at": max((r.get("fetched_at") or "" for r in matrix_rows), default=None),
+        "route_matrix_sources": {
+            source: sum(1 for r in matrix_rows if str(r.get("source") or "google_routes") == source)
+            for source in sorted({str(r.get("source") or "google_routes") for r in matrix_rows})
+        },
         "task_count": len(tasks),
     }
     backend.patch("optimization_jobs", {"id": f"eq.{job_id}", "claimed_by": f"eq.{worker_id}"}, {"input_snapshot": snapshot, "progress": {"stage": "cp_sat", "percent": 20}, "updated_at": datetime.now(timezone.utc).isoformat()})
