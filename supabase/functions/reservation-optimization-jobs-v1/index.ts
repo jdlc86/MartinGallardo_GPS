@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
           select: "id,status,solver_engine,horizon_start,horizon_end,plan,reports,created_at",
           limit: "1",
         });
-        if (plans.length) {
+        if (plans.length && plans[0].status === "proposal") {
           proposal = {
             plan_id: plans[0].id,
             status: plans[0].status,
@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
           select: "id,status,solver_engine,horizon_start,horizon_end,plan,reports,created_at",
           limit: "1",
         });
-        if (plans.length) {
+        if (plans.length && plans[0].status === "proposal") {
           proposal = {
             plan_id: plans[0].id,
             status: plans[0].status,
