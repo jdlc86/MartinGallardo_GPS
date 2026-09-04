@@ -20,23 +20,8 @@
   function set(mode){const next=MODES.has(mode)?mode:'auto';writeMode(next);return apply()}
   function readOptimizerJob(){try{return JSON.parse(localStorage.getItem(OPT_JOB_KEY)||'null')}catch{return null}}
   function writeOptimizerJob(job){try{job?localStorage.setItem(OPT_JOB_KEY,JSON.stringify(job)):localStorage.removeItem(OPT_JOB_KEY)}catch{};renderOptimizerChip(job)}
-  function ensureOptimizerChip(){
-    let chip=document.getElementById('pmg-optimizer-chip');
-    if(chip)return chip;
-    const style=document.createElement('style');
-    style.textContent='#pmg-optimizer-chip{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:2147483000;max-width:min(82vw,360px);padding:9px 12px;border-radius:999px;background:var(--pmg-surface,#101d30);color:var(--pmg-text,#e8f1fb);border:1px solid var(--pmg-border,rgba(255,255,255,.12));box-shadow:0 8px 28px #0003;font:800 11px/1.25 Inter,system-ui,sans-serif;display:none;cursor:default}#pmg-optimizer-chip.done{cursor:pointer}';
-    document.head.appendChild(style);
-    chip=document.createElement('div');chip.id='pmg-optimizer-chip';chip.setAttribute('role','status');chip.setAttribute('aria-live','polite');
-    chip.onclick=()=>{const j=readOptimizerJob();if(j&&['succeeded','failed'].includes(j.status))location.href='ai-dispatch.html?v=20260904OPT1'};
-    document.body.appendChild(chip);return chip
-  }
-  function renderOptimizerChip(job=readOptimizerJob()){
-    const chip=ensureOptimizerChip();
-    if(!job?.id){chip.style.display='none';chip.classList.remove('done');return}
-    chip.style.display='block';chip.classList.toggle('done',['succeeded','failed'].includes(job.status));
-    if(['succeeded','failed','cancelled'].includes(job.status)){chip.style.display='none';chip.classList.remove('done');return}
-    chip.textContent='⏳ Optimización en curso… Puedes seguir trabajando';
-  }
+  function ensureOptimizerChip(){return null}
+  function renderOptimizerChip(){return}
   async function optimizerStatusOnce(){
     const active=readOptimizerJob(),tg=window.Telegram?.WebApp;
     if(!active?.id||!tg?.initData)return null;
