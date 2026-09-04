@@ -233,6 +233,28 @@ Ambos responden ahora únicamente `410 endpoint_retired` y se verificó que ya n
 No se han tocado todavía `vehicle-share-api`, `vehicle-report-api`, `performance-report-sender` ni `modern-live-team-api`, porque aunque no presentaron tráfico en la ventana revisada pueden tener consumidores externos o programados que requieren más evidencia.
 
 
+
+## Clasificación adicional de Edge Functions
+
+Se confirmó que deben conservarse:
+
+- `vehicle-share-api` y `vehicle-report-api`: usados por `vehicle-v7.html`;
+- `vehicle-consult-api`: usado por `vehicle-v7.html`;
+- `modern-search-api`: usado por `search.html`;
+- `modern-pickup-api`: usado por `pickup.html`;
+- `modern-delivery-api`: usado por `delivery.html`;
+- `telegram-location-submit`: usado por `preview-modern/location/index.html`;
+- `performance-report-sender`: invocado por Supabase Cron cada hora;
+- `reservation-notification-sender`: invocado por el trigger SQL `dispatch_reservation_notification_delivery` usando secreto almacenado en Vault;
+- `vehicle-lifecycle-api`: presentó tráfico reciente y no se toca.
+
+Se neutralizó de forma reversible:
+
+- `modern-live-team-api` v5.
+
+Motivo: no aparece en las pantallas activas revisadas, `team-v4.html` usa `telegram-modern-action`, no presentó tráfico observado y conservaba acceso a secretos de servidor. Ahora responde únicamente `410 endpoint_retired` y no lee secretos.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
