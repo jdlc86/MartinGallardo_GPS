@@ -8,6 +8,7 @@ on:
       - 'docs/preview-modern/**'
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
+      - '.github/workflows/deployed-release-verification.yml'
       - 'supabase/functions/reservation-optimization-jobs-v1/**'
       - 'supabase/functions/telegram-gateway/**'
       - 'supabase/functions/telegram-modern-action/**'
