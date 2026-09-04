@@ -60,12 +60,14 @@ Importante: los nombres `planner-v2` y `seed-v1` parecen históricos, pero sigue
 - `telegram-gateway` sigue delegando determinadas rutas heredadas;
 - `telegram-entry`, `telegram-router3` y `telegram-bot` no se consideran eliminables hasta desacoplar completamente altas/acceso y verificar callbacks antiguos.
 
-## Candidatos a retirada posterior
+## Solvers históricos retirados en Supabase
 
-Requieren prueba de ausencia de tráfico/dependencias antes de desactivar:
+Se comprobó que la UI actual y `reservation-optimization-jobs-v1` usan `reservation-ai-planner-v2` / `reservation-ai-planner`, sin referencias a:
 
 - `reservation-ai-global-solver`;
-- `reservation-ai-global-solver-v2` — actualmente wrapper de compatibilidad.
+- `reservation-ai-global-solver-v2`.
+
+Tampoco presentaban tráfico observado en las últimas 24 horas. Ambos quedaron neutralizados de forma reversible con `410 endpoint_retired`, sin acceso a secretos ni base de datos.
 
 ### Runtimes históricos retirados
 
