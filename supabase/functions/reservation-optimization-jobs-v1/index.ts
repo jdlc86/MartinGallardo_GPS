@@ -5,6 +5,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SECRET_KEYS_JSON = Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ORIGIN = "https://jdlc86.github.io";
+const BACKEND_VERSION = "1.4.0";
+const BACKEND_BUILD = "2026.09.04.02";
 
 const OPTIMIZER_DEFAULTS = {
   back_forward_mode: "fast",
@@ -142,6 +144,37 @@ Deno.serve(async (req) => {
     const actor = await authenticate(String(body.initData || ""));
     const action = String(body.action || "");
 
+
+
+    if (action === "system_info") {
+      const actorRows = await rest("telegram_users", "GET", undefined, {
+        telegram_user_id: `eq.${actor}`,
+        active: "eq.true",
+        select: "telegram_user_id,role",
+        limit: "1",
+      });
+      if (!actorRows.length || !["owner","admin"].includes(String(actorRows[0].role))) {
+        throw new AppError("not_admin", 403);
+      }
+      const jobs = await rest("optimization_jobs", "GET", undefined, {
+        status: "eq.succeeded",
+        select: "id,created_at,input_snapshot,solver_version",
+        order: "created_at.desc",
+        limit: "1",
+      });
+      const latest = jobs[0] || null;
+      return response({
+        ok: true,
+        backend: { version: BACKEND_VERSION, build: BACKEND_BUILD, function_version: 9 },
+        optimizer: latest ? {
+          version: latest.input_snapshot?.optimizer_version || null,
+          build: latest.input_snapshot?.optimizer_build || null,
+          solver_version: latest.solver_version || null,
+          last_job_id: latest.id,
+          last_job_at: latest.created_at,
+        } : null,
+      });
+    }
 
     if (action === "participants") {
       const actorRows = await rest("telegram_users", "GET", undefined, {
