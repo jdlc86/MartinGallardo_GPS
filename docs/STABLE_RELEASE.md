@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.04.02
+- **Build estable:** 2026.09.04.04
 - **Fecha de consolidación:** 2026-09-04
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.04.02`
+`v1.4.0 · Build 2026.09.04.04`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -86,8 +86,8 @@ Root/Admin dispone de **Información del sistema**, que identifica:
 
 El worker estable sella:
 
-- `optimizer_version = 2.1.0`
-- `optimizer_build = 2026.09.04.02`
+- `optimizer_version = 2.1.2`
+- `optimizer_build = 2026.09.04.04`
 
 ## Regla de protección
 
@@ -141,16 +141,29 @@ Resuelto el 2026-09-04: `parking_booking_operational_snapshot(bigint)`, `vehicle
 
 Resuelto el 2026-09-04: las 8 funciones trigger señaladas por el Security Advisor tienen ahora `search_path=''`. Todos los triggers siguen activos y el advisor ya no reporta `function_search_path_mutable`.
 
-## Candidato 2026.09.04.03 — pendiente de promoción
+## Validación funcional de la build 2026.09.04.04
 
-Cambios bajo prueba:
+Promovida tras smoke test completo de producción:
 
-- el usuario ya no actualiza manualmente la matriz de trayectos;
-- al pulsar **Optimizar**, `enqueue` ejecuta un preflight de rutas antes de crear el job;
-- se refrescan únicamente franjas y terminales necesarios para el horizonte;
-- Google Routes sigue siendo la fuente preferente;
-- si Google falla, se reutiliza caché existente; si falta una relación se usa baseline histórica disponible o estimación dinámica por coordenadas;
-- el worker 2.1.1 añade margen conservador adicional según antigüedad/fuente del trayecto;
-- el botón **Actualizar trayectos** se retira de la interfaz normal.
+- Gestión de reservas y transferencia de permisos: OK.
+- Asistente IA / Optimizer V2 con worker 2.1.2: OK.
+- Aparcar con GPS válido, baja precisión y fallback manual: OK.
+- Reubicar con GPS válido, baja precisión y fallback manual: OK.
+- Buscar coche y Entrega con navegación solo si existen coordenadas reales: OK.
+- Expediente 360º con ubicación GPS y ubicación manual: OK.
+- Equipo & Accesos: OK.
+- Actividad reciente / trazabilidad: OK.
+- Información del sistema: OK.
 
-La baseline estable continúa siendo **2026.09.04.02** hasta superar el smoke test del optimizador con este build.
+Cambios incorporados respecto a la baseline anterior:
+
+- preflight automático de rutas al optimizar;
+- fallback dinámico/caché de trayectos;
+- retirada del botón manual de actualización de trayectos;
+- timeout global de optimización de 5 minutos;
+- bloqueo de participantes/horizonte durante job activo;
+- flujo de autorización visible y dirigido por eventos, sin polling;
+- fallback manual cuando GPS está desactivado/no disponible;
+- correcciones de navegación Buscar/Entrega y Expediente 360º;
+- limpieza inicial de frontend, Service Worker y documentación histórica;
+- endpoint de benchmark deshabilitado en producción.
