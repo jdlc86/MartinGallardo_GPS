@@ -138,6 +138,42 @@ Los controles globales de apariencia, campana y conectividad comparten una franj
 - el borrado masivo es atómico y lógico, preservando auditoría;
 - si el titular deja de ser Root/Admin activo, un trigger recupera el permiso para otro administrador activo e invalida las solicitudes pendientes.
 
+## Optimizer V2
+
+La optimización de asignaciones se ejecuta de forma asíncrona y durable. La Edge Function no contiene OR-Tools ni espera a que termine el solver.
+
+```text
+ai-dispatch.html
+   -> reservation-optimization-jobs-v1
+   -> optimization_jobs (pending/running/succeeded/failed)
+   -> worker Docker Python/OR-Tools
+   -> validate_solution()
+   -> ai_dispatch_plans (proposal)
+   -> Realtime + reconciliación puntual + Telegram
+```
+
+### Fase 1 estable
+
+- línea temporal continua 24/7;
+- rolling horizon: 1440 min por defecto, solape 360 min;
+- `fast`: ancla por máxima densidad;
+- `optimal`: evalúa candidatos y usa el mismo motor de expansión;
+- descansos y duración máxima dependen de Normal/Intensiva/Máximo esfuerzo;
+- tras descanso válido, una nueva jornada puede iniciar en Parking o terminal;
+- acompañamientos, transferencias de terminal y coche/lanzadera son recursos físicos del modelo;
+- el plan solo se expone como válido tras `validate_solution()` sin errores.
+
+La auditoría de no asignadas conserva internamente `proven_unavailable_in_current_plan`, `available_in_current_plan` y `not_proven`, pero la UI final solo distingue entre operaciones incluidas en el plan y operaciones que el cliente debe organizar manualmente.
+
+### Fase 2 experimental
+
+La reoptimización local de `not_proven` no forma parte del entry point estable `solve()`. Solo puede aceptar una reparación si la cobertura global no baja y la solución reconstruida vuelve a pasar el validador físico.
+
+### Ejecución actual
+
+El worker se ejecuta en Docker sobre un PC dedicado. `.env` permanece fuera de Git, el contenedor usa reinicio automático y los logs tienen rotación limitada. La arquitectura permite mover el worker posteriormente sin modificar el contrato Mini App/Supabase.
+
+
 ## Backend heredado
 
 `telegram-entry`, `telegram-router3`, `telegram-bot`, routers/reset/diagnostics antiguos siguen desplegados por compatibilidad y por lógica histórica de acceso.
