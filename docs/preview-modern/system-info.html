@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<link rel="stylesheet" href="theme.css?v=9" data-pmg-theme>
+<script src="release.js?v=2026090402"></script>
+<script src="theme.js?v=12" data-pmg-theme></script>
+<script src="ux-errors.js?v=12"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<title>Información del sistema</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--pmg-bg);color:var(--pmg-text);font-family:Inter,system-ui,sans-serif}.app{max-width:760px;margin:auto;padding:calc(22px + env(safe-area-inset-top)) 14px calc(38px + env(safe-area-inset-bottom))}.ey{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--pmg-accent-text);font-weight:900}h1{margin:5px 0 8px;font-size:29px}.sub{font-size:12px;line-height:1.5;color:var(--pmg-muted)}.card{margin-top:14px;padding:16px;border-radius:18px;background:var(--pmg-surface);border:1px solid var(--pmg-border)}.row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--pmg-border);font-size:12px}.row:first-child{border-top:0}.row span{color:var(--pmg-muted)}.row b{text-align:right;overflow-wrap:anywhere}.ok{color:var(--pmg-success-text)}.warn{color:var(--pmg-warning-text)}.btn{width:100%;min-height:44px;margin-top:14px;border:1px solid var(--pmg-border);border-radius:13px;background:var(--pmg-soft);color:var(--pmg-text);font-weight:900}.state{margin-top:14px;padding:13px;border-radius:13px;background:var(--pmg-soft);font-size:11px;color:var(--pmg-muted);line-height:1.5}
+</style>
+</head>
+<body>
+<main class="app">
+<div class="ey">Soporte y despliegues</div>
+<h1>Información del sistema</h1>
+<div class="sub">Identifica qué versión está viendo el cliente y qué backend/worker ejecutó realmente la última optimización.</div>
+<section class="card" id="appInfo"></section>
+<section class="card" id="backendInfo"><div class="state">Consultando backend…</div></section>
+<div id="state" class="state">Los identificadores sirven para soporte. No modifican ninguna configuración.</div>
+<button id="refresh" class="btn">↻ Actualizar información</button>
+<button id="back" class="btn">← Volver al inicio</button>
+</main>
+<script>
+const tg=window.Telegram?.WebApp,$=id=>document.getElementById(id),API='https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservation-optimization-jobs-v1';
+if(tg){tg.ready();tg.expand();window.PMGTheme?.apply()}
+function esc(s){return String(s??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function row(k,v,cls=''){return '<div class="row"><span>'+esc(k)+'</span><b class="'+cls+'">'+esc(v)+'</b></div>'}
+function renderApp(){const r=window.PMGRelease||{};$('appInfo').innerHTML='<div class="ey">Mini App</div>'+row('Producto',r.product)+row('Versión',r.version,'ok')+row('Build',r.build,'ok')+row('Publicado',r.released_at)}
+async function load(){renderApp();$('backendInfo').innerHTML='<div class="state">Consultando backend…</div>';try{const res=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg?.initData||'',action:'system_info'})});const d=await res.json();if(!res.ok||!d.ok)throw new Error(d.error||'network_error');const o=d.optimizer||{};const expected=window.PMGRelease?.build||'';const workerKnown=!!o.build;const matches=workerKnown&&o.build===expected;$('backendInfo').innerHTML='<div class="ey">Backend</div>'+row('Versión',d.backend?.version,'ok')+row('Build',d.backend?.build,'ok')+row('Edge Function',d.backend?.function_version)+
+'<div style="height:10px"></div><div class="ey">Optimizer Worker · último job</div>'+row('Versión',o.version,workerKnown?'ok':'warn')+row('Build',o.build,workerKnown?(matches?'ok':'warn'):'warn')+row('Solver',o.solver_version)+row('Último job',o.last_job_id)+row('Ejecutado',o.last_job_at);
+$('state').textContent=!workerKnown?'El último job fue ejecutado por un worker anterior que todavía no estampaba versión. Actualiza el worker y ejecuta una nueva optimización para identificarlo.':matches?'Mini App y worker corresponden al mismo build de despliegue.':'Atención: la Mini App y el worker no corresponden al mismo build. Revisa el despliegue del PC.';
+}catch(e){$('backendInfo').innerHTML='<div class="state">No se pudo consultar la información del sistema: '+esc(e.message)+'</div>'}}
+$('refresh').onclick=load;$('back').onclick=()=>location.href='./';load();
+</script>
+</body>
+</html>
