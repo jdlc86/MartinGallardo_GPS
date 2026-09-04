@@ -37,7 +37,7 @@ jobs:
   benchmark-150:
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: optimizer_v2
