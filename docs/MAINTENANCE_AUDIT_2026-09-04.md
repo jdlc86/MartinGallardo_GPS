@@ -83,18 +83,18 @@ Por ahora se han retirado del precache, pero no se han borrado físicamente.
 
 No aparecen en la navegación actual ni en los backends revisados, pero pueden existir botones o enlaces Telegram históricos fuera del repositorio.
 
-## Documentación histórica a archivar/consolidar
+## Documentación histórica archivada / pendiente de consolidación
 
 Los siguientes documentos contienen decisiones antiguas o etapas diagnósticas que contradicen parcialmente el estado actual:
 
-- `ParkingMartinG_Asistente_IA_Asignacion_Operarios.md`;
-- `ParkingMartinG_Asistente_IA_Asignacion_Operarios_CONTINUACION.md`;
-- `ParkingMartinG_Asistente_IA_GLOBAL_SOLVER_V1.md`;
-- `ParkingMartinG_Asistente_IA_Global_Search_V2.md`;
-- `ParkingMartinG_Asistente_IA_Implementacion_V1.md`;
-- `ParkingMartinG_Asistente_IA_Implementacion_V1_T4S_V6.md`.
+- `docs/archive/optimizer/ParkingMartinG_Asistente_IA_Asignacion_Operarios.md`;
+- `docs/archive/optimizer/ParkingMartinG_Asistente_IA_Asignacion_Operarios_CONTINUACION.md`;
+- `docs/archive/optimizer/ParkingMartinG_Asistente_IA_GLOBAL_SOLVER_V1.md`;
+- `docs/archive/optimizer/ParkingMartinG_Asistente_IA_Global_Search_V2.md`;
+- `docs/archive/optimizer/ParkingMartinG_Asistente_IA_Implementacion_V1.md`;
+- `docs/archive/optimizer/ParkingMartinG_Asistente_IA_Implementacion_V1_T4S_V6.md`.
 
-No deben usarse como fuente normativa actual. La información vigente debe consolidarse en README / ARCHITECTURE / STABLE_RELEASE / TEST_PLAN y, después, estos documentos deben moverse a `docs/archive/optimizer/`.
+No deben usarse como fuente normativa actual. Ya fueron movidos a `docs/archive/optimizer/`; la información vigente continúa en README / ARCHITECTURE / STABLE_RELEASE / TEST_PLAN.
 
 ## Base de datos
 
