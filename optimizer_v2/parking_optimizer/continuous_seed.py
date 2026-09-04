@@ -53,7 +53,10 @@ def build_continuous_seed(
     shifts: list[ShiftAssignment] = []
 
     for task in tasks:
-        candidates = [w for w in workers if not task.fixed_worker_id or task.fixed_worker_id == w.id]
+        candidates = [
+            w for w in workers
+            if (task.fixed_worker_id == w.id) or (task.fixed_worker_id is None and w.auto_assignable)
+        ]
         best = None
         for worker in candidates:
             s = states[worker.id]
