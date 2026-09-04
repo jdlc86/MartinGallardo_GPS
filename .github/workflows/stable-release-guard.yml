@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Validate canonical release manifest
         shell: bash
@@ -105,14 +107,68 @@ jobs:
                   print(f"FAIL: {name}")
               raise SystemExit("release contract mismatch")
 
-          for slug in manifest["backend"]["critical_edge_functions"]:
+          attestations = manifest["backend"].get("attestations", {})
+          critical = manifest["backend"]["critical_edge_functions"]
+          if set(attestations) != set(critical):
+              raise SystemExit("backend.attestations must exactly match critical_edge_functions")
+
+          for slug in critical:
               path = root / "supabase/functions" / slug / "index.ts"
               if not path.is_file():
                   raise SystemExit(f"critical Edge Function missing from repository: {slug}")
+              source = path.read_text(encoding="utf-8")
+              revision = attestations[slug]
+              required_attestation = [
+                  'const RELEASE_PRODUCT="ParkingMartin-G";',
+                  f'const RELEASE_VERSION="{manifest["backend"]["version"]}";',
+                  f'const RELEASE_BUILD="{manifest["backend"]["build"]}";',
+                  f'const RELEASE_SOURCE_REVISION="{revision}";',
+                  'searchParams.get("attest")',
+              ]
+              missing_attestation = [x for x in required_attestation if x not in source]
+              if missing_attestation:
+                  raise SystemExit(f"release attestation mismatch in {slug}: {missing_attestation}")
 
           print(f"Release contract OK: v{version} · Build {build}")
           print(f"Telegram revision: {app_rev}")
           print(f"Service Worker: {sw_cache}")
+          PY
+
+      - name: Require revision bump when a critical Edge Function changes
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE"
+          fi
+          python3 - "$BEFORE" <<'PY'
+          import json
+          import pathlib
+          import subprocess
+          import sys
+
+          before = sys.argv[1]
+          current = json.loads(pathlib.Path("release/manifest.json").read_text(encoding="utf-8"))
+          new_map = current["backend"]["attestations"]
+          try:
+              old_text = subprocess.check_output(["git","show",f"{before}:release/manifest.json"], text=True)
+              old = json.loads(old_text)
+              old_map = old.get("backend",{}).get("attestations",{})
+          except Exception:
+              old_map = {}
+
+          failures = []
+          for slug, new_revision in new_map.items():
+              path = f"supabase/functions/{slug}/index.ts"
+              changed = subprocess.run(["git","diff","--quiet",before,"HEAD","--",path]).returncode != 0
+              if changed and old_map.get(slug) == new_revision:
+                  failures.append(slug)
+
+          if failures:
+              raise SystemExit("critical Edge Function changed without revision bump: " + ", ".join(failures))
+          print("Critical Edge Function revision bumps are coherent.")
           PY
 
       - name: Verify protected realtime flows have no polling regression

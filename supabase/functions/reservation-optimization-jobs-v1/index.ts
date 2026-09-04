@@ -1,4 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+const RELEASE_PRODUCT="ParkingMartin-G";
+const RELEASE_VERSION="1.4.0";
+const RELEASE_BUILD="2026.09.04.04";
+const RELEASE_SOURCE_REVISION="c42cc829ead474e6646928693101720a49d4ef1e";
+function releaseAttestation(){return new Response(JSON.stringify({ok:true,product:RELEASE_PRODUCT,function:"reservation-optimization-jobs-v1",version:RELEASE_VERSION,build:RELEASE_BUILD,source_revision:RELEASE_SOURCE_REVISION}),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}})}
+
 
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -199,6 +205,8 @@ async function prepareRoutes(initData:string,epoch:number,start:Date,end:Date){
 }
 
 Deno.serve(async (req) => {
+  const requestUrl = new URL(req.url);
+  if (req.method === "GET" && requestUrl.searchParams.get("attest") === "1") return releaseAttestation();
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
   if (req.method !== "POST") return response({ ok: false, error: "method_not_allowed" }, 405);
 
