@@ -1,0 +1,25 @@
+services:
+  optimizer-v2-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: optimizer-v2-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      OPTIMIZER_WORKER_ID: ${OPTIMIZER_WORKER_ID:-parking-pc-docker}
+      OPTIMIZER_IDLE_SECONDS: ${OPTIMIZER_IDLE_SECONDS:-2}
+      TZ: Europe/Madrid
+    healthcheck:
+      test: ["CMD", "python", "-c", "import parking_optimizer.worker; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 30s
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
