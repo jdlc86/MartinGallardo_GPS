@@ -43,17 +43,9 @@ El 2026-09-04 se habilitó RLS y se revocó el acceso directo de `anon/authentic
 
 El 2026-09-04 se cambió a `SECURITY INVOKER`, se revocó el acceso directo de `anon/authenticated` y quedó backend-only mediante `service_role`. El Security Advisor ya no reporta `security_definer_view` para esta vista.
 
-### 2. Funciones históricas con `search_path` mutable
+### Resuelto: funciones con `search_path` mutable
 
-Endurecer tras revisar dependencias:
-
-- `protect_owner_telegram_user`;
-- `sync_access_request_when_user_exists`;
-- `set_access_request_expiry`;
-- `set_access_request_rejected_at`;
-- `reopen_rejected_access_request_on_new_contact`;
-- `sync_access_request_with_active_user`;
-- `enforce_access_request_user_state`.
+El 2026-09-04 se fijó `search_path=''` en las funciones trigger de acceso/usuarios y en `notify_parking_reservation_change`. Todos los triggers permanecen activos y el Security Advisor ya no reporta `function_search_path_mutable`.
 
 ### Resuelto: `expire_pending_access_requests()`
 
