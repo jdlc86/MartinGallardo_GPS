@@ -17,6 +17,7 @@ class Worker:
     id: str
     full_name: str
     telegram_user_id: int | None = None
+    auto_assignable: bool = True
 
 @dataclass(frozen=True, slots=True)
 class Task:
