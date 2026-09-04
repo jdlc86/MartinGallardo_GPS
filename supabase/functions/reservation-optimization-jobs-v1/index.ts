@@ -144,6 +144,15 @@ Deno.serve(async (req) => {
 
 
     if (action === "participants") {
+      const actorRows = await rest("telegram_users", "GET", undefined, {
+        telegram_user_id: `eq.${actor}`,
+        active: "eq.true",
+        select: "telegram_user_id,role",
+        limit: "1",
+      });
+      if (!actorRows.length || !["owner","admin"].includes(String(actorRows[0].role))) {
+        throw new AppError("not_admin", 403);
+      }
       const users = await rest("telegram_users", "GET", undefined, {
         active: "eq.true",
         role: "in.(admin,operario)",
