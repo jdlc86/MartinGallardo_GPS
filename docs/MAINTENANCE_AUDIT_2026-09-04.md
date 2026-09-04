@@ -119,6 +119,18 @@ Motivo:
 No se borraron físicamente de la plataforma. Se sustituyeron por un tombstone que responde `410 endpoint_retired` y no lee `TELEGRAM_BOT_TOKEN`, claves Supabase ni base de datos.
 
 
+
+## Compatibilidad de ubicación saneada
+
+El endpoint desplegado `parking-location` contenía una copia antigua de la interfaz de geolocalización. No tenía tráfico observado y no estaba referenciado por la UI o gateway actuales.
+
+Para no romper enlaces históricos, no se eliminó el slug. Se sustituyó por una redirección HTTP `302` hacia:
+
+`https://jdlc86.github.io/MartinGallardo_GPS/preview-modern/location/`
+
+La nueva versión no accede a `TELEGRAM_BOT_TOKEN`, claves Supabase ni base de datos.
+
+
 ## Base de datos
 
 Security Advisor a fecha de auditoría:
