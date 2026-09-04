@@ -7,28 +7,58 @@ on:
       - 'docs/preview-modern/**'
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
+      - 'supabase/functions/reservation-optimization-jobs-v1/**'
   pull_request:
     paths:
       - 'docs/preview-modern/**'
       - 'docs/STABLE_RELEASE.md'
+      - '.github/workflows/stable-release-guard.yml'
+      - 'supabase/functions/reservation-optimization-jobs-v1/**'
 
 jobs:
   guard:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify stable release contract
+
+      - name: Verify release contract
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'version:"1.4.0"' docs/preview-modern/release.js
-          grep -q 'build:"2026.09.04.02"' docs/preview-modern/release.js
-          grep -q 'PLANIFICACIÓN · ADMIN' docs/preview-modern/index.html
-          grep -q 'RESERVAS · ADMIN' docs/preview-modern/index.html
-          grep -q 'ACCESOS · ADMIN' docs/preview-modern/index.html
-          grep -q 'OPTIMIZACIÓN · ADMIN' docs/preview-modern/index.html
-          grep -q 'SOPORTE · ADMIN' docs/preview-modern/index.html
-          grep -q 'DIAGNÓSTICO' docs/preview-modern/index.html
-          grep -q 'admin-only' docs/preview-modern/index.html
-          grep -q 'Root/desarrollador no participa' docs/preview-modern/ai-dispatch.html
-          grep -q 'Build 2026.09.04.02' docs/STABLE_RELEASE.md
+
+          VERSION="$(sed -n 's/.*version:"\([^"]*\)".*/\1/p' docs/preview-modern/release.js | head -n1)"
+          BUILD="$(sed -n 's/.*build:"\([^"]*\)".*/\1/p' docs/preview-modern/release.js | head -n1)"
+          BUILD_TOKEN="$(printf '%s' "$BUILD" | tr -d '.')"
+
+          test -n "$VERSION"
+          test -n "$BUILD"
+
+          echo "Release: v$VERSION · Build $BUILD"
+
+          grep -Fq "**Versión:** $VERSION" docs/STABLE_RELEASE.md
+          grep -Fq "**Build estable:** $BUILD" docs/STABLE_RELEASE.md
+          grep -Fq "`v$VERSION · Build $BUILD`" docs/STABLE_RELEASE.md
+
+          grep -Fq "release.js?v=$BUILD_TOKEN" docs/preview-modern/system-info.html
+          grep -Fq "./release.js?v=$BUILD_TOKEN" docs/preview-modern/sw.js
+
+          grep -Fq "const BACKEND_VERSION = \"$VERSION\";" supabase/functions/reservation-optimization-jobs-v1/index.ts
+          grep -Fq "const BACKEND_BUILD = \"$BUILD\";" supabase/functions/reservation-optimization-jobs-v1/index.ts
+
+          grep -Fq 'PLANIFICACIÓN · ADMIN' docs/preview-modern/index.html
+          grep -Fq 'RESERVAS · ADMIN' docs/preview-modern/index.html
+          grep -Fq 'ACCESOS · ADMIN' docs/preview-modern/index.html
+          grep -Fq 'OPTIMIZACIÓN · ADMIN' docs/preview-modern/index.html
+          grep -Fq 'SOPORTE · ADMIN' docs/preview-modern/index.html
+          grep -Fq 'DIAGNÓSTICO' docs/preview-modern/index.html
+          grep -Fq 'admin-only' docs/preview-modern/index.html
+          grep -Fq 'Root/desarrollador no participa' docs/preview-modern/ai-dispatch.html
+
+      - name: Verify no polling regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE 'setInterval\(|FREQ=MINUTELY|\* \* \* \* \*' docs/preview-modern supabase/functions/reservation-notification-sender supabase/functions/reservation-optimization-jobs-v1; then
+            echo "Periodic polling-like code detected in protected paths."
+            exit 1
+          fi
