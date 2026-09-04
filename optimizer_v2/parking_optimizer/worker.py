@@ -17,8 +17,8 @@ from .validator import validate_solution
 from .unassigned_audit import audit_summary
 
 _MADRID = ZoneInfo("Europe/Madrid")
-OPTIMIZER_VERSION = "2.1.1"
-OPTIMIZER_BUILD = "2026.09.04.03"
+OPTIMIZER_VERSION = "2.1.2"
+OPTIMIZER_BUILD = "2026.09.04.04"
 
 
 class Backend:
@@ -51,6 +51,21 @@ class Backend:
 
 class MatrixMissing(RuntimeError):
     pass
+
+
+class JobTimeLimitExceeded(RuntimeError):
+    pass
+
+
+def _remaining_seconds(deadline: float) -> float:
+    return max(0.0, deadline - time.monotonic())
+
+
+def _require_job_time(deadline: float, stage: str, minimum_seconds: float = 0.0) -> float:
+    remaining = _remaining_seconds(deadline)
+    if remaining <= minimum_seconds:
+        raise JobTimeLimitExceeded(f"optimizer_job_time_limit:{stage}")
+    return remaining
 
 
 def _parse(value: str) -> datetime:
@@ -227,6 +242,8 @@ def _shift_json(shift) -> dict:
 def process_job(backend: Backend, job: dict, worker_id: str) -> None:
     job_id = job["id"]
     started = time.monotonic()
+    job_limit_seconds = max(60.0, float(os.getenv("OPTIMIZER_JOB_TIME_LIMIT_SECONDS", "300")))
+    job_deadline = started + job_limit_seconds
     backend.rpc("heartbeat_optimization_job", {"p_job_id": job_id, "p_worker_id": worker_id, "p_lease_seconds": 900, "p_progress": {"stage": "snapshot", "percent": 5}})
     current = backend.select("optimization_jobs", {"id": f"eq.{job_id}", "select": "status", "limit": "1"})[0]
     if current["status"] == "cancel_requested":
@@ -302,14 +319,18 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
             for source in sorted({str(r.get("source") or "google_routes") for r in matrix_rows})
         },
         "task_count": len(tasks),
+        "job_time_limit_seconds": job_limit_seconds,
     }
     backend.patch("optimization_jobs", {"id": f"eq.{job_id}", "claimed_by": f"eq.{worker_id}"}, {"input_snapshot": snapshot, "progress": {"stage": "cp_sat", "percent": 20}, "updated_at": datetime.now(timezone.utc).isoformat()})
 
-    solve_limit_seconds = float(
+    configured_solve_limit = float(
         os.getenv("OPTIMIZER_TIME_LIMIT_SECONDS")
         or cfg_raw.get("optimizer_time_limit_seconds", 120)
     )
+    remaining_before_solve = _require_job_time(job_deadline, "before_solver", 60.0)
+    solve_limit_seconds = max(1.0, min(configured_solve_limit, remaining_before_solve - 60.0))
     solution = solve(tasks, workers, cfg, time_limit_seconds=solve_limit_seconds)
+    _require_job_time(job_deadline, "after_solver", 20.0)
     validation_errors = validate_solution(solution, cfg)
     solve_seconds = time.monotonic() - started
     shift_counts = {"normal": 0, "intensive": 0, "max_effort": 0}
@@ -322,12 +343,14 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         "shift_counts": shift_counts, "global_work_mode": cfg.global_work_mode,
         "solver_status": solution.solver_status, "objective_value": solution.objective_value,
         "validation_error_count": len(validation_errors), "elapsed_seconds": round(solve_seconds, 3),
+        "job_time_limit_seconds": job_limit_seconds, "solver_time_limit_seconds": round(solve_limit_seconds, 3),
         "unassigned_audit": unassigned_summary,
     }
     if validation_errors:
         backend.rpc("fail_optimization_job", {"p_job_id": job_id, "p_worker_id": worker_id, "p_error_code": "physical_validation_failed", "p_error_detail": json.dumps([asdict(e) for e in validation_errors[:100]], ensure_ascii=False), "p_retryable": False, "p_metrics": metrics})
         return
 
+    _require_job_time(job_deadline, "before_reports", 10.0)
     reports = build_reports(solution)
     routes_json = {}
     assignments = []
@@ -367,6 +390,7 @@ def process_job(backend: Backend, job: dict, worker_id: str) -> None:
         "unassigned_audit_summary": unassigned_summary,
         "solver_status": solution.solver_status, "objective_value": solution.objective_value,
     }
+    _require_job_time(job_deadline, "before_persist", 5.0)
     plan_rows = backend.insert("ai_dispatch_plans", {
         "created_by_telegram_user_id": job["created_by_telegram_user_id"], "writer_epoch": job["writer_epoch"],
         "horizon_start": job["horizon_start"], "horizon_end": job["horizon_end"], "status": "proposal",
@@ -389,7 +413,7 @@ def run_forever() -> None:
             process_job(backend, claimed, worker_id)
         except Exception as exc:
             try:
-                backend.rpc("fail_optimization_job", {"p_job_id": claimed["id"], "p_worker_id": worker_id, "p_error_code": type(exc).__name__, "p_error_detail": str(exc), "p_retryable": isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)), "p_metrics": {}})
+                backend.rpc("fail_optimization_job", {"p_job_id": claimed["id"], "p_worker_id": worker_id, "p_error_code": "optimizer_job_time_limit" if isinstance(exc, JobTimeLimitExceeded) else type(exc).__name__, "p_error_detail": str(exc), "p_retryable": isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)), "p_metrics": {}})
             finally:
                 print(f"job {claimed['id']} failed: {exc}", flush=True)
 
