@@ -90,7 +90,9 @@ async function signClaims(c:SessionClaims){
 async function verifySession(token:string){
   const [body,sig,...rest]=String(token||"").split(".");
   if(!body||!sig||rest.length)throw new Error("session_invalid");
-  const given=unb64u(sig),calc=await hmac(await sessionKey(),body);
+  let given:Uint8Array;
+  try{given=unb64u(sig)}catch{throw new Error("session_invalid")}
+  const calc=await hmac(await sessionKey(),body);
   if(!eq(given,calc))throw new Error("session_invalid");
   let c:SessionClaims;
   try{c=JSON.parse(new TextDecoder().decode(unb64u(body)))}catch{throw new Error("session_invalid")}
@@ -174,7 +176,7 @@ Deno.serve(async req=>{
     return json({ok:true,locations:Array.isArray(rows)?rows:[],session_token:sessionToken});
   }catch(e){
     const msg=String((e as Error)?.message||e);
-    if(msg==="invalid_init_data"||msg==="expired_init_data"||msg==="session_invalid"||msg==="session_expired"||msg==="not_authorized"||msg==="worker_not_found")return json({ok:false,error:msg},403);
+    if(msg==="invalid_init_data"||msg==="expired_init_data"||msg==="session_invalid"||msg==="session_expired"||msg==="not_authorized"||msg==="worker_not_found"){console.warn("live_team_access_denied",msg);return json({ok:false,error:msg},403)}
     console.error(e);
     return json({ok:false,error:"live_team_unavailable"},500);
   }
