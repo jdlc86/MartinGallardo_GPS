@@ -69,15 +69,20 @@ Se comprobó que la UI actual y `reservation-optimization-jobs-v1` usan `reserva
 
 Tampoco presentaban tráfico observado en las últimas 24 horas. Ambos quedaron neutralizados de forma reversible con `410 endpoint_retired`, sin acceso a secretos ni base de datos.
 
-### Runtimes históricos retirados
+### Runtimes revisados
 
-Se comprobó que no estaban referenciados por las pantallas activas ni por el Service Worker, y se retiraron físicamente:
+La primera auditoría consideró erróneamente varios runtimes como huérfanos porque se comprobaron referencias directas en HTML, pero no las cargas dinámicas realizadas desde `ux-errors.js`.
+
+Se restauraron inmediatamente porque siguen siendo dependencias activas:
 
 - `access-runtime.js`;
 - `assignment-runtime.js`;
 - `guide-image.js`;
-- `task-dispatch-runtime.js`;
-- `ai-dispatch-runtime.js`.
+- `task-dispatch-runtime.js`.
+
+`ai-dispatch-runtime.js` permanece retirado porque no se encontró ninguna referencia actual.
+
+Lección de auditoría: antes de eliminar un runtime debe comprobarse también loaders dinámicos (`document.write`, creación de `script`, Service Worker, imports y referencias indirectas), no solo HTML y precache.
 
 ## Elementos que deben conservarse hasta verificar enlaces externos
 
