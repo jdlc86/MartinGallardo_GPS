@@ -401,3 +401,15 @@ No forma parte del diseño funcional actual:
 - `audit_events`.
 
 No eliminar sin revisar FKs, triggers y dependencias.
+
+
+## Modo temporal de prueba de caducidad (2026-09-05)
+
+Configuración deliberadamente reducida para observar avisos y consecuencias antes de restaurar los tiempos productivos:
+
+- `operation_flow_sessions` nuevas: 5 minutos.
+- Aviso de sesión protegida: cuando quedan menos de 2 minutos.
+- Autenticación `initData` en Recogida, Aparcar, Reubicar, Entrega y Buscar: 10 minutos.
+- El aviso de sesión operativa reutiliza `parking_booking_notifications`: aparece en la campana, genera toast por Realtime si la Mini App está abierta y se entrega también por Telegram mediante `reservation-notification-sender`.
+- El aviso se genera solo si la sesión sigue `active` y se deduplica por `flow_session_id`.
+- Esta configuración es temporal de prueba; el objetivo productivo acordado sigue siendo 22 horas.
