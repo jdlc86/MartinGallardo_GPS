@@ -6,7 +6,7 @@
   "build": "2026.09.04.04",
   "released_at": "2026-09-04T22:00:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v57"
+    "service_worker_cache": "pmg-shell-v58"
   },
   "backend": {
     "version": "1.4.0",
@@ -36,7 +36,7 @@
       "modern-pickup-api": "39a56c6f1671e441a75f671fc16b7335a1db700e",
       "modern-search-api": "64cde99fecb8faf805866bf2f645ef9c4bc0a128",
       "maintenance-runner": "20ea8af317edba97120c19a81ca8cc5684fd4d3c",
-      "modern-live-team-api": "932e816f0b8384b70c2621cba6d2051402d73b4f",
+      "modern-live-team-api": "1e3b24cafeb6f8dedb66aeb57275b6554445697f",
       "connectivity-health": "2a41d723cfa9e6f0dbe4199a05bf889701486408"
     }
   },
