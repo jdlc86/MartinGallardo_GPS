@@ -179,6 +179,7 @@ async function telegram(method: string, payload: unknown) {
 }
 
 function notificationKeyboard(notificationType: string) {
+  const flowExpiryNotice = notificationType === "flow_session_expiring";
   const permissionNotice = notificationType.includes("permission") ||
     notificationType.includes("write_") || notificationType.includes("transfer");
   const text = permissionNotice ? "📋 ABRIR GESTIÓN DE RESERVAS" : "⚡ VER MIS TAREAS";
