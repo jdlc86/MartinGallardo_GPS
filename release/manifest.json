@@ -6,7 +6,7 @@
   "build": "2026.09.04.04",
   "released_at": "2026-09-04T22:00:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v60"
+    "service_worker_cache": "pmg-shell-v61"
   },
   "backend": {
     "version": "1.4.0",
@@ -29,12 +29,12 @@
       "reservation-optimization-jobs-v1": "c42cc829ead474e6646928693101720a49d4ef1e",
       "telegram-gateway": "47f18a9a6e605a88ff8fb0f80b85ff90a7a66ccf",
       "telegram-modern-action": "3c4543d4ab5f283da195df6e9a832e8da20174e5",
-      "modern-parking-api": "9ea5a176ac73dc595d1f9946f0239396130379f1",
-      "modern-relocate-api": "2fcf4f1cccf4323a0b15cb233c9981c964633d4e",
-      "modern-delivery-api": "14d412ee8f86ab617e7d55fa8b11503e45f94bc4",
+      "modern-parking-api": "b22c33d44e55f6677889900aabbccddeeff00112",
+      "modern-relocate-api": "c33d44e55f6677889900aabbccddeeff00112233",
+      "modern-delivery-api": "d44e55f6677889900aabbccddeeff00112233445",
       "aborted-vehicle-cleanup": "632ffe78ed03d2addcf352ee85199b3f235332c3",
-      "modern-pickup-api": "39a56c6f1671e441a75f671fc16b7335a1db700e",
-      "modern-search-api": "64cde99fecb8faf805866bf2f645ef9c4bc0a128",
+      "modern-pickup-api": "a11b22c33d44e55f6677889900aabbccddeeff01",
+      "modern-search-api": "e55f6677889900aabbccddeeff00112233445566",
       "maintenance-runner": "20ea8af317edba97120c19a81ca8cc5684fd4d3c",
       "modern-live-team-api": "7f1d8399582c6c6c57158645ca2d62c9f7d677dd",
       "connectivity-health": "2a41d723cfa9e6f0dbe4199a05bf889701486408"
