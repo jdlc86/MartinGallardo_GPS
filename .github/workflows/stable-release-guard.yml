@@ -185,4 +185,8 @@ jobs:
             echo "Periodic polling detected in a protected realtime/event-driven flow."
             exit 1
           fi
-          echo "No periodic polling detected in protected flows."
+          if grep -nE 'setInterval\s*\(\s*load\s*,' docs/preview-modern/team-live.html; then
+            echo "Backend polling detected in team-live.html."
+            exit 1
+          fi
+          echo "No periodic backend polling detected in protected flows."
