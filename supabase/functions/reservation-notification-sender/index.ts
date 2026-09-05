@@ -74,17 +74,22 @@ async function telegram(method: string, payload: unknown) {
 
 function keyboard(notificationType: string) {
   const flowExpiryNotice = notificationType === "flow_session_expiring";
+  const flowExpiredNotice = notificationType === "flow_session_expired";
   const optimizationNotice = notificationType.startsWith("optimizer_");
   const permissionNotice = notificationType.includes("permission") ||
     notificationType.includes("write_") || notificationType.includes("transfer");
-  const text = flowExpiryNotice
+  const text = flowExpiredNotice
+    ? "🚘 ABRIR PARKINGMARTIN-G"
+    : flowExpiryNotice
     ? "⚠️ VOLVER A LA OPERACIÓN"
     : optimizationNotice
       ? "🧭 VER PROPUESTA"
       : permissionNotice
       ? "📋 ABRIR GESTIÓN DE RESERVAS"
       : "⚡ VER MIS TAREAS";
-  const path = flowExpiryNotice
+  const path = flowExpiredNotice
+    ? "?v=20260905NEWSESSION1"
+    : flowExpiryNotice
     ? "operations.html?v=20260905SESSIONTEST1"
     : optimizationNotice
       ? "ai-dispatch.html?v=20260904OPT1"
