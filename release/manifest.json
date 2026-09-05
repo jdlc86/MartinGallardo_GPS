@@ -6,7 +6,7 @@
   "build": "2026.09.04.04",
   "released_at": "2026-09-04T22:00:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v44"
+    "service_worker_cache": "pmg-shell-v45"
   },
   "backend": {
     "version": "1.4.0",
@@ -23,9 +23,9 @@
       "reservation-optimization-jobs-v1": "c42cc829ead474e6646928693101720a49d4ef1e",
       "telegram-gateway": "47f18a9a6e605a88ff8fb0f80b85ff90a7a66ccf",
       "telegram-modern-action": "3c4543d4ab5f283da195df6e9a832e8da20174e5",
-      "modern-parking-api": "bf07ad09482953b04f4d12957e53e20af386c465",
+      "modern-parking-api": "ff3530973402774e74d4c6f9091e87dc10d01319",
       "modern-relocate-api": "3e2564f3851752386afe7dbeb695f307938db9f9",
-      "modern-delivery-api": "f97484e55b4cebd67a04609013d08c232aed4f48"
+      "modern-delivery-api": "c3f98cf8789bdfd30e158a662d743a0d4d9478b4"
     }
   },
   "optimizer": {
