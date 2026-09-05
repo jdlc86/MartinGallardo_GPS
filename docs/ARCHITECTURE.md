@@ -222,7 +222,7 @@ Los errores inesperados deben producir un mensaje genérico accionable y conserv
 
 ### Recogida
 
-Sesión operativa protegida mediante `operation_flow_sessions`, ligada a operario, vehículo, matrícula y tarea cuando aplica. La autenticación Telegram y la sesión operativa tienen una ventana máxima de 22 horas.
+Sesión operativa protegida mediante `operation_flow_sessions`, ligada a operario, vehículo, matrícula y tarea cuando aplica. La autenticación Telegram y la sesión operativa tienen una ventana máxima de 22 horas. El contexto mínimo de la sesión se persiste localmente y, tras una recarga o reapertura accidental de la Mini App, se revalida mediante `resume` contra backend antes de reconstruir el flujo.
 
 ```text
 requested -> in_transit
@@ -238,7 +238,7 @@ requested -> in_transit
 
 ### Aparcar
 
-Sesión operativa protegida mediante `operation_flow_sessions`, con ventana máxima de 22 horas.
+Sesión operativa protegida mediante `operation_flow_sessions`, con ventana máxima de 22 horas. El contexto mínimo se recupera tras recarga/reapertura y siempre se revalida en backend antes de continuar.
 
 ```text
 in_transit/requested -> parked
