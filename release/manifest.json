@@ -27,7 +27,7 @@
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "c42cc829ead474e6646928693101720a49d4ef1e",
-      "telegram-gateway": "47f18a9a6e605a88ff8fb0f80b85ff90a7a66ccf",
+      "telegram-gateway": "58a29bab7f716d99a19f0a1aa1b1c1d1e1f10203",
       "telegram-modern-action": "3c4543d4ab5f283da195df6e9a832e8da20174e5",
       "modern-parking-api": "bc20de30fa40bc50de60fa70bc80de90fa01bc12",
       "modern-relocate-api": "cd30ef40ab50cd60ef70ab80cd90ef01ab12cd23",
