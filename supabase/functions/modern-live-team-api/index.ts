@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="204520ac9e77e351f2a6c650fb64eaaa5a6e6c9a";
+const RELEASE_SOURCE_REVISION="932e816f0b8384b70c2621cba6d2051402d73b4f";
 
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
@@ -72,7 +72,7 @@ async function auth(initData:string){
   const sec=await hmac("WebAppData",BOT_TOKEN),calc=await hmac(sec,check),given=hexBytes(hash);
   if(!given||!eq(calc,given))throw new Error("invalid_init_data");
   const at=Number(p.get("auth_date")||0);
-  if(!Number.isFinite(at)||Math.abs(Date.now()/1000-at)>900)throw new Error("expired_init_data");
+  if(!Number.isFinite(at)||Math.abs(Date.now()/1000-at)>43200)throw new Error("expired_init_data");
   const u=JSON.parse(p.get("user")||"null");
   if(!u?.id)throw new Error("missing_user");
   return Number(u.id);
