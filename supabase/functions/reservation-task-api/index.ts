@@ -179,12 +179,19 @@ async function telegram(method: string, payload: unknown) {
 }
 
 function notificationKeyboard(notificationType: string) {
+  const flowExpiryNotice = notificationType === "flow_session_expiring";
   const permissionNotice = notificationType.includes("permission") ||
     notificationType.includes("write_") || notificationType.includes("transfer");
-  const text = permissionNotice ? "📋 ABRIR GESTIÓN DE RESERVAS" : "⚡ VER MIS TAREAS";
-  const path = permissionNotice
-    ? "reservations-admin.html?v=20260901R3"
-    : "operations.html?v=20260901TASK3";
+  const text = flowExpiryNotice
+    ? "⚠️ VOLVER A LA OPERACIÓN"
+    : permissionNotice
+      ? "📋 ABRIR GESTIÓN DE RESERVAS"
+      : "⚡ VER MIS TAREAS";
+  const path = flowExpiryNotice
+    ? "operations.html?v=20260905SESSIONTEST1"
+    : permissionNotice
+      ? "reservations-admin.html?v=20260901R3"
+      : "operations.html?v=20260901TASK3";
   return { inline_keyboard: [[{ text, web_app: { url: `${MINI_APP_URL}${path}` } }]] };
 }
 

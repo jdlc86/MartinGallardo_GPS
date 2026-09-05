@@ -60,6 +60,7 @@
       .pmg-notice-empty .icon{width:54px;height:54px;margin:0 auto 12px;border-radius:18px;display:grid;place-items:center;background:var(--pmg-soft,#ffffff0d);font-size:23px}
       .pmg-notice-empty b{display:block;color:var(--pmg-text,#fff);font-size:13px}
       .pmg-notice-empty p{margin:5px auto 0;max-width:290px;font-size:10.5px;line-height:1.5}
+      #pmg-session-expiry-toast{position:fixed;z-index:2147483650;left:50%;top:calc(68px + env(safe-area-inset-top));transform:translate(-50%,-10px);width:min(92vw,520px);padding:14px 16px;border-radius:16px;border:1px solid color-mix(in srgb,var(--pmg-warning,#f59e0b) 60%,var(--pmg-border,#ffffff22));background:color-mix(in srgb,var(--pmg-warning-soft,#f59e0b18) 92%,var(--pmg-surface,#101d30));color:var(--pmg-text,#fff);box-shadow:0 16px 50px #0007;opacity:0;pointer-events:none;transition:.2s;font-size:12px;font-weight:800;line-height:1.45;text-align:center}#pmg-session-expiry-toast.on{opacity:1;transform:translate(-50%,0)}
       @media(min-width:700px){#pmg-notice-panel{align-items:center;padding:24px}#pmg-notice-panel .pmg-notice-box{border-radius:26px;box-shadow:0 24px 90px var(--pmg-shadow,#0008)}}
       @media(max-width:480px){html.pmg-notifications-mounted .pmg-theme-control{right:62px!important}html.pmg-notifications-mounted .pmg-theme-panel{right:10px!important}#pmg-notice-bell{right:10px!important;top:calc(8px + env(safe-area-inset-top))!important;width:40px!important;height:40px!important}.pmg-notice{padding:12px 11px}}
       @media(prefers-reduced-motion:reduce){#pmg-notice-panel,#pmg-notice-panel .pmg-notice-box{animation:none}}
@@ -111,6 +112,7 @@
   }
 
   function iconFor(type) {
+    if (type === "flow_session_expiring") return "⚠";
     if (type.includes("task_reassignment") || type.includes("task_unassigned")) return "↻";
     if (type.includes("task_")) return "✓";
     if (type.includes("permission") || type.includes("write_") || type.includes("transfer")) return "◆";
@@ -118,6 +120,7 @@
   }
 
   function actionFor(type) {
+    if (type === "flow_session_expiring") return { label: "VOLVER A LA OPERACIÓN", href: "operations.html?v=20260905SESSIONTEST1" };
     if (type.includes("task_")) return { label: "VER MIS TAREAS", href: "operations.html?v=20260901TASK3" };
     if (type.includes("permission") || type.includes("write_") || type.includes("transfer")) {
       return { label: "ABRIR GESTIÓN DE RESERVAS", href: "reservations-admin.html?v=20260904R14" };
@@ -227,12 +230,36 @@
     panel.querySelector(".pmg-notice-close")?.focus({ preventScroll: true });
   }
 
+  let initialized = false;
+  function showSessionExpiryToast(notice) {
+    let toast = document.getElementById("pmg-session-expiry-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "pmg-session-expiry-toast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "assertive");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = "⚠️ " + String(notice?.body || "Tu operación está a punto de caducar.");
+    toast.classList.add("on");
+    try { telegram()?.HapticFeedback?.notificationOccurred("warning"); } catch {}
+    clearTimeout(showSessionExpiryToast.timer);
+    showSessionExpiryToast.timer = setTimeout(() => toast.classList.remove("on"), 9000);
+  }
+
   async function refresh() {
     const app = telegram();
     if (document.hidden || !app?.initData || !navigator.onLine) return;
     try {
       const data = await api("notifications");
-      notices = Array.isArray(data.notifications) ? data.notifications : [];
+      const incoming = Array.isArray(data.notifications) ? data.notifications : [];
+      if (initialized) {
+        const known = new Set(notices.map((notice) => Number(notice.id)));
+        const warning = incoming.find((notice) => !known.has(Number(notice.id)) && notice.notification_type === "flow_session_expiring" && !notice.read_at);
+        if (warning) showSessionExpiryToast(warning);
+      }
+      notices = incoming;
+      initialized = true;
       mountBell();
       const panel = document.getElementById("pmg-notice-panel");
       if (panel) {
