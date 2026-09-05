@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="e1bfddf9c7bea32fa58a8cd6ebb186c0290e04cb";
+const RELEASE_SOURCE_REVISION="204520ac9e77e351f2a6c650fb64eaaa5a6e6c9a";
 
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
@@ -110,6 +110,7 @@ Deno.serve(async req=>{
 
     const rows=await rest("worker_live_locations",{
       select:"telegram_user_id,worker_id,full_name,latitude,longitude,accuracy_m,heading,live_until,updated_at",
+      live_until:`gt.${new Date().toISOString()}`,
       order:"updated_at.desc"
     });
 
