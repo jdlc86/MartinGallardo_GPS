@@ -222,6 +222,8 @@ Los errores inesperados deben producir un mensaje genérico accionable y conserv
 
 ### Recogida
 
+Sesión operativa protegida mediante `operation_flow_sessions`, ligada a operario, vehículo, matrícula y tarea cuando aplica. La autenticación Telegram y la sesión operativa tienen una ventana máxima de 22 horas.
+
 ```text
 requested -> in_transit
 ```
@@ -235,6 +237,8 @@ requested -> in_transit
 - evento final `pickup`.
 
 ### Aparcar
+
+Sesión operativa protegida mediante `operation_flow_sessions`, con ventana máxima de 22 horas.
 
 ```text
 in_transit/requested -> parked
@@ -255,9 +259,12 @@ in_transit/requested -> parked
 - devuelve coordenadas, precisión y referencia;
 - navegación solo con coordenadas válidas;
 - evento `lookup`;
-- no modifica estado.
+- no modifica estado;
+- es una consulta autenticada y no crea `operation_flow_sessions`.
 
 ### Entrega
+
+Sesión operativa protegida mediante `operation_flow_sessions`, ligada al operario, vehículo, matrícula, verificación y tarea cuando aplica. La autenticación Telegram y la sesión operativa tienen una ventana máxima de 22 horas.
 
 ```text
 parked -> retrieved
