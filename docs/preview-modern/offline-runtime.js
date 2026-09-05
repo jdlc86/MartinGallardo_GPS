@@ -93,11 +93,6 @@
     lastProbeAt = now;
 
     probePromise = (async () => {
-      if (!navigator.onLine) {
-        applyState("offline");
-        return "offline";
-      }
-
       let internetOk = false;
       try {
         const staticUrl = new URL(STATIC_PING, location.href);
@@ -131,7 +126,7 @@
   }
 
   function offline() {
-    applyState("offline");
+    probe(true).catch(() => applyState("offline"));
   }
 
   window.PMGConnectivity = {
@@ -141,7 +136,7 @@
     get state() { return connectivityState; }
   };
 
-  window.addEventListener("offline", () => applyState("offline"));
+  window.addEventListener("offline", () => probe(true).catch(() => applyState("offline")));
   window.addEventListener("online", () => probe(true));
 
   if (document.readyState === "loading") {
