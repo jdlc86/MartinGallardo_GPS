@@ -309,7 +309,7 @@ Informativo; no escribe en Supabase ni modifica vehículos.
 
 `worker_live_locations` mantiene solo la última posición por usuario. Al terminar la compartición, la fila se elimina cuando Telegram emite la edición correspondiente.
 
-`team-live.html` consume `modern-live-team-api`, visible para cualquier usuario activo, con refresco ~10 s y sin trayectoria histórica.
+`team-live.html` consume `modern-live-team-api`, visible para cualquier usuario activo. La pantalla hace una reconciliación inicial autenticada y después escucha la señal Realtime `team-live-locations`; cada señal provoca una única reconciliación del snapshot. No existe sondeo periódico al backend. Al recuperar Internet o volver al primer plano se reconcilia de nuevo. La caducidad `live_until` se aplica también localmente para retirar marcadores sin necesidad de consultar el backend. No se guarda trayectoria histórica.
 
 `worker_daily_presence` registra únicamente presencia diaria para informes.
 
