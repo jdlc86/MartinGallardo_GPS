@@ -5,7 +5,7 @@ const SERVICE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="0b70ee4775cc5d87023fb37b03d39ea5544d5de9";
+const RELEASE_SOURCE_REVISION="632ffe78ed03d2addcf352ee85199b3f235332c3";
 
 const headers=(extra:Record<string,string>={})=>({
   Authorization:`Bearer ${SERVICE_KEY}`,
@@ -41,8 +41,11 @@ Deno.serve(async req=>{
   if(req.method==="GET"&&u.searchParams.get("attest")==="1")return attest();
   if(req.method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
   try{
-    const provided=req.headers.get("x-cleanup-secret")||"";
-    if(!provided||!(await rpc("validate_aborted_vehicle_cleanup_secret",{p_secret:provided})))return json({ok:false,error:"not_authorized"},403);
+    const cleanupSecret=req.headers.get("x-cleanup-secret")||"";
+    const maintenanceSecret=req.headers.get("x-maintenance-secret")||"";
+    const cleanupAuthorized=Boolean(cleanupSecret)&&Boolean(await rpc("validate_aborted_vehicle_cleanup_secret",{p_secret:cleanupSecret}));
+    const maintenanceAuthorized=Boolean(maintenanceSecret)&&Boolean(await rpc("validate_maintenance_runner_secret",{p_secret:maintenanceSecret}));
+    if(!cleanupAuthorized&&!maintenanceAuthorized)return json({ok:false,error:"not_authorized"},403);
     const body=await req.json().catch(()=>({}));
     const dryRun=Boolean(body?.dry_run);
     const limit=Math.max(1,Math.min(Number(body?.limit)||25,100));

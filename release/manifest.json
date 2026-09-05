@@ -20,7 +20,8 @@
       "modern-delivery-api",
       "aborted-vehicle-cleanup",
       "modern-pickup-api",
-      "modern-search-api"
+      "modern-search-api",
+      "maintenance-runner"
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "c42cc829ead474e6646928693101720a49d4ef1e",
@@ -29,9 +30,10 @@
       "modern-parking-api": "9ea5a176ac73dc595d1f9946f0239396130379f1",
       "modern-relocate-api": "2fcf4f1cccf4323a0b15cb233c9981c964633d4e",
       "modern-delivery-api": "14d412ee8f86ab617e7d55fa8b11503e45f94bc4",
-      "aborted-vehicle-cleanup": "0b70ee4775cc5d87023fb37b03d39ea5544d5de9",
+      "aborted-vehicle-cleanup": "632ffe78ed03d2addcf352ee85199b3f235332c3",
       "modern-pickup-api": "39a56c6f1671e441a75f671fc16b7335a1db700e",
-      "modern-search-api": "64cde99fecb8faf805866bf2f645ef9c4bc0a128"
+      "modern-search-api": "64cde99fecb8faf805866bf2f645ef9c4bc0a128",
+      "maintenance-runner": "20ea8af317edba97120c19a81ca8cc5684fd4d3c"
     }
   },
   "optimizer": {
