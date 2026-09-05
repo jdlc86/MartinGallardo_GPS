@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="1e3b24cafeb6f8dedb66aeb57275b6554445697f";
+const RELEASE_SOURCE_REVISION="7f1d8399582c6c6c57158645ca2d62c9f7d677dd";
 
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
@@ -66,7 +66,7 @@ async function hmac(k:Uint8Array|string,m:string){
   return new Uint8Array(await crypto.subtle.sign("HMAC",ik,new TextEncoder().encode(m)));
 }
 const INIT_DATA_MAX_AGE_S=900;
-const SESSION_TTL_S=7200;
+const SESSION_TTL_S=14*3600;
 const SESSION_MAX_AGE_S=14*3600;
 const SESSION_SCOPE="team_live_read";
 type SessionClaims={v:1;uid:number;wid:string;scope:string;iat:number;exp:number;max_exp:number};
