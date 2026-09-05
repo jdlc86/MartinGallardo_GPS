@@ -5,7 +5,7 @@ const SERVICE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="0000000000000000000000000000000000000000";
+const RELEASE_SOURCE_REVISION="0b70ee4775cc5d87023fb37b03d39ea5544d5de9";
 
 const headers=(extra:Record<string,string>={})=>({
   Authorization:`Bearer ${SERVICE_KEY}`,

@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="dd1fab6aa4208363d3adee0d2d42ac6d80a028e8";
+const RELEASE_SOURCE_REVISION="9ea5a176ac73dc595d1f9946f0239396130379f1";
 function releaseAttestation(){return new Response(JSON.stringify({ok:true,product:RELEASE_PRODUCT,function:"modern-parking-api",version:RELEASE_VERSION,build:RELEASE_BUILD,source_revision:RELEASE_SOURCE_REVISION}),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}})}
 
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;const SECRET_KEYS_JSON=Deno.env.get("SUPABASE_SECRET_KEYS");const LEGACY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");const GOOGLE_VISION_KEY=Deno.env.get("GOOGLE_VISION_API_KEY")||Deno.env.get("GOOGLE_API_KEY")||null;const ORIGIN="https://jdlc86.github.io";

@@ -17,15 +17,17 @@
       "telegram-modern-action",
       "modern-parking-api",
       "modern-relocate-api",
-      "modern-delivery-api"
+      "modern-delivery-api",
+      "aborted-vehicle-cleanup"
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "c42cc829ead474e6646928693101720a49d4ef1e",
       "telegram-gateway": "47f18a9a6e605a88ff8fb0f80b85ff90a7a66ccf",
       "telegram-modern-action": "3c4543d4ab5f283da195df6e9a832e8da20174e5",
-      "modern-parking-api": "0818b4371074419651091ef03fd4735e7da0b498",
+      "modern-parking-api": "9ea5a176ac73dc595d1f9946f0239396130379f1",
       "modern-relocate-api": "3e2564f3851752386afe7dbeb695f307938db9f9",
-      "modern-delivery-api": "14d412ee8f86ab617e7d55fa8b11503e45f94bc4"
+      "modern-delivery-api": "14d412ee8f86ab617e7d55fa8b11503e45f94bc4",
+      "aborted-vehicle-cleanup": "0b70ee4775cc5d87023fb37b03d39ea5544d5de9"
     }
   },
   "optimizer": {
