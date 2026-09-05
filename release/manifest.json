@@ -16,14 +16,16 @@
       "telegram-gateway",
       "telegram-modern-action",
       "modern-parking-api",
-      "modern-relocate-api"
+      "modern-relocate-api",
+      "modern-delivery-api"
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "c42cc829ead474e6646928693101720a49d4ef1e",
       "telegram-gateway": "47f18a9a6e605a88ff8fb0f80b85ff90a7a66ccf",
       "telegram-modern-action": "3c4543d4ab5f283da195df6e9a832e8da20174e5",
-      "modern-parking-api": "a4a4542dfdd2c797fa46b06fd86502e147905ced",
-      "modern-relocate-api": "3e2564f3851752386afe7dbeb695f307938db9f9"
+      "modern-parking-api": "bf07ad09482953b04f4d12957e53e20af386c465",
+      "modern-relocate-api": "3e2564f3851752386afe7dbeb695f307938db9f9",
+      "modern-delivery-api": "0000000000000000000000000000000000000003"
     }
   },
   "optimizer": {
