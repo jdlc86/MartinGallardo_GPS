@@ -133,29 +133,45 @@
     }catch{return null}
   }
 
+  function currentTelegramUserId(){
+    try{
+      const initData=window.Telegram?.WebApp?.initData;
+      if(!initData)return null;
+      const raw=new URLSearchParams(initData).get("user");
+      if(!raw)return null;
+      const user=JSON.parse(raw);
+      const value=Number(user?.id);
+      return Number.isFinite(value)&&value>0?String(value):null;
+    }catch{return null}
+  }
+
   function readStoredAccessSession(){
     try{
       const token=sessionStorage.getItem("pmg_access_session_token")||null;
       const expiresAt=sessionStorage.getItem("pmg_access_session_expires_at")||null;
       const authDate=Number(sessionStorage.getItem("pmg_access_session_auth_date")||0)||null;
-      return {token,expiresAt,authDate};
-    }catch{return {token:null,expiresAt:null,authDate:null}}
+      const userId=sessionStorage.getItem("pmg_access_session_user_id")||null;
+      return {token,expiresAt,authDate,userId};
+    }catch{return {token:null,expiresAt:null,authDate:null,userId:null}}
   }
 
   function storedAccessSessionUsable(){
     const stored=readStoredAccessSession();
     const current=currentAuthDate();
+    const currentUserId=currentTelegramUserId();
     const expiresMs=stored.expiresAt?new Date(stored.expiresAt).getTime():NaN;
     return Boolean(
       stored.token &&
       current &&
+      currentUserId &&
       stored.authDate===current &&
+      stored.userId===currentUserId &&
       Number.isFinite(expiresMs) &&
       expiresMs>Date.now()+1000
     );
   }
 
-  function storeAccessSession(token,expiresAt,authDate=currentAuthDate()){
+  function storeAccessSession(token,expiresAt,authDate=currentAuthDate(),userId=currentTelegramUserId()){
     accessToken=String(token||"")||null;
     accessExpiresAt=expiresAt||null;
     try{
@@ -165,10 +181,13 @@
         else sessionStorage.removeItem("pmg_access_session_expires_at");
         if(authDate)sessionStorage.setItem("pmg_access_session_auth_date",String(authDate));
         else sessionStorage.removeItem("pmg_access_session_auth_date");
+        if(userId)sessionStorage.setItem("pmg_access_session_user_id",String(userId));
+        else sessionStorage.removeItem("pmg_access_session_user_id");
       }else{
         sessionStorage.removeItem("pmg_access_session_token");
         sessionStorage.removeItem("pmg_access_session_expires_at");
         sessionStorage.removeItem("pmg_access_session_auth_date");
+        sessionStorage.removeItem("pmg_access_session_user_id");
       }
     }catch{}
   }
@@ -230,8 +249,9 @@
 
   const nativeFetch=window.fetch.bind(window);
   const initialStoredAccess=readStoredAccessSession();
-  accessToken=initialStoredAccess.token;
-  accessExpiresAt=initialStoredAccess.expiresAt;
+  const initialStoredAccessUsable=storedAccessSessionUsable();
+  accessToken=initialStoredAccessUsable?initialStoredAccess.token:null;
+  accessExpiresAt=initialStoredAccessUsable?initialStoredAccess.expiresAt:null;
   window.fetch=async function(input,init){
     let nextInit=init;
     try{
