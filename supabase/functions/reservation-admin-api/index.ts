@@ -18,7 +18,7 @@ const SECRET_KEYS_JSON = Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_AI_API_KEY") || Deno.env.get("GOOGLE_API_KEY") || Deno.env.get("GOOGLE_VISION_API_KEY") || null;
 const ALLOW_ORIGIN = "https://jdlc86.github.io";
-const INIT_DATA_MAX_AGE_SECONDS = 86400;
+const INIT_DATA_MAX_AGE_SECONDS = 600;
 const MAX_FILE_BYTES = 6_000_000;
 const MAX_IMPORT_ROWS = 1000;
 const MAX_IMPORT_COLUMNS = 40;
@@ -117,6 +117,10 @@ async function validateInitData(initData: string) {
   if (!Number.isFinite(telegramUserId)) throw new AppError("missing_user", 403);
   return { telegramUserId, telegramUser };
 }
+
+async function sha256AccessToken(value:string){const d=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));return[...d].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function validateAccessSession(token:string){if(!token)return null;const response=await fetch(`${SUPABASE_URL}/rest/v1/rpc/validate_miniapp_access_session`,{method:"POST",headers:serviceHeaders({"Content-Type":"application/json"}),body:JSON.stringify({p_token_hash:await sha256AccessToken(token)})});if(!response.ok)throw new AppError("access_session_validation_failed",500);const data=await response.json();const row=Array.isArray(data)?data[0]:data;if(!row?.telegram_user_id)throw new AppError("expired_access_session",403);return Number(row.telegram_user_id)}
+async function authenticateRequest(initData:string,token:string){const uid=await validateAccessSession(token);if(uid)return{telegramUserId:uid,telegramUser:null};return validateInitData(initData)}
 
 async function requestTable(table: string, params: Record<string, string>) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
@@ -622,7 +626,7 @@ Deno.serve(async (request: Request) => {
     const origin = request.headers.get("Origin");
     if (origin && origin !== ALLOW_ORIGIN) throw new AppError("origin_not_allowed", 403);
     const body = await request.json();
-    const auth = await validateInitData(String(body.initData || ""));
+    const auth = await authenticateRequest(String(body.initData || ""), String(body.access_session_token || ""));
     await requireAdmin(auth.telegramUserId);
     await rpc("parking_booking_expire_permission_requests", {});
     const action = String(body.action || "");
