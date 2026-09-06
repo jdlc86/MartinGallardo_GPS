@@ -9,24 +9,14 @@ on:
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
       - '.github/workflows/deployed-release-verification.yml'
-      - 'supabase/functions/reservation-optimization-jobs-v1/**'
-      - 'supabase/functions/telegram-gateway/**'
-      - 'supabase/functions/telegram-modern-action/**'
-      - 'supabase/functions/modern-parking-api/**'
-      - 'supabase/functions/modern-relocate-api/**'
-      - 'supabase/functions/performance-report-sender/**'
+      - 'supabase/functions/**'
   pull_request:
     paths:
       - 'release/manifest.json'
       - 'docs/preview-modern/**'
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
-      - 'supabase/functions/reservation-optimization-jobs-v1/**'
-      - 'supabase/functions/telegram-gateway/**'
-      - 'supabase/functions/telegram-modern-action/**'
-      - 'supabase/functions/modern-parking-api/**'
-      - 'supabase/functions/modern-relocate-api/**'
-      - 'supabase/functions/performance-report-sender/**'
+      - 'supabase/functions/**'
 
 jobs:
   release-contract:
