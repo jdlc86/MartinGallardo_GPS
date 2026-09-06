@@ -1,5 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+const RELEASE_PRODUCT="ParkingMartin-G";
+const RELEASE_VERSION="1.4.0";
+const RELEASE_BUILD="2026.09.04.04";
+const RELEASE_SOURCE_REVISION="f861c731ab42cd53ef64ab75cd86ef97ab08cd19";
+function releaseAttestation(){return new Response(JSON.stringify({ok:true,product:RELEASE_PRODUCT,function:"miniapp-access-session-api",version:RELEASE_VERSION,build:RELEASE_BUILD,source_revision:RELEASE_SOURCE_REVISION}),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}})}
+
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const SECRET_KEYS_JSON=Deno.env.get("SUPABASE_SECRET_KEYS");
@@ -90,6 +96,8 @@ async function upsertSession(uid:number,authDate:number){
 }
 
 Deno.serve(async(req)=>{
+  const url=new URL(req.url);
+  if(req.method==="GET"&&url.searchParams.get("attest")==="1")return releaseAttestation();
   if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors()});
   if(req.method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
   try{
