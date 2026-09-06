@@ -86,6 +86,19 @@
     }
   }
 
+  async function probeStaticReachability() {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const staticUrl = new URL(STATIC_PING, location.href);
+        staticUrl.searchParams.set("_", String(Date.now()) + "-" + attempt);
+        const r = await fetchWithTimeout(staticUrl.toString(), attempt === 1 ? 2500 : 3500);
+        if (r.ok) return true;
+      } catch {}
+      if (attempt === 1) await new Promise(resolve => setTimeout(resolve, 350));
+    }
+    return false;
+  }
+
   async function probe(force = false) {
     const now = Date.now();
     if (!force && probePromise) return probePromise;
@@ -93,13 +106,7 @@
     lastProbeAt = now;
 
     probePromise = (async () => {
-      let internetOk = false;
-      try {
-        const staticUrl = new URL(STATIC_PING, location.href);
-        staticUrl.searchParams.set("_", String(Date.now()));
-        const r = await fetchWithTimeout(staticUrl.toString(), 2500);
-        internetOk = r.ok;
-      } catch {}
+      const internetOk = await probeStaticReachability();
 
       if (!internetOk) {
         applyState("offline");
