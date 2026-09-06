@@ -359,6 +359,25 @@ function taskLine(task: Record<string, any>) {
   } · ${task.plate || "—"}`;
 }
 
+async function enqueueUnassignmentNotifications(
+  previous: Map<number, Array<Record<string, any>>>,
+) {
+  const notifications: Array<Record<string, unknown>> = [];
+  for (const [telegramUserId, tasks] of previous) {
+    const lines = tasks.slice(0, 8).map(taskLine);
+    const more = tasks.length > 8 ? `\n… y ${tasks.length - 8} más.` : "";
+    notifications.push({
+      recipient_telegram_user_id: telegramUserId,
+      notification_type: "task_unassigned",
+      title: "Tareas sin asignar",
+      body: `${tasks.length} ${tasks.length === 1 ? "tarea ha quedado" : "tareas han quedado"} SIN ASIGNAR.\n\n${lines.join("\n")}${more}`,
+      payload: { task_ids: tasks.map((task) => task.id) },
+    });
+  }
+  if (notifications.length) await insert("parking_booking_notifications", notifications);
+  return notifications.length;
+}
+
 async function enqueueAssignmentNotifications(
   tasks: Array<Record<string, any>>,
   target: Record<string, any>,
@@ -470,6 +489,37 @@ Deno.serve(async (request) => {
       const tasks = (await taskRows({ id: filter })).map(mapTask);
       const queued = await enqueueAssignmentNotifications(tasks, result, previous);
       return json({ ok: true, result, tasks, notifications_queued: queued });
+    }
+
+    if (action === "unassign") {
+      if (!["owner", "admin"].includes(actor.role)) throw new AppError("not_admin", 403);
+      if (!Array.isArray(body.items) || body.items.length === 0) {
+        throw new AppError("empty_task_selection");
+      }
+      const items = body.items.map((item: Record<string, unknown>) => ({
+        id: requireUuid(item.id, "invalid_task_selection"),
+        version: Number(item.version),
+      }));
+      if (items.some((item: { version: number }) => !Number.isSafeInteger(item.version) || item.version < 0)) {
+        throw new AppError("invalid_task_selection");
+      }
+      const filter = `in.(${items.map((item: { id: string }) => item.id).join(",")})`;
+      const before = await taskRows({ id: filter });
+      const previous = new Map<number, Array<Record<string, any>>>();
+      for (const raw of before) {
+        const previousWorker = raw.workers;
+        if (previousWorker?.telegram_user_id) {
+          const id = Number(previousWorker.telegram_user_id);
+          if (!previous.has(id)) previous.set(id, []);
+          previous.get(id)!.push(mapTask(raw));
+        }
+      }
+      const result = await rpc("reservation_task_bulk_unassign", {
+        p_actor_telegram_user_id: telegramUserId,
+        p_items: items,
+      });
+      const queued = await enqueueUnassignmentNotifications(previous);
+      return json({ ok: true, result, notifications_queued: queued });
     }
 
     if (action === "notifications") {
