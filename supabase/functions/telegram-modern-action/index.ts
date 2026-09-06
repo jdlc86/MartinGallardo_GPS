@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="cbd4bd5e8f60123456789abcdef0123456789abc";
+const RELEASE_SOURCE_REVISION="edf4bd5e8f60123456789abcdef0123456789abc";
 function releaseAttestation(){return new Response(JSON.stringify({ok:true,product:RELEASE_PRODUCT,function:"telegram-modern-action",version:RELEASE_VERSION,build:RELEASE_BUILD,source_revision:RELEASE_SOURCE_REVISION}),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}})}
 
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
@@ -10,7 +10,7 @@ const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
 const SECRET_KEYS_JSON=Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ALLOW_ORIGIN="https://jdlc86.github.io";
-const APP_URL="https://jdlc86.github.io/MartinGallardo_GPS/preview-modern/?v=20260907B01";
+const APP_URL="https://jdlc86.github.io/MartinGallardo_GPS/preview-modern/?v=20260907B02";
 const INIT_DATA_MAX_AGE_SECONDS=600;
 function serverKey(){if(SECRET_KEYS_JSON){try{const p=JSON.parse(SECRET_KEYS_JSON);if(p?.default)return p.default;const v=Object.values(p??{})[0];if(typeof v==="string")return v}catch{}}if(LEGACY_SERVICE_ROLE_KEY)return LEGACY_SERVICE_ROLE_KEY;throw new Error("No server key")}
 function hdr(extra:Record<string,string>={}){const k=serverKey();return{apikey:k,Authorization:`Bearer ${k}`,...extra}}
