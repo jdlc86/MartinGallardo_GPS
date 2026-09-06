@@ -3,10 +3,10 @@
   "product": "ParkingMartin-G",
   "release_status": "stable",
   "version": "1.4.0",
-  "build": "2026.09.06.05",
-  "released_at": "2026-09-06T21:41:00+02:00",
+  "build": "2026.09.06.06",
+  "released_at": "2026-09-06T21:52:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v78"
+    "service_worker_cache": "pmg-shell-v79"
   },
   "backend": {
     "version": "1.4.0",
@@ -30,14 +30,14 @@
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "1b23cd45ef67ab89cd01ef23ab45cd67ef89ab01",
-      "telegram-gateway": "efb3ac4d7e5f1029384756abcdef0123456789ab",
-      "telegram-modern-action": "f0c4bd5e8f60123456789abcdef0123456789abc",
-      "modern-parking-api": "c520de30fa40bc50de60fa70bc80de90fa01bc23",
-      "modern-relocate-api": "d630ef40ab50cd60ef70ab80cd90ef01ab12cd34",
-      "modern-delivery-api": "e740fa50bc60de70fa80bc90de01fa12bc23de45",
+      "telegram-gateway": "10b3ac4d7e5f1029384756abcdef0123456789ab",
+      "telegram-modern-action": "21c4bd5e8f60123456789abcdef0123456789abc",
+      "modern-parking-api": "d1a0de30fa40bc50de60fa70bc80de90fa01bc24",
+      "modern-relocate-api": "e3c0ef40ab50cd60ef70ab80cd90ef01ab12cd35",
+      "modern-delivery-api": "a5e0fa50bc60de70fa80bc90de01fa12bc23de46",
       "aborted-vehicle-cleanup": "632ffe78ed03d2addcf352ee85199b3f235332c3",
-      "modern-pickup-api": "b410cd20ef30ab40cd50ef60ab70cd80ef90ab12",
-      "modern-search-api": "ef50ab60cd70ef80ab90cd01ef12ab23cd34ef45",
+      "modern-pickup-api": "c2b0cd20ef30ab40cd50ef60ab70cd80ef90ab13",
+      "modern-search-api": "f4d0ab60cd70ef80ab90cd01ef12ab23cd34ef46",
       "maintenance-runner": "20ea8af317edba97120c19a81ca8cc5684fd4d3c",
       "modern-live-team-api": "7f1d8399582c6c6c57158645ca2d62c9f7d677dd",
       "connectivity-health": "2a41d723cfa9e6f0dbe4199a05bf889701486408",
