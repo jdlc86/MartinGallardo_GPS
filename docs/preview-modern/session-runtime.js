@@ -9,6 +9,8 @@
   let locked=false;
   let lockKind=null;
   let overlay=null;
+  let accessExpiresAt=null;
+  let accessToken=null;
   const mediaStreams=new Set();
   const geoWatchIds=new Set();
 
@@ -90,6 +92,9 @@
     if(locked&&lockKind===kind)return;
     locked=true;
     lockKind=kind;
+    if(kind==="access"){
+      storeAccessSession(null,null);
+    }
     clearTimeout(flowTimer);
     clearTimeout(accessTimer);
     stopMedia();
@@ -119,31 +124,59 @@
     flowTimer=null;
   }
 
+  function readStoredAccessToken(){
+    try{return sessionStorage.getItem("pmg_access_session_token")||null}catch{return null}
+  }
+
+  function storeAccessSession(token,expiresAt){
+    accessToken=String(token||"")||null;
+    accessExpiresAt=expiresAt||null;
+    try{
+      if(accessToken)sessionStorage.setItem("pmg_access_session_token",accessToken);
+      else sessionStorage.removeItem("pmg_access_session_token");
+    }catch{}
+  }
+
   async function registerAccess(){
     const initData=window.Telegram?.WebApp?.initData;
-    if(!initData)return;
+    if(!initData)return false;
     try{
-      await nativeFetch(ACCESS_SESSION_API,{
+      const res=await nativeFetch(ACCESS_SESSION_API,{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({initData})
       });
-    }catch{}
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok||data?.ok===false){
+        const code=String(data?.error||"");
+        if(code==="expired_init_data")lock("access");
+        return false;
+      }
+      storeAccessSession(data?.access_token,data?.expires_at);
+      armAccess(data?.expires_at);
+      return true;
+    }catch{
+      return false;
+    }
   }
 
-  function armAccess(){
+  function armAccess(expiresAt=null){
     if(locked)return;
     clearTimeout(accessTimer);
-    const initData=window.Telegram?.WebApp?.initData;
-    if(!initData)return;
-    try{
-      const authDate=Number(new URLSearchParams(initData).get("auth_date")||0);
-      if(!Number.isFinite(authDate)||authDate<=0)return;
-      const at=authDate*1000+ACCESS_MAX_AGE_SECONDS*1000;
-      const delay=at-Date.now();
-      if(delay<=0)return lock("access");
-      accessTimer=setTimeout(()=>lock("access"),delay+50);
-    }catch{}
+    let at=expiresAt?new Date(expiresAt).getTime():NaN;
+    if(!Number.isFinite(at)){
+      const initData=window.Telegram?.WebApp?.initData;
+      if(!initData)return;
+      try{
+        const authDate=Number(new URLSearchParams(initData).get("auth_date")||0);
+        if(!Number.isFinite(authDate)||authDate<=0)return;
+        at=authDate*1000+ACCESS_MAX_AGE_SECONDS*1000;
+      }catch{return}
+    }
+    const delay=at-Date.now();
+    if(delay<=0)return lock("access");
+    accessExpiresAt=new Date(at).toISOString();
+    accessTimer=setTimeout(()=>lock("access"),delay+50);
   }
 
   function inspectResponse(res){
@@ -154,14 +187,29 @@
         if(data?.flow_session_id&&data?.expires_at)armFlow(data.expires_at);
         const error=String(data?.error||"");
         if(error==="flow_session_expired")lock("operation");
-        if(error==="expired_init_data")lock("access");
+        if(error==="expired_init_data"||error==="expired_access_session")lock("access");
       }).catch(()=>{});
     }catch{}
   }
 
   const nativeFetch=window.fetch.bind(window);
-  window.fetch=async function(){
-    const res=await nativeFetch.apply(window,arguments);
+  accessToken=readStoredAccessToken();
+  window.fetch=async function(input,init){
+    let nextInit=init;
+    try{
+      const url=typeof input==="string"?input:String(input?.url||"");
+      const token=accessToken||readStoredAccessToken();
+      const isEdge=url.startsWith("https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/");
+      const isBootstrap=url.startsWith(ACCESS_SESSION_API);
+      if(token&&isEdge&&!isBootstrap&&init?.method==="POST"&&typeof init?.body==="string"){
+        const parsed=JSON.parse(init.body);
+        if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed)&&!parsed.access_session_token){
+          parsed.access_session_token=token;
+          nextInit={...init,body:JSON.stringify(parsed)};
+        }
+      }
+    }catch{}
+    const res=await nativeFetch(input,nextInit);
     inspectResponse(res);
     return res;
   };
@@ -174,15 +222,24 @@
     handleError(code){
       const value=String(code||"");
       if(value==="flow_session_expired")lock("operation");
-      if(value==="expired_init_data")lock("access");
+      if(value==="expired_init_data"||value==="expired_access_session")lock("access");
     },
     get locked(){return locked},
     get kind(){return lockKind}
   };
 
-  function bootAccess(){
-    armAccess();
-    registerAccess();
+  async function bootAccess(){
+    if(window.Telegram?.WebApp?.initData){
+      armAccess();
+      await registerAccess();
+      return;
+    }
+    window.addEventListener("load",async()=>{
+      if(window.Telegram?.WebApp?.initData){
+        armAccess();
+        await registerAccess();
+      }
+    },{once:true});
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bootAccess,{once:true});
   else bootAccess();

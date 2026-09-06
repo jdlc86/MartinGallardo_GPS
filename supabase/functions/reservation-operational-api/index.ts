@@ -1,0 +1,20 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
+const SECRET_KEYS_JSON=Deno.env.get("SUPABASE_SECRET_KEYS");
+const LEGACY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const ORIGIN="https://jdlc86.github.io";
+function sk(){if(SECRET_KEYS_JSON){try{const p=JSON.parse(SECRET_KEYS_JSON);if(typeof p?.default==='string')return p.default;const v=Object.values(p??{})[0];if(typeof v==='string')return v}catch{}}if(LEGACY)return LEGACY;throw new Error('no_server_key')}
+function hdr(extra:Record<string,string>={}){const k=sk();return{apikey:k,Authorization:`Bearer ${k}`,...extra}}
+function cors(){return{'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Headers':'content-type','Access-Control-Allow-Methods':'POST,OPTIONS','Vary':'Origin'}}
+function json(x:any,s=200){return new Response(JSON.stringify(x),{status:s,headers:{'Content-Type':'application/json',...cors()}})}
+function eq(a:Uint8Array,b:Uint8Array){if(a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a[i]^b[i];return x===0}
+function hb(s:string){if(!/^[0-9a-f]{64}$/i.test(s))return null;const a=new Uint8Array(32);for(let i=0;i<32;i++)a[i]=parseInt(s.slice(i*2,i*2+2),16);return a}
+async function hmac(k:Uint8Array|string,m:string){const kb=typeof k==='string'?new TextEncoder().encode(k):k,ik=await crypto.subtle.importKey('raw',kb,{name:'HMAC',hash:'SHA-256'},false,['sign']);return new Uint8Array(await crypto.subtle.sign('HMAC',ik,new TextEncoder().encode(m)))}
+async function auth(d:string){const p=new URLSearchParams(d),hash=p.get('hash')||'';p.delete('hash');const check=[...p.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>`${k}=${v}`).join('\n'),sec=await hmac('WebAppData',BOT_TOKEN),calc=await hmac(sec,check),given=hb(hash);if(!given||!eq(calc,given))throw new Error('invalid_init_data');const at=Number(p.get('auth_date')||0);if(!Number.isFinite(at)||Math.abs(Date.now()/1000-at)>600)throw new Error('expired_init_data');const u=JSON.parse(p.get('user')||'null');if(!u?.id)throw new Error('missing_user');return Number(u.id)}
+async function sha256AccessToken(value:string){const d=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));return[...d].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function validateAccessSession(token:string){if(!token)return null;const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/validate_miniapp_access_session`,{method:"POST",headers:hdr({"Content-Type":"application/json"}),body:JSON.stringify({p_token_hash:await sha256AccessToken(token)})});if(!r.ok)throw new Error("access_session_validation_failed");const data=await r.json();const row=Array.isArray(data)?data[0]:data;if(!row?.telegram_user_id)throw new Error("expired_access_session");return Number(row.telegram_user_id)}
+async function authenticateRequest(initData:string,token:string){const uid=await validateAccessSession(token);if(uid)return uid;return auth(initData)}
+
+async function rpc(name:string,body:any){const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`,{method:'POST',headers:hdr({'Content-Type':'application/json'}),body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json()}
+Deno.serve(async req=>{if(req.method==='OPTIONS')return new Response(null,{status:204,headers:cors()});if(req.method!=='POST')return json({ok:false,error:'method_not_allowed'},405);try{const origin=req.headers.get('Origin');if(origin&&origin!==ORIGIN)return json({ok:false,error:'origin_not_allowed'},403);const b=await req.json(),uid=await authenticateRequest(String(b.initData||''),String(b.access_session_token||''));const data=await rpc('parking_booking_operational_snapshot',{p_actor_telegram_user_id:uid});return json({ok:true,...data})}catch(e){const m=String((e as Error)?.message||e);console.error(m);return json({ok:false,error:m},/not_admin|invalid_init_data|expired_init_data|missing_user/.test(m)?403:400)}});

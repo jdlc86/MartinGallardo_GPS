@@ -6,7 +6,7 @@ const SECRET_KEYS_JSON = Deno.env.get("SUPABASE_SECRET_KEYS");
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const ORIGIN = "https://jdlc86.github.io";
 const MINI_APP_URL = "https://jdlc86.github.io/MartinGallardo_GPS/preview-modern/";
-const MAX_AGE_SECONDS = 86_400;
+const MAX_AGE_SECONDS = 600;
 
 class AppError extends Error {
   status: number;
@@ -116,6 +116,10 @@ async function authenticate(initData: string) {
   if (!Number.isFinite(telegramUserId)) throw new AppError("missing_user", 403);
   return telegramUserId;
 }
+
+async function sha256AccessToken(value:string){const d=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));return[...d].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function validateAccessSession(token:string){if(!token)return null;const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/validate_miniapp_access_session`,{method:"POST",headers:serverHeaders({"Content-Type":"application/json"}),body:JSON.stringify({p_token_hash:await sha256AccessToken(token)})});if(!r.ok)throw new AppError("access_session_validation_failed",500);const data=await r.json();const row=Array.isArray(data)?data[0]:data;if(!row?.telegram_user_id)throw new AppError("expired_access_session",403);return Number(row.telegram_user_id)}
+async function authenticateRequest(initData:string,token:string){const uid=await validateAccessSession(token);if(uid)return uid;return authenticate(initData)}
 
 async function table(name: string, params: Record<string, string>) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${name}`);
@@ -408,7 +412,7 @@ Deno.serve(async (request) => {
     if (origin && origin !== ORIGIN) throw new AppError("origin_not_allowed", 403);
 
     const body = await request.json();
-    const telegramUserId = await authenticate(String(body.initData || ""));
+    const telegramUserId = await authenticateRequest(String(body.initData || ""), String(body.access_session_token || ""));
     const actor = await currentUser(telegramUserId);
     const action = String(body.action || "");
 
