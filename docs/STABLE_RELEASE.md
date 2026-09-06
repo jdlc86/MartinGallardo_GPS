@@ -5,7 +5,7 @@
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
 - **Build estable:** 2026.09.06.01
-- **Fecha de consolidación:** 2026-09-04
+- **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
 Esta release se considera la **línea base estable de producción** de la Mini App hasta que se publique explícitamente un build posterior.
