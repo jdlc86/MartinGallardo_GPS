@@ -1,5 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-const RELEASE_PRODUCT="ParkingMartin-G",RELEASE_VERSION="1.4.0",RELEASE_BUILD="2026.09.04.04",RELEASE_SOURCE_REVISION="1234567890abcdef1234567890abcdef12345678";
+const RELEASE_PRODUCT="ParkingMartin-G";
+const RELEASE_VERSION="1.4.0";
+const RELEASE_BUILD="2026.09.04.04";
+const RELEASE_SOURCE_REVISION="1234567890abcdef1234567890abcdef12345678";
 function attest(){return new Response(JSON.stringify({ok:true,product:RELEASE_PRODUCT,function:"telegram-identity-sync",version:RELEASE_VERSION,build:RELEASE_BUILD,source_revision:RELEASE_SOURCE_REVISION}),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}})}
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!,SUPABASE_URL=Deno.env.get("SUPABASE_URL")!,SECRET_KEYS_JSON=Deno.env.get("SUPABASE_SECRET_KEYS"),LEGACY_SERVICE_ROLE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),ORIGIN="https://jdlc86.github.io",MAX_AGE_SECONDS=600;
 function serverKey(){if(SECRET_KEYS_JSON){try{const p=JSON.parse(SECRET_KEYS_JSON);if(typeof p?.default==="string")return p.default;const f=Object.values(p||{})[0];if(typeof f==="string")return f}catch{}}if(LEGACY_SERVICE_ROLE_KEY)return LEGACY_SERVICE_ROLE_KEY;throw new Error("no_server_key")}
