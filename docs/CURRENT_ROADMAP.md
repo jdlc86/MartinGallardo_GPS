@@ -210,3 +210,25 @@ El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verificat
 ### Resuelto: RPC privilegiados de reservas y ciclo de vida
 
 El 2026-09-04 se retiró `EXECUTE` de `PUBLIC`, `anon` y `authenticated` para `parking_booking_operational_snapshot(bigint)`, `vehicle_lifecycle_search(bigint,text)` y `vehicle_lifecycle_snapshot(bigint)`. Los endpoints de producción siguen accediendo mediante backend/service-role.
+
+<!-- PMG-ROADMAP-2026-09-06:START -->
+## Actualización operativa 2026-09-06
+
+### Resuelto recientemente
+
+- recuperación segura de flujos protegidos tras recarga/reapertura;
+- aviso de próxima caducidad y ciclo de sesión caducada con notificación Telegram;
+- entrada a una nueva sesión desde el aviso de expiración;
+- corrección del parser del mensaje de nueva sesión;
+- corrección de conteos del informe automático de rendimiento;
+- selector único de vista lista/cuadrícula en la home;
+- endurecimiento del detector de conectividad para evitar falsos offline al arrancar desde Telegram;
+- sonda `connectivity-ping.txt` forzada a red y Service Worker actualizado a `pmg-shell-v68`.
+
+### Pendiente inmediato
+
+1. Ejecutar regresión real de conectividad desde Telegram con arranque en frío, reapertura, caché previa y pérdida/restauración de red.
+2. Cerrar la prueba temporal de caducidad y restaurar explícitamente los tiempos productivos acordados cuando la experiencia quede validada.
+3. Verificar en producción los informes de 04:00, 13:00 y 20:00 con actividad real y confirmar que los conteos corregidos coinciden con eventos.
+4. Mantener sincronizados `release/manifest.json`, Service Worker, runtime versions y documentación cuando se publique el siguiente build formal.
+<!-- PMG-ROADMAP-2026-09-06:END -->
