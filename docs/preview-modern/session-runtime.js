@@ -256,7 +256,7 @@
     let nextInit=init;
     try{
       const url=typeof input==="string"?input:String(input?.url||"");
-      const token=accessToken||readStoredAccessSession().token;
+      const token=accessToken;
       const isEdge=url.startsWith("https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/");
       const isBootstrap=url.startsWith(ACCESS_SESSION_API);
       if(token&&isEdge&&!isBootstrap&&init?.method==="POST"&&typeof init?.body==="string"){
