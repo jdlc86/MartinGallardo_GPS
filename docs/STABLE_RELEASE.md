@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.06.02
+- **Build estable:** 2026.09.06.03
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.06.02`
+`v1.4.0 · Build 2026.09.06.03`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -130,7 +130,7 @@ Para esta baseline se ha comprobado directamente que las siguientes Edge Functio
 - `modern-parking-api`
 - `modern-relocate-api`
 
-La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260906B02`.
+La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260906B03`.
 
 La siguiente evolución del pipeline será convertir estas comprobaciones externas en una verificación automática mediante credenciales de despliegue/gestión, sin exponer secretos en el repositorio. Hasta entonces, un Release contract verde certifica coherencia del código y un Deployed Release Verification verde certifica Pages, pero no debe interpretarse por sí solo como prueba automática del estado remoto de Supabase/Telegram.
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.06.02
+## Baseline consolidada 2026.09.06.03
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.06.02**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.06.03**.
 
 Incluye:
 
@@ -232,7 +232,9 @@ Incluye:
 - corrección del falso estado offline durante arranque desde Telegram;
 - doble comprobación de reachability estática antes de declarar falta de Internet;
 - `connectivity-ping.txt` forzado a red para impedir falsos positivos por caché;
-- Service Worker actual: `pmg-shell-v75`;
+- corrección F-03: el control flotante para volver arriba se oculta mientras el panel de asignación está abierto y recupera su comportamiento normal al cerrarlo;
+- Service Worker actual: `pmg-shell-v76`;
+- runtime de navegación actual: `navigation-runtime.js?v=5`;
 - runtime de sesión actual: `session-runtime.js?v=7`;
 - runtime de conectividad actual: `offline-runtime.js?v=6`.
 
