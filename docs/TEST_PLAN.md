@@ -433,3 +433,49 @@ Smoke test de producción completado tras endurecer `plate_verifications`:
 - Expediente 360º: OK
 
 El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verifications`. El aviso restante `rls_enabled_no_policy` es informativo y coherente con el diseño backend-only: no existen políticas cliente y `anon/authenticated` no tienen privilegios directos sobre la tabla.
+
+<!-- PMG-TESTS-2026-09-06:START -->
+## 22. Regresión añadida 2026-09-05 / 2026-09-06
+
+### Caducidad y nueva sesión
+
+- iniciar un flujo protegido y provocar aviso de próxima caducidad;
+- comprobar campana, toast y Telegram sin duplicados;
+- dejar caducar la sesión y confirmar que backend ya no permite continuarla;
+- el botón Telegram del aviso de expiración abre la entrada principal;
+- ejecutar `/start` después de una expiración reciente y comprobar el mensaje de bienvenida a nueva sesión;
+- confirmar que una nueva operación no hereda verificación, matrícula, vehículo ni contexto de la sesión anterior;
+- confirmar que datos ya consolidados permanecen intactos.
+
+### Informes de rendimiento
+
+- generar actividad real de aparcar, recogida, entrega, búsqueda y reubicación;
+- ejecutar el informe individual y global;
+- comprobar que los conteos no son cero cuando existe actividad;
+- incluir Root/Admin solo según las reglas del informe y no omitir roles operativos válidos;
+- comprobar deduplicación en `performance_report_dispatches`.
+
+### Selector lista/cuadrícula
+
+- alternar cuadrícula -> lista -> cuadrícula con un único control;
+- comprobar que el icono representa la acción siguiente;
+- cerrar y reabrir la Mini App y verificar persistencia de la preferencia;
+- validar que las tarjetas ADMIN siguen ocultas para Operario en ambos modos;
+- verificar móvil estrecho sin solapamientos ni scroll horizontal accidental.
+
+### Conectividad endurecida
+
+- abrir la Mini App con Internet real y confirmar que no aparece “Sin Internet · operaciones en pausa” de forma espuria;
+- simular un primer fallo transitorio de la sonda estática y una segunda respuesta correcta: el estado final debe ser online/backend según corresponda, nunca offline por el primer fallo;
+- confirmar que `connectivity-ping.txt` no se satisface desde caché del Service Worker;
+- cortar Internet real: debe llegar a `offline`;
+- mantener GitHub Pages accesible y hacer fallar Supabase health: debe llegar a `backend_down`;
+- restaurar red/backend y confirmar recuperación automática;
+- repetir después de actualización del Service Worker y limpieza de caché.
+
+### Release actual
+
+- comprobar `release/manifest.json` con `service_worker_cache = pmg-shell-v68`;
+- comprobar carga de `offline-runtime.js?v=6`;
+- Stable Release Guard debe permanecer verde después de cualquier cambio documental o funcional posterior.
+<!-- PMG-TESTS-2026-09-06:END -->
