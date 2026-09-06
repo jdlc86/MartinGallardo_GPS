@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.06.01
+- **Build estable:** 2026.09.06.02
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.06.01`
+`v1.4.0 · Build 2026.09.06.02`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -130,7 +130,7 @@ Para esta baseline se ha comprobado directamente que las siguientes Edge Functio
 - `modern-parking-api`
 - `modern-relocate-api`
 
-La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260904B04`.
+La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260906B02`.
 
 La siguiente evolución del pipeline será convertir estas comprobaciones externas en una verificación automática mediante credenciales de despliegue/gestión, sin exponer secretos en el repositorio. Hasta entonces, un Release contract verde certifica coherencia del código y un Deployed Release Verification verde certifica Pages, pero no debe interpretarse por sí solo como prueba automática del estado remoto de Supabase/Telegram.
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.06.01
+## Baseline consolidada 2026.09.06.02
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.06.01**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.06.02**.
 
 Incluye:
 
@@ -225,15 +225,15 @@ Incluye:
 - reanudación y revalidación de flujos protegidos tras recarga/reapertura;
 - ciclo de aviso y expiración de sesión protegida con entrada segura a una nueva sesión;
 - sesión de acceso backend opaca y revocable, con reutilización segura dentro del mismo WebView;
-- vinculación de la sesión cacheada a `auth_date` y al `Telegram user.id` actual antes de reutilizar el token;
+- vinculación de la sesión cacheada a `auth_date` y al `Telegram user.id` actual antes de reutilizar el token, sin relectura directa de tokens cacheados que no hayan superado esa validación;
 - mensaje Telegram específico de nueva sesión tras expiración reciente;
 - corrección de los conteos del informe automático de rendimiento;
 - control único de lista/cuadrícula en la home, con preferencia persistente;
 - corrección del falso estado offline durante arranque desde Telegram;
 - doble comprobación de reachability estática antes de declarar falta de Internet;
 - `connectivity-ping.txt` forzado a red para impedir falsos positivos por caché;
-- Service Worker actual: `pmg-shell-v74`;
-- runtime de sesión actual: `session-runtime.js?v=6`;
+- Service Worker actual: `pmg-shell-v75`;
+- runtime de sesión actual: `session-runtime.js?v=7`;
 - runtime de conectividad actual: `offline-runtime.js?v=6`.
 
 Estas correcciones no autorizan a relajar las reglas de permisos, integridad de flujo, OCR, trazabilidad ni seguridad ya definidas para la baseline.
