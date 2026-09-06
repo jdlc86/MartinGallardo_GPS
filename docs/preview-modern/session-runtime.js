@@ -66,7 +66,7 @@
     style.textContent=`
       #pmg-session-expiry-overlay{position:fixed;z-index:2147483646;inset:0;display:none;align-items:center;justify-content:center;padding:24px;background:color-mix(in srgb,var(--pmg-bg,#08111f) 78%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
       #pmg-session-expiry-overlay.on{display:flex}
-      #pmg-session-expiry-card{width:min(92vw,460px);padding:26px;border-radius:26px;background:var(--pmg-surface,#101d30);color:var(--pmg-text,#fff);border:1px solid var(--pmg-border,#ffffff22);box-shadow:0 28px 100px #0009;text-align:center}
+      #pmg-session-expiry-card{width:min(92vw,460px);padding:26px;border-radius:26px;background:#101d30;color:var(--pmg-text,#f5f8fc);border:1px solid var(--pmg-border,#ffffff22);box-shadow:0 28px 100px #0009;text-align:center;isolation:isolate}@media (prefers-color-scheme:light){#pmg-session-expiry-card{background:#fff;color:#132238;border-color:#d9e2ec;box-shadow:0 28px 80px #0f172a2b}#pmg-session-expiry-card p{color:#5d6c80}}
       #pmg-session-expiry-icon{width:64px;height:64px;margin:0 auto 16px;border-radius:20px;display:grid;place-items:center;background:var(--pmg-warning-soft,#f59e0b22);font-size:30px}
       #pmg-session-expiry-card h2{margin:0 0 10px;font-size:24px;line-height:1.15}
       #pmg-session-expiry-card p{margin:0;color:var(--pmg-muted,#a9bad0);font-size:13px;line-height:1.55}
