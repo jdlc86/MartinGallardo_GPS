@@ -213,3 +213,25 @@ Cambios incorporados respecto a la baseline anterior:
 - correcciones de navegación Buscar/Entrega y Expediente 360º;
 - limpieza inicial de frontend, Service Worker y documentación histórica;
 - endpoint de benchmark deshabilitado en producción.
+
+<!-- PMG-POST-BASELINE-2026-09-06:START -->
+## Cambios posteriores a la baseline 2026.09.04.04
+
+La versión visible continúa siendo **1.4.0 / Build 2026.09.04.04**, pero `main` contiene correcciones posteriores protegidas por el mismo contrato de release. No deben confundirse con una nueva baseline formal hasta que se incremente explícitamente el build.
+
+Cambios incorporados después de la consolidación inicial:
+
+- navegación visual modernizada en pantallas normales;
+- reanudación y revalidación de flujos protegidos tras recarga/reapertura;
+- ciclo de aviso y expiración de sesión protegida con entrada segura a una nueva sesión;
+- mensaje Telegram específico de nueva sesión tras expiración reciente;
+- corrección de los conteos del informe automático de rendimiento;
+- control único de lista/cuadrícula en la home, con preferencia persistente;
+- corrección del falso estado offline durante arranque desde Telegram;
+- doble comprobación de reachability estática antes de declarar falta de Internet;
+- `connectivity-ping.txt` forzado a red para impedir falsos positivos por caché;
+- Service Worker actual: `pmg-shell-v68`;
+- runtime de conectividad actual: `offline-runtime.js?v=6`.
+
+Estas correcciones no autorizan a relajar las reglas de permisos, integridad de flujo, OCR, trazabilidad ni seguridad ya definidas para la baseline.
+<!-- PMG-POST-BASELINE-2026-09-06:END -->
