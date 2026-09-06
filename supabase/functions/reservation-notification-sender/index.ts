@@ -75,10 +75,11 @@ async function telegram(method: string, payload: unknown) {
 function keyboard(notificationType: string) {
   const flowExpiryNotice = notificationType === "flow_session_expiring";
   const flowExpiredNotice = notificationType === "flow_session_expired";
+  const accessExpiredNotice = notificationType === "access_session_expired";
   const optimizationNotice = notificationType.startsWith("optimizer_");
   const permissionNotice = notificationType.includes("permission") ||
     notificationType.includes("write_") || notificationType.includes("transfer");
-  const text = flowExpiredNotice
+  const text = (flowExpiredNotice || accessExpiredNotice)
     ? "🚘 ABRIR PARKINGMARTIN-G"
     : flowExpiryNotice
     ? "⚠️ VOLVER A LA OPERACIÓN"
@@ -87,8 +88,8 @@ function keyboard(notificationType: string) {
       : permissionNotice
       ? "📋 ABRIR GESTIÓN DE RESERVAS"
       : "⚡ VER MIS TAREAS";
-  const path = flowExpiredNotice
-    ? "?v=20260905NEWSESSION1"
+  const path = (flowExpiredNotice || accessExpiredNotice)
+    ? "?v=20260906NEWSESSION2"
     : flowExpiryNotice
     ? "operations.html?v=20260905SESSIONTEST1"
     : optimizationNotice

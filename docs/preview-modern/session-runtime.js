@@ -3,6 +3,7 @@
   if(window.PMGSessionRuntime)return;
 
   const ACCESS_MAX_AGE_SECONDS=600;
+  const ACCESS_SESSION_API="https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/miniapp-access-session-api";
   let flowTimer=null;
   let accessTimer=null;
   let locked=false;
@@ -118,6 +119,18 @@
     flowTimer=null;
   }
 
+  async function registerAccess(){
+    const initData=window.Telegram?.WebApp?.initData;
+    if(!initData)return;
+    try{
+      await nativeFetch(ACCESS_SESSION_API,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({initData})
+      });
+    }catch{}
+  }
+
   function armAccess(){
     if(locked)return;
     clearTimeout(accessTimer);
@@ -167,6 +180,10 @@
     get kind(){return lockKind}
   };
 
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",armAccess,{once:true});
-  else armAccess();
+  function bootAccess(){
+    armAccess();
+    registerAccess();
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bootAccess,{once:true});
+  else bootAccess();
 })();
