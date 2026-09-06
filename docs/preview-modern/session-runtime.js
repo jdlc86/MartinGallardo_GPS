@@ -124,16 +124,52 @@
     flowTimer=null;
   }
 
-  function readStoredAccessToken(){
-    try{return sessionStorage.getItem("pmg_access_session_token")||null}catch{return null}
+  function currentAuthDate(){
+    try{
+      const initData=window.Telegram?.WebApp?.initData;
+      if(!initData)return null;
+      const value=Number(new URLSearchParams(initData).get("auth_date")||0);
+      return Number.isFinite(value)&&value>0?value:null;
+    }catch{return null}
   }
 
-  function storeAccessSession(token,expiresAt){
+  function readStoredAccessSession(){
+    try{
+      const token=sessionStorage.getItem("pmg_access_session_token")||null;
+      const expiresAt=sessionStorage.getItem("pmg_access_session_expires_at")||null;
+      const authDate=Number(sessionStorage.getItem("pmg_access_session_auth_date")||0)||null;
+      return {token,expiresAt,authDate};
+    }catch{return {token:null,expiresAt:null,authDate:null}}
+  }
+
+  function storedAccessSessionUsable(){
+    const stored=readStoredAccessSession();
+    const current=currentAuthDate();
+    const expiresMs=stored.expiresAt?new Date(stored.expiresAt).getTime():NaN;
+    return Boolean(
+      stored.token &&
+      current &&
+      stored.authDate===current &&
+      Number.isFinite(expiresMs) &&
+      expiresMs>Date.now()+1000
+    );
+  }
+
+  function storeAccessSession(token,expiresAt,authDate=currentAuthDate()){
     accessToken=String(token||"")||null;
     accessExpiresAt=expiresAt||null;
     try{
-      if(accessToken)sessionStorage.setItem("pmg_access_session_token",accessToken);
-      else sessionStorage.removeItem("pmg_access_session_token");
+      if(accessToken){
+        sessionStorage.setItem("pmg_access_session_token",accessToken);
+        if(accessExpiresAt)sessionStorage.setItem("pmg_access_session_expires_at",String(accessExpiresAt));
+        else sessionStorage.removeItem("pmg_access_session_expires_at");
+        if(authDate)sessionStorage.setItem("pmg_access_session_auth_date",String(authDate));
+        else sessionStorage.removeItem("pmg_access_session_auth_date");
+      }else{
+        sessionStorage.removeItem("pmg_access_session_token");
+        sessionStorage.removeItem("pmg_access_session_expires_at");
+        sessionStorage.removeItem("pmg_access_session_auth_date");
+      }
     }catch{}
   }
 
@@ -193,12 +229,14 @@
   }
 
   const nativeFetch=window.fetch.bind(window);
-  accessToken=readStoredAccessToken();
+  const initialStoredAccess=readStoredAccessSession();
+  accessToken=initialStoredAccess.token;
+  accessExpiresAt=initialStoredAccess.expiresAt;
   window.fetch=async function(input,init){
     let nextInit=init;
     try{
       const url=typeof input==="string"?input:String(input?.url||"");
-      const token=accessToken||readStoredAccessToken();
+      const token=accessToken||readStoredAccessSession().token;
       const isEdge=url.startsWith("https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/");
       const isBootstrap=url.startsWith(ACCESS_SESSION_API);
       if(token&&isEdge&&!isBootstrap&&init?.method==="POST"&&typeof init?.body==="string"){
@@ -228,18 +266,26 @@
     get kind(){return lockKind}
   };
 
-  async function bootAccess(){
-    if(window.Telegram?.WebApp?.initData){
-      armAccess();
-      await registerAccess();
+  async function ensureAccess(){
+    if(!window.Telegram?.WebApp?.initData)return;
+    if(storedAccessSessionUsable()){
+      const stored=readStoredAccessSession();
+      accessToken=stored.token;
+      accessExpiresAt=stored.expiresAt;
+      armAccess(stored.expiresAt);
       return;
     }
-    window.addEventListener("load",async()=>{
-      if(window.Telegram?.WebApp?.initData){
-        armAccess();
-        await registerAccess();
-      }
-    },{once:true});
+    storeAccessSession(null,null);
+    armAccess();
+    await registerAccess();
+  }
+
+  async function bootAccess(){
+    if(window.Telegram?.WebApp?.initData){
+      await ensureAccess();
+      return;
+    }
+    window.addEventListener("load",ensureAccess,{once:true});
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bootAccess,{once:true});
   else bootAccess();
