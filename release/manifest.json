@@ -6,7 +6,7 @@
   "build": "2026.09.04.04",
   "released_at": "2026-09-04T22:00:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v70"
+    "service_worker_cache": "pmg-shell-v71"
   },
   "backend": {
     "version": "1.4.0",
@@ -23,7 +23,8 @@
       "modern-search-api",
       "maintenance-runner",
       "modern-live-team-api",
-      "connectivity-health"
+      "connectivity-health",
+      "miniapp-access-session-api"
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "c42cc829ead474e6646928693101720a49d4ef1e",
@@ -37,7 +38,8 @@
       "modern-search-api": "ef50ab60cd70ef80ab90cd01ef12ab23cd34ef45",
       "maintenance-runner": "20ea8af317edba97120c19a81ca8cc5684fd4d3c",
       "modern-live-team-api": "7f1d8399582c6c6c57158645ca2d62c9f7d677dd",
-      "connectivity-health": "2a41d723cfa9e6f0dbe4199a05bf889701486408"
+      "connectivity-health": "2a41d723cfa9e6f0dbe4199a05bf889701486408",
+      "miniapp-access-session-api": "f861c731ab42cd53ef64ab75cd86ef97ab08cd19"
     }
   },
   "optimizer": {
