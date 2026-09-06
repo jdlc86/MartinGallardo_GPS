@@ -2,7 +2,7 @@
   "use strict";
   if(window.PMGSessionRuntime)return;
 
-  const ACCESS_MAX_AGE_SECONDS=86400;
+  const ACCESS_MAX_AGE_SECONDS=600;
   let flowTimer=null;
   let accessTimer=null;
   let locked=false;
