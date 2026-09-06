@@ -90,7 +90,11 @@ async function sha256Hex(value:string){
 }
 async function upsertSession(uid:number,authDate:number){
   const authIso=new Date(authDate*1000).toISOString();
-  const expiresAt=new Date(Date.now()+ACCESS_SESSION_TTL_SECONDS*1000).toISOString();
+  const existing=await one("miniapp_access_sessions",{telegram_user_id:`eq.${uid}`,auth_date:`eq.${authIso}`,select:"id,expires_at,active,revoked_at"});
+  const existingExpiry=existing?.active&&!existing?.revoked_at?new Date(existing.expires_at).getTime():NaN;
+  const expiresAt=Number.isFinite(existingExpiry)&&existingExpiry>Date.now()
+    ?new Date(existingExpiry).toISOString()
+    :new Date(Date.now()+ACCESS_SESSION_TTL_SECONDS*1000).toISOString();
   const accessToken=randomToken();
   const tokenHash=await sha256Hex(accessToken);
   const r=await fetch(`${SUPABASE_URL}/rest/v1/miniapp_access_sessions?on_conflict=telegram_user_id,auth_date`,{
