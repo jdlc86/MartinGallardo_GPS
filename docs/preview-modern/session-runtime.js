@@ -92,6 +92,9 @@
     if(locked&&lockKind===kind)return;
     locked=true;
     lockKind=kind;
+    if(kind==="access"){
+      storeAccessSession(null,null);
+    }
     clearTimeout(flowTimer);
     clearTimeout(accessTimer);
     stopMedia();
@@ -184,7 +187,7 @@
         if(data?.flow_session_id&&data?.expires_at)armFlow(data.expires_at);
         const error=String(data?.error||"");
         if(error==="flow_session_expired")lock("operation");
-        if(error==="expired_init_data")lock("access");
+        if(error==="expired_init_data"||error==="expired_access_session")lock("access");
       }).catch(()=>{});
     }catch{}
   }
@@ -219,7 +222,7 @@
     handleError(code){
       const value=String(code||"");
       if(value==="flow_session_expired")lock("operation");
-      if(value==="expired_init_data")lock("access");
+      if(value==="expired_init_data"||value==="expired_access_session")lock("access");
     },
     get locked(){return locked},
     get kind(){return lockKind}
