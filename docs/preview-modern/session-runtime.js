@@ -8,8 +8,44 @@
   let locked=false;
   let lockKind=null;
   let overlay=null;
+  const mediaStreams=new Set();
+  const geoWatchIds=new Set();
+
+  if(navigator.mediaDevices?.getUserMedia){
+    const nativeGetUserMedia=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia=async function(){
+      const stream=await nativeGetUserMedia.apply(navigator.mediaDevices,arguments);
+      mediaStreams.add(stream);
+      stream.getTracks().forEach(track=>track.addEventListener("ended",()=>{
+        if(stream.getTracks().every(t=>t.readyState==="ended"))mediaStreams.delete(stream);
+      },{once:true}));
+      return stream;
+    };
+  }
+
+  if(navigator.geolocation?.watchPosition){
+    const nativeWatch=navigator.geolocation.watchPosition.bind(navigator.geolocation);
+    const nativeClear=navigator.geolocation.clearWatch.bind(navigator.geolocation);
+    navigator.geolocation.watchPosition=function(){
+      const id=nativeWatch.apply(navigator.geolocation,arguments);
+      geoWatchIds.add(id);
+      return id;
+    };
+    navigator.geolocation.clearWatch=function(id){
+      geoWatchIds.delete(id);
+      return nativeClear(id);
+    };
+  }
 
   function stopMedia(){
+    try{
+      mediaStreams.forEach(stream=>{try{stream.getTracks().forEach(t=>t.stop())}catch{}});
+      mediaStreams.clear();
+    }catch{}
+    try{
+      geoWatchIds.forEach(id=>{try{navigator.geolocation.clearWatch(id)}catch{}});
+      geoWatchIds.clear();
+    }catch{}
     try{
       document.querySelectorAll("video,audio").forEach(el=>{
         try{
