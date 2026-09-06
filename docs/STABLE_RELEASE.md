@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.04.04
+- **Build estable:** 2026.09.06.01
 - **Fecha de consolidación:** 2026-09-04
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.04.04`
+`v1.4.0 · Build 2026.09.06.01`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -92,7 +92,7 @@ El worker estable sella:
 
 ## Contrato y verificación de release
 
-Desde la build **2026.09.04.04**, la fuente canónica de versión es:
+Desde la build **2026.09.06.01**, la fuente canónica de versión es:
 
 `release/manifest.json`
 
