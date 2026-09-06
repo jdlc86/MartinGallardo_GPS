@@ -283,7 +283,7 @@ Ver `docs/TEST_PLAN.md`.
 
 ## Release estable protegida
 
-Baseline vigente: **ParkingMartin-G v1.4.0 · Build 2026.09.07.01**.
+Baseline vigente: **ParkingMartin-G v1.4.0 · Build 2026.09.07.02**.
 
 Antes de modificar comportamiento estable, leer `docs/STABLE_RELEASE.md`.
 
