@@ -112,13 +112,17 @@ async function authenticate(initData: string) {
   const supplied = fromHex(suppliedHash);
   if (!supplied || !constantTimeEqual(calculated, supplied)) throw new AppError("invalid_init_data", 403);
   const authDate = Number(params.get("auth_date") || 0);
-  if (!Number.isFinite(authDate) || Math.abs(Date.now() / 1000 - authDate) > 86400) throw new AppError("expired_init_data", 403);
+  if (!Number.isFinite(authDate) || Math.abs(Date.now() / 1000 - authDate) > 600) throw new AppError("expired_init_data", 403);
   let telegramUser: any = null;
   try { telegramUser = JSON.parse(params.get("user") || "null"); } catch { /* invalid below */ }
   const actor = Number(telegramUser?.id);
   if (!Number.isFinite(actor)) throw new AppError("missing_user", 403);
   return actor;
 }
+
+async function sha256AccessToken(value:string){const d=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));return[...d].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function validateAccessSession(token:string){if(!token)return null;const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/validate_miniapp_access_session`,{method:"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify({p_token_hash:await sha256AccessToken(token)})});if(!r.ok)throw new AppError("access_session_validation_failed",500);const data=await r.json();const row=Array.isArray(data)?data[0]:data;if(!row?.telegram_user_id)throw new AppError("expired_access_session",403);return Number(row.telegram_user_id)}
+async function authenticateRequest(initData:string,token:string){const uid=await validateAccessSession(token);if(uid)return uid;return authenticate(initData)}
 
 async function rest(path: string, method = "GET", body?: unknown, query?: Record<string, string>) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${path}`);
@@ -214,7 +218,7 @@ Deno.serve(async (req) => {
     const origin = req.headers.get("Origin");
     if (origin && origin !== ORIGIN) throw new AppError("origin_not_allowed", 403);
     const body = await req.json();
-    const actor = await authenticate(String(body.initData || ""));
+    const actor = await authenticateRequest(String(body.initData || ""), String(body.access_session_token || ""));
     const action = String(body.action || "");
 
 
