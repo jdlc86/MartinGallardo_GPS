@@ -413,3 +413,58 @@ Configuración deliberadamente reducida para observar avisos y consecuencias ant
 - El aviso de sesión operativa reutiliza `parking_booking_notifications`: aparece en la campana, genera toast por Realtime si la Mini App está abierta y se entrega también por Telegram mediante `reservation-notification-sender`.
 - El aviso se genera solo si la sesión sigue `active` y se deduplica por `flow_session_id`.
 - Esta configuración es temporal de prueba; el objetivo productivo acordado sigue siendo 22 horas.
+
+<!-- PMG-UPDATE-2026-09-06:START -->
+## Cambios consolidados 2026-09-05 / 2026-09-06
+
+### Sesiones operativas protegidas y recuperación
+
+Los flujos protegidos conservan contexto mínimo local para poder reanudarse tras una recarga o reapertura accidental. Antes de continuar, el frontend debe revalidar siempre la sesión contra backend; nunca se confía únicamente en el estado local.
+
+Durante la prueba controlada de caducidad se añadió el ciclo completo de aviso:
+
+- aviso previo de sesión próxima a caducar;
+- notificación persistente en `parking_booking_notifications`;
+- entrega por Telegram mediante `reservation-notification-sender`;
+- al caducar, la operación queda cerrada y no se reutiliza para mezclar una nueva operación;
+- el aviso Telegram de sesión caducada abre la entrada principal de ParkingMartin-G;
+- un `/start` posterior puede responder con el mensaje específico **“Bienvenido a una nueva sesión de ParkingMartin-G”** cuando existe una expiración reciente;
+- los datos ya consolidados permanecen guardados.
+
+La configuración temporal de tiempos reducidos sigue siendo un modo de prueba y no redefine por sí sola el objetivo productivo de sesiones largas.
+
+### Informes automáticos
+
+El cálculo de rendimiento fue corregido para que los resúmenes de las 04:00, 13:00 y 20:00 no queden artificialmente en cero. El recuento incluye todos los roles operativos relevantes y contempla operaciones de reubicación. Root/Admin conservan el informe global y, cuando corresponde, su informe individual.
+
+### Pantalla principal: lista / cuadrícula
+
+La home dispone de un único control visual para alternar entre:
+
+- vista de cuadrícula;
+- vista de lista.
+
+La preferencia se persiste localmente mediante `pmg_home_layout_v1`. El control cambia de icono y texto accesible según el modo actual. No modifica permisos, navegación ni lógica de negocio.
+
+### Conectividad
+
+`offline-runtime.js` usa un modelo de tres estados:
+
+1. `offline`: no se confirma acceso al recurso estático de GitHub Pages;
+2. `backend_down`: GitHub Pages responde pero el health check de Supabase falla;
+3. `online`: frontend y backend responden.
+
+La comprobación estática se endureció para evitar falsos “Sin Internet” al abrir desde Telegram:
+
+- la sonda estática se intenta hasta dos veces antes de declarar `offline`;
+- usa timeout corto y un segundo intento con pequeña espera;
+- `connectivity-ping.txt` se sirve obligatoriamente desde red, sin respuesta de caché del Service Worker;
+- una única petición fallida no debe convertir por sí sola toda la aplicación en estado offline;
+- la recuperación de red debe retirar automáticamente el estado de pausa.
+
+Runtime vigente en HEAD documentado: `offline-runtime.js?v=6`, Service Worker `pmg-shell-v68`.
+
+### Navegación visual
+
+Las pantallas normales usan el patrón visual modernizado de navegación superior. Los flujos protegidos mantienen cabeceras específicas para no comprometer la integridad de una operación activa. El botón físico Back de Android se trata de forma nativa en pantallas normales y puede ser interceptado de forma controlada dentro de un flujo protegido.
+<!-- PMG-UPDATE-2026-09-06:END -->
