@@ -3,10 +3,10 @@
   "product": "ParkingMartin-G",
   "release_status": "stable",
   "version": "1.4.0",
-  "build": "2026.09.07.05",
-  "released_at": "2026-09-07T19:14:00+02:00",
+  "build": "2026.09.07.06",
+  "released_at": "2026-09-07T20:20:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v89"
+    "service_worker_cache": "pmg-shell-v90"
   },
   "backend": {
     "version": "1.4.0",
@@ -30,8 +30,8 @@
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "1b23cd45ef67ab89cd01ef23ab45cd67ef89ab01",
-      "telegram-gateway": "1aa01fe98344042e7b658b32e73d8618d7d850e1",
-      "telegram-modern-action": "117e4d4ba4674caaeee32ed4d1c0d19dc370e23d",
+      "telegram-gateway": "d3a9ad7e47b189f0b9d0a9f2d59a0a0432dca610",
+      "telegram-modern-action": "14e83d9c5a8500dc6214729cd86b34c3209ff104",
       "modern-parking-api": "d1a0de30fa40bc50de60fa70bc80de90fa01bc24",
       "modern-relocate-api": "e3c0ef40ab50cd60ef70ab80cd90ef01ab12cd35",
       "modern-delivery-api": "a5e0fa50bc60de70fa80bc90de01fa12bc23de46",
