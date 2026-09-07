@@ -29,6 +29,10 @@ const MARK="__pmg_android_back__";
 const cfg=routes[path]||null;
 const tg=window.Telegram?.WebApp||null;
 const tgBack=tg?.BackButton||null;
+// IMPORTANT: Inside Telegram, navigation MUST use Telegram.WebApp.BackButton.
+// Android system Back is bridged by Telegram to back_button_pressed when BackButton is active.
+// Do not replace this with History API as the primary in-Telegram mechanism; doing so previously
+// caused inconsistent sequences such as Park -> Operations -> Back appearing to do nothing.
 const nativeBack=Boolean(tgBack&&typeof tgBack.show==="function"&&typeof tgBack.onClick==="function");
 
 function hasInternalReferrer(){
