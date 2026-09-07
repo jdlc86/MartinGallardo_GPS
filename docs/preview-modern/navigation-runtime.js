@@ -17,11 +17,11 @@ const routes={
   "team-live.html":{back:"./",backLabel:"Equipo en vivo",home:"./"},
   "gps-diagnostic.html":{back:"./",backLabel:"GPS Pro · Diagnóstico",home:"./"},
   "legal.html":{back:"./",backLabel:"Legal",home:"./"},
-  "park.html":{bar:false,flow:true},
-  "pickup.html":{bar:false,flow:true},
-  "relocate.html":{bar:false,flow:true},
-  "delivery.html":{bar:false,flow:true},
-  "search.html":{bar:false,flow:true}
+  "park.html":{back:"operations.html",bar:false,flow:true},
+  "pickup.html":{back:"operations.html",bar:false,flow:true},
+  "relocate.html":{back:"operations.html",bar:false,flow:true},
+  "delivery.html":{back:"operations.html",bar:false,flow:true},
+  "search.html":{back:"operations.html",bar:false,flow:true}
 };
 
 let customBack=null,armed=false,handling=false;
@@ -49,9 +49,6 @@ function defaultBack(){
   if(cfg?.root){
     try{const tg=window.Telegram?.WebApp;if(tg?.close){tg.close();return}}catch{}
     return;
-  }
-  if(hasInternalReferrer()&&history.length>1){
-    try{history.back();return}catch{}
   }
   location.href=cfg?.back||"./";
 }
@@ -94,7 +91,7 @@ function initVisual(){
   const homeIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5L12 3.8l8.5 6.7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></svg>';
   shell.innerHTML='<div class="pmg-nav-bar"><button class="pmg-nav-btn" id="pmg-nav-back" type="button" aria-label="Atrás">'+backIcon+'</button><div class="pmg-nav-title">'+(cfg.backLabel||document.title||"")+'</div><button class="pmg-nav-btn" id="pmg-nav-home" type="button" aria-label="Inicio">'+homeIcon+'</button></div>';
   main.insertBefore(shell,main.firstChild);
-  document.getElementById("pmg-nav-back").onclick=()=>history.length>1&&hasInternalReferrer()?history.back():defaultBack();
+  document.getElementById("pmg-nav-back").onclick=runBack;
   document.getElementById("pmg-nav-home").onclick=()=>location.href=cfg.home||"./";
   const up=document.createElement("button");
   up.className="pmg-scroll-top";up.type="button";up.setAttribute("aria-label","Volver arriba");up.textContent="↑";
