@@ -27,6 +27,9 @@ const routes={
 let customBack=null,armed=false,handling=false;
 const MARK="__pmg_android_back__";
 const cfg=routes[path]||null;
+const tg=window.Telegram?.WebApp||null;
+const tgBack=tg?.BackButton||null;
+const nativeBack=Boolean(tgBack&&typeof tgBack.show==="function"&&typeof tgBack.onClick==="function");
 
 function hasInternalReferrer(){
   try{
@@ -38,16 +41,25 @@ function hasInternalReferrer(){
 function sameDocument(href){
   try{const a=new URL(href,location.href),b=new URL(location.href);return a.origin===b.origin&&a.pathname===b.pathname&&a.search===b.search&&a.hash===b.hash}catch{return false}
 }
-function arm(){
-  if(armed)return;
+function armFallback(){
+  if(nativeBack||armed)return;
   try{history.pushState({...history.state,[MARK]:true},"",location.href);armed=true}catch{}
 }
-function ensureArmed(){
-  arm();
+function ensureBackReady(){
+  if(nativeBack){
+    try{
+      tgBack.offClick?.(runBack);
+      if(cfg?.root){tgBack.hide();return}
+      tgBack.onClick(runBack);
+      tgBack.show();
+      return;
+    }catch{}
+  }
+  armFallback();
 }
 function defaultBack(){
   if(cfg?.root){
-    try{const tg=window.Telegram?.WebApp;if(tg?.close){tg.close();return}}catch{}
+    try{if(tg?.close){tg.close();return}}catch{}
     return;
   }
   location.replace(cfg?.back||"./");
@@ -58,22 +70,22 @@ function runBack(){
   const before=location.href;
   Promise.resolve().then(()=>customBack?customBack():defaultBack()).catch(()=>defaultBack()).finally(()=>{
     handling=false;
-    setTimeout(()=>{if(sameDocument(before)){armed=false;ensureArmed()}},0);
+    setTimeout(()=>{if(!nativeBack&&sameDocument(before)){armed=false;ensureBackReady()}},0);
   });
 }
 window.addEventListener("popstate",()=>{
-  if(!armed)return;
+  if(nativeBack||!armed)return;
   armed=false;
   runBack();
 });
 
 window.PMGNavigation={
-  setBackHandler(fn){customBack=typeof fn==="function"?fn:null;ensureArmed()},
-  clearBackHandler(){customBack=null;ensureArmed()},
+  setBackHandler(fn){customBack=typeof fn==="function"?fn:null;ensureBackReady()},
+  clearBackHandler(){customBack=null;ensureBackReady()},
   back(){runBack()},
-  arm:ensureArmed
+  arm:ensureBackReady
 };
-ensureArmed();
+ensureBackReady();
 
 function initVisual(){
   if(!cfg||cfg.bar===false||!cfg.back)return;
@@ -91,7 +103,9 @@ function initVisual(){
   const homeIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5L12 3.8l8.5 6.7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></svg>';
   shell.innerHTML='<div class="pmg-nav-bar"><button class="pmg-nav-btn" id="pmg-nav-back" type="button" aria-label="Atrás">'+backIcon+'</button><div class="pmg-nav-title">'+(cfg.backLabel||document.title||"")+'</div><button class="pmg-nav-btn" id="pmg-nav-home" type="button" aria-label="Inicio">'+homeIcon+'</button></div>';
   main.insertBefore(shell,main.firstChild);
-  document.getElementById("pmg-nav-back").onclick=runBack;
+  const backBtn=document.getElementById("pmg-nav-back");
+  backBtn.onclick=runBack;
+  if(nativeBack)backBtn.style.visibility="hidden";
   document.getElementById("pmg-nav-home").onclick=()=>location.href=cfg.home||"./";
   const up=document.createElement("button");
   up.className="pmg-scroll-top";up.type="button";up.setAttribute("aria-label","Volver arriba");up.textContent="↑";
