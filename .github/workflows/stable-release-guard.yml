@@ -128,6 +128,27 @@ jobs:
           print(f"Service Worker: {sw_cache}")
           PY
 
+      - name: Verify Telegram native Android Back contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          nav = Path("docs/preview-modern/navigation-runtime.js").read_text(encoding="utf-8")
+          required = {
+              "Telegram BackButton binding": 'const tgBack=tg?.BackButton||null;',
+              "native BackButton handler": 'tgBack.onClick(runBack);',
+              "native BackButton visible internally": 'tgBack.show();',
+              "native BackButton hidden on Home": 'if(cfg?.root){tgBack.hide();return}',
+              "History API fallback disabled inside Telegram": 'if(nativeBack||armed)return;',
+              "popstate ignored inside Telegram": 'if(nativeBack||!armed)return;',
+          }
+          missing = [name for name, token in required.items() if token not in nav]
+          if missing:
+              raise SystemExit("Telegram native Android Back contract missing: " + ", ".join(missing))
+          print("Telegram native Android Back contract: OK")
+          PY
+
       - name: Require revision bump when a critical Edge Function changes
         if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
         shell: bash
