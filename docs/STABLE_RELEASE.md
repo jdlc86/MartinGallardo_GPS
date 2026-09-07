@@ -240,3 +240,16 @@ Incluye:
 
 Estas correcciones no autorizan a relajar las reglas de permisos, integridad de flujo, OCR, trazabilidad ni seguridad ya definidas para la baseline.
 <!-- PMG-POST-BASELINE-2026-09-06:END -->
+
+
+## Telegram native Android Back contract
+
+La navegación Atrás dentro de la Mini App usa `Telegram.WebApp.BackButton` como mecanismo principal cuando la app se ejecuta dentro de Telegram. Esto permite que el botón/gesto físico Atrás de Android se enrute mediante el evento nativo de Telegram y evita las inconsistencias observadas cuando `pushState/popstate` gobernaba la navegación interna.
+
+Reglas protegidas:
+
+- Home oculta el BackButton nativo.
+- Pantallas internas muestran y enlazan el BackButton nativo a `runBack`.
+- `pushState/popstate` solo puede actuar como fallback fuera de Telegram.
+- No sustituir este comportamiento por History API como mecanismo principal dentro de Telegram.
+- Stable Release Guard debe fallar si desaparecen los enlaces nativos o si `popstate` vuelve a gobernar la navegación dentro de Telegram.
