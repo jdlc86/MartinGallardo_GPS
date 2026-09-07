@@ -10,6 +10,7 @@ on:
       - '.github/workflows/stable-release-guard.yml'
       - '.github/workflows/deployed-release-verification.yml'
       - 'supabase/functions/**'
+      - 'supabase/migrations/**'
   pull_request:
     paths:
       - 'release/manifest.json'
@@ -17,6 +18,7 @@ on:
       - 'docs/STABLE_RELEASE.md'
       - '.github/workflows/stable-release-guard.yml'
       - 'supabase/functions/**'
+      - 'supabase/migrations/**'
 
 jobs:
   release-contract:
