@@ -130,7 +130,7 @@ Para esta baseline se ha comprobado directamente que las siguientes Edge Functio
 - `modern-parking-api`
 - `modern-relocate-api`
 
-La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260907B04`.
+La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260907B05`.
 
 La siguiente evolución del pipeline será convertir estas comprobaciones externas en una verificación automática mediante credenciales de despliegue/gestión, sin exponer secretos en el repositorio. Hasta entonces, un Release contract verde certifica coherencia del código y un Deployed Release Verification verde certifica Pages, pero no debe interpretarse por sí solo como prueba automática del estado remoto de Supabase/Telegram.
 
