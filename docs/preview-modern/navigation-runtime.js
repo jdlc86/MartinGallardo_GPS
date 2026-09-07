@@ -50,7 +50,7 @@ function defaultBack(){
     try{const tg=window.Telegram?.WebApp;if(tg?.close){tg.close();return}}catch{}
     return;
   }
-  location.href=cfg?.back||"./";
+  location.replace(cfg?.back||"./");
 }
 function runBack(){
   if(handling)return;
