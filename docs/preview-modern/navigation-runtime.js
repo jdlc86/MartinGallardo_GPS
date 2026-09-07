@@ -42,16 +42,16 @@ function arm(){
   if(armed)return;
   try{history.pushState({...history.state,[MARK]:true},"",location.href);armed=true}catch{}
 }
-function shouldArmFallback(){
-  return Boolean(customBack)||Boolean(cfg?.flow)||!hasInternalReferrer();
-}
 function ensureArmed(){
-  if(shouldArmFallback())arm();
+  arm();
 }
 function defaultBack(){
   if(cfg?.root){
     try{const tg=window.Telegram?.WebApp;if(tg?.close){tg.close();return}}catch{}
     return;
+  }
+  if(hasInternalReferrer()&&history.length>1){
+    try{history.back();return}catch{}
   }
   location.href=cfg?.back||"./";
 }
