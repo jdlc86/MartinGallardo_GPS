@@ -112,6 +112,7 @@
   }
 
   function iconFor(type) {
+    if (type === "database_health_daily") return "🩺";
     if (type === "flow_session_expiring") return "⚠";
     if (type.includes("task_reassignment") || type.includes("task_unassigned")) return "↻";
     if (type.includes("task_")) return "✓";
@@ -120,6 +121,7 @@
   }
 
   function actionFor(type) {
+    if (type === "database_health_daily") return { label: "VER SISTEMA", href: "system-info.html?v=20260907HEALTH1" };
     if (type === "flow_session_expiring") return { label: "VOLVER A LA OPERACIÓN", href: "operations.html?v=20260905SESSIONTEST1" };
     if (type.includes("task_")) return { label: "VER MIS TAREAS", href: "operations.html?v=20260901TASK3" };
     if (type.includes("permission") || type.includes("write_") || type.includes("transfer")) {

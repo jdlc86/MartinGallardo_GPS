@@ -77,9 +77,12 @@ function keyboard(notificationType: string) {
   const flowExpiredNotice = notificationType === "flow_session_expired";
   const accessExpiredNotice = notificationType === "access_session_expired";
   const optimizationNotice = notificationType.startsWith("optimizer_");
+  const databaseHealthNotice = notificationType === "database_health_daily";
   const permissionNotice = notificationType.includes("permission") ||
     notificationType.includes("write_") || notificationType.includes("transfer");
-  const text = (flowExpiredNotice || accessExpiredNotice)
+  const text = databaseHealthNotice
+    ? "🩺 VER SISTEMA"
+    : (flowExpiredNotice || accessExpiredNotice)
     ? "🚘 ABRIR PARKINGMARTIN-G"
     : flowExpiryNotice
     ? "⚠️ VOLVER A LA OPERACIÓN"
@@ -88,7 +91,9 @@ function keyboard(notificationType: string) {
       : permissionNotice
       ? "📋 ABRIR GESTIÓN DE RESERVAS"
       : "⚡ VER MIS TAREAS";
-  const path = (flowExpiredNotice || accessExpiredNotice)
+  const path = databaseHealthNotice
+    ? "system-info.html?v=20260907HEALTH1"
+    : (flowExpiredNotice || accessExpiredNotice)
     ? "?v=20260906NEWSESSION2"
     : flowExpiryNotice
     ? "operations.html?v=20260905SESSIONTEST1"
