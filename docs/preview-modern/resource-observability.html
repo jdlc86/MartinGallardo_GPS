@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<link rel="stylesheet" href="theme.css?v=9" data-pmg-theme>
+<script src="theme.js?v=12" data-pmg-theme></script>
+<script src="ux-errors.js?v=11"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="session-runtime.js?v=8"></script>
+<title>Recursos & presupuestos</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--pmg-bg);color:var(--pmg-text);font-family:Inter,system-ui,-apple-system,sans-serif}
+.app{max-width:760px;margin:auto;padding:calc(22px + env(safe-area-inset-top)) 14px calc(38px + env(safe-area-inset-bottom))}
+.ey{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--pmg-accent-text);font-weight:900}
+h1{margin:5px 0 7px;font-size:29px}.sub{font-size:12px;line-height:1.5;color:var(--pmg-muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.card{padding:16px;border-radius:19px;background:var(--pmg-surface);border:1px solid var(--pmg-border)}
+.card h2{font-size:13px;margin:0 0 10px}.metric{font-size:26px;font-weight:950;letter-spacing:-.03em}
+.muted{font-size:11px;color:var(--pmg-muted);line-height:1.45;margin-top:5px}.bar{height:8px;border-radius:999px;background:var(--pmg-soft);overflow:hidden;margin-top:13px}.fill{height:100%;width:0;background:var(--pmg-accent);transition:width .25s ease}.status{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:900}.ok{color:var(--pmg-success-text);background:var(--pmg-success-soft)}.warning{color:var(--pmg-warning-text);background:var(--pmg-warning-soft)}.critical{color:var(--pmg-danger-text);background:var(--pmg-danger-soft)}.unconfigured,.needs_configuration{color:var(--pmg-muted);background:var(--pmg-soft)}
+.section{margin-top:14px;padding:16px;border-radius:19px;background:var(--pmg-surface);border:1px solid var(--pmg-border)}.section h2{font-size:14px;margin:0 0 12px}.field{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,170px);gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--pmg-border)}.field:first-of-type{border-top:0}.field label{font-size:12px;font-weight:800}.field small{display:block;margin-top:3px;color:var(--pmg-muted);font-size:10px;line-height:1.35;font-weight:500}
+input{width:100%;min-height:40px;border:1px solid var(--pmg-border);border-radius:11px;background:var(--pmg-input);color:var(--pmg-text);padding:0 10px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.btn{min-height:44px;border:0;border-radius:12px;font-weight:900;padding:0 12px;background:var(--pmg-accent);color:#fff}.btn.secondary{background:var(--pmg-soft);color:var(--pmg-text);border:1px solid var(--pmg-border)}.btn:disabled{opacity:.5}
+.state{margin-top:14px;padding:12px;border-radius:13px;background:var(--pmg-soft);font-size:11px;color:var(--pmg-muted);line-height:1.5}
+@media(max-width:560px){.grid{grid-template-columns:1fr}.field{grid-template-columns:1fr}.actions{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="app">
+<div class="ey">Configuración global · Root</div>
+<h1>Recursos & presupuestos</h1>
+<div class="sub">Consumo exclusivo de ParkingMartin-G. Esta fase solo observa y alerta: no bloquea operaciones ni impone hard-stops.</div>
+
+<section class="grid">
+  <div class="card">
+    <h2>Base de datos</h2>
+    <div id="dbMetric" class="metric">—</div>
+    <div id="dbDetail" class="muted">Cargando…</div>
+    <div class="bar"><div id="dbBar" class="fill"></div></div>
+    <span id="dbStatus" class="status unconfigured">—</span>
+  </div>
+  <div class="card">
+    <h2>Storage</h2>
+    <div id="storageMetric" class="metric">—</div>
+    <div id="storageDetail" class="muted">Cargando…</div>
+    <div class="bar"><div id="storageBar" class="fill"></div></div>
+    <span id="storageStatus" class="status unconfigured">—</span>
+  </div>
+</section>
+
+<section class="section">
+<h2>Presupuestos internos</h2>
+<div class="field"><label>Base de datos<small>Presupuesto de control para ParkingMartin-G. No modifica el límite del proveedor.</small></label><input id="dbBudget" type="number" min="1" max="102400" step="1" inputmode="decimal" placeholder="500"></div>
+<div class="field"><label>Storage<small>Déjalo vacío si todavía no quieres fijar presupuesto.</small></label><input id="storageBudget" type="number" min="1" max="1024000" step="1" inputmode="decimal" placeholder="Sin presupuesto"></div>
+<div class="field"><label>Aviso WARNING<small>Porcentaje del presupuesto a partir del cual se avisa.</small></label><input id="warning" type="number" min="1" max="99" step="1"></div>
+<div class="field"><label>Aviso CRITICAL<small>Debe ser mayor que WARNING. No bloquea ninguna operación.</small></label><input id="critical" type="number" min="2" max="100" step="1"></div>
+<div class="actions"><button id="save" class="btn">Guardar presupuestos</button><button id="refresh" class="btn secondary">↻ Actualizar consumo</button></div>
+</section>
+
+<div id="state" class="state">Consultando recursos reales del proyecto…</div>
+<button id="back" class="btn secondary" style="width:100%;margin-top:14px">← Volver al inicio</button>
+</main>
+<script>
+const tg=window.Telegram?.WebApp,API='https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/telegram-modern-action',$=id=>document.getElementById(id);
+if(tg){tg.ready();tg.expand();window.PMGTheme?.apply()}
+let current=null,busy=false;
+function fmtBytes(v){const n=Number(v||0);if(n>=1073741824)return (n/1073741824).toFixed(2)+' GB';return (n/1048576).toFixed(1)+' MB'}
+function statusLabel(v){return v==='critical'?'CRITICAL':v==='warning'?'WARNING':v==='ok'?'OK':'SIN PRESUPUESTO'}
+function paintStatus(id,value){const el=$(id);el.className='status '+String(value||'unconfigured');el.textContent=statusLabel(value)}
+function paintBar(id,pct){const n=Number(pct);$(id).style.width=Number.isFinite(n)?Math.max(0,Math.min(100,n))+'%':'0%'}
+async function api(action,extra={}){if(!tg?.initData)throw new Error('missing_user');const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData,action,...extra})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'network_error');return d}
+function render(r){
+  current=r;
+  const db=r.database||{},st=r.storage||{};
+  $('dbMetric').textContent=fmtBytes(db.used_bytes);
+  $('dbDetail').textContent=fmtBytes(db.used_bytes)+' / '+fmtBytes(db.budget_bytes)+' · '+(db.used_percent==null?'—':db.used_percent+'%');
+  paintBar('dbBar',db.used_percent);paintStatus('dbStatus',db.status);
+  $('storageMetric').textContent=fmtBytes(st.used_bytes);
+  $('storageDetail').textContent=st.budget_bytes?fmtBytes(st.used_bytes)+' / '+fmtBytes(st.budget_bytes)+' · '+(st.used_percent==null?'—':st.used_percent+'%')+' · '+Number(st.objects||0)+' archivos':fmtBytes(st.used_bytes)+' · '+Number(st.objects||0)+' archivos · presupuesto no configurado';
+  paintBar('storageBar',st.used_percent);paintStatus('storageStatus',st.status);
+  $('dbBudget').value=db.budget_bytes?String(Math.round(Number(db.budget_bytes)/1048576)):'';
+  $('storageBudget').value=st.budget_bytes?String(Math.round(Number(st.budget_bytes)/1048576)):'';
+  $('warning').value=String(r.warning_percent??80);$('critical').value=String(r.critical_percent??90);
+  $('state').textContent='Última lectura: '+new Date(r.generated_at).toLocaleString('es-ES')+'. Solo observabilidad; no hay bloqueos automáticos.';
+}
+async function load(){try{setBusy(true);const d=await api('resource_observability');render(d.resources)}catch(e){$('state').textContent=window.PMGFriendlyError?PMGFriendlyError(e.message):e.message}finally{setBusy(false)}}
+function setBusy(v){busy=v;$('save').disabled=v;$('refresh').disabled=v}
+async function save(){if(busy)return;const db=Number($('dbBudget').value),storage=$('storageBudget').value.trim(),warning=Number($('warning').value),critical=Number($('critical').value);if(!Number.isFinite(db)||db<=0)return $('state').textContent='Introduce un presupuesto válido para la base de datos.';if(!Number.isFinite(warning)||!Number.isFinite(critical)||warning<=0||critical<=warning||critical>100)return $('state').textContent='Los umbrales deben cumplir 0 < WARNING < CRITICAL ≤ 100.';try{setBusy(true);const d=await api('resource_budget_update',{database_budget_mb:db,storage_budget_mb:storage===''?null:Number(storage),warning_percent:warning,critical_percent:critical});render(d.resources);$('state').textContent='Presupuestos guardados. No se ha bloqueado ninguna operación.'}catch(e){$('state').textContent=window.PMGFriendlyError?PMGFriendlyError(e.message):e.message}finally{setBusy(false)}}
+$('save').onclick=save;$('refresh').onclick=load;$('back').onclick=()=>location.href='./';load();
+</script>
+</body>
+</html>
