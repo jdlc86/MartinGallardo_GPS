@@ -252,7 +252,7 @@
     toast.classList.add("on");
     try { telegram()?.HapticFeedback?.notificationOccurred("warning"); } catch {}
     clearTimeout(showSessionExpiryToast.timer);
-    showSessionExpiryToast.timer = setTimeout(() => toast.classList.remove("on"), 9000);
+    showSessionExpiryToast.timer = setTimeout(() => toast.classList.remove("on"), 2500);
   }
 
   async function refresh() {
