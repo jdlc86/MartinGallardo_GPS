@@ -234,14 +234,25 @@
     accessTimer=setTimeout(()=>lock("access"),delay+50);
   }
 
-  function inspectResponse(res){
+  function requestAction(init){
+    try{
+      if(typeof init?.body!=="string")return "";
+      const body=JSON.parse(init.body);
+      return String(body?.action||"");
+    }catch{return ""}
+  }
+
+  function inspectResponse(res,action=""){
     try{
       const type=res.headers.get("content-type")||"";
       if(!type.includes("application/json"))return;
       res.clone().json().then(data=>{
         if(data?.flow_session_id&&data?.expires_at)armFlow(data.expires_at);
         const error=String(data?.error||"");
-        if(error==="flow_session_expired")lock("operation");
+        // A stale saved flow is an expected recovery case. The page-level resume
+        // handler owns that response and clears the stale local flow without locking
+        // the whole Mini App. Active-operation expiry still locks everywhere else.
+        if(error==="flow_session_expired"&&action!=="resume")lock("operation");
         if(error==="expired_init_data"||error==="expired_access_session")lock("access");
       }).catch(()=>{});
     }catch{}
@@ -268,7 +279,7 @@
       }
     }catch{}
     const res=await nativeFetch(input,nextInit);
-    inspectResponse(res);
+    inspectResponse(res,requestAction(nextInit));
     return res;
   };
 
