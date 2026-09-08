@@ -153,6 +153,51 @@ jobs:
           print(f"Canonical theme runtime token: v=12 across {len(refs)} references")
           PY
 
+      - name: Verify stable operator Home shell contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          html = Path("docs/preview-modern/index.html").read_text(encoding="utf-8")
+          forbidden = [
+              "body:not(.home-ready) .home-viewbar",
+              "body:not(.home-ready) #homeGrid",
+          ]
+          present = [token for token in forbidden if token in html]
+          if present:
+              raise SystemExit("Home shell must not be visually blocked by dashboard: " + ", ".join(present))
+
+          common_operation = [
+              ">Centro de Operaciones<",
+              ">Vehículos<",
+              ">Equipo en vivo<",
+              ">Actividad reciente<",
+          ]
+          admin_operation = 'id="taskDispatch"'
+          positions = [html.find(token) for token in common_operation]
+          admin_pos = html.find(admin_operation)
+          if any(pos < 0 for pos in positions) or admin_pos < 0:
+              raise SystemExit("Home shell contract elements missing")
+          if positions != sorted(positions) or admin_pos <= max(positions):
+              raise SystemExit("Admin operation card must remain after all common operation cards")
+
+          expediente = html.find(">Expediente 360º<")
+          reservations = html.find('id="reservationsAdmin"')
+          team_access = html.find('id="teamAccess"')
+          if min(expediente, reservations, team_access) < 0 or not (expediente < reservations < team_access):
+              raise SystemExit("Admin management cards must remain after the common management card")
+
+          gps = html.find(">GPS Pro · Diagnóstico<")
+          optimizer = html.find('id="optimizerSettings"')
+          system_info = html.find('id="systemInfo"')
+          if min(gps, optimizer, system_info) < 0 or not (gps < optimizer < system_info):
+              raise SystemExit("Admin system cards must remain after the common system card")
+
+          print("Stable operator Home shell contract: OK")
+          PY
+
       - name: Verify Telegram native Android Back contract
         shell: bash
         run: |
