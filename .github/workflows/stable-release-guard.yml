@@ -198,6 +198,54 @@ jobs:
           print("Stable operator Home shell contract: OK")
           PY
 
+      - name: Verify owner-only resource observability contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          home = Path("docs/preview-modern/index.html").read_text(encoding="utf-8")
+          api = Path("supabase/functions/telegram-modern-action/index.ts").read_text(encoding="utf-8")
+          migration = Path("supabase/migrations/20260909001500_owner_resource_observability.sql").read_text(encoding="utf-8")
+
+          required_home = [
+              'id="resourceObservability" class="card owner-only"',
+              ">Recursos & presupuestos<",
+              "if(d.role==='owner'){document.getElementById('resourceObservability').classList.remove('owner-only')}",
+          ]
+          missing = [x for x in required_home if x not in home]
+          if missing:
+              raise SystemExit("Owner resource tile contract missing: " + ", ".join(missing))
+
+          system_info = home.find('id="systemInfo"')
+          owner_card = home.find('id="resourceObservability"')
+          if system_info < 0 or owner_card <= system_info:
+              raise SystemExit("Owner resource card must remain after admin System cards")
+
+          required_api = [
+              'async function requireOwner',
+              'action==="resource_observability"',
+              'action==="resource_budget_update"',
+              'throw new Error("not_owner")',
+          ]
+          missing_api = [x for x in required_api if x not in api]
+          if missing_api:
+              raise SystemExit("Owner backend authorization contract missing: " + ", ".join(missing_api))
+
+          required_db = [
+              "alter table public.resource_observability_config enable row level security",
+              "revoke all on table public.resource_observability_config from public, anon, authenticated",
+              "security definer",
+              "revoke all on function public.resource_observability_snapshot()",
+          ]
+          missing_db = [x for x in required_db if x not in migration.lower()]
+          if missing_db:
+              raise SystemExit("Resource observability DB hardening missing: " + ", ".join(missing_db))
+
+          print("Owner-only resource observability contract: OK")
+          PY
+
       - name: Verify Telegram native Android Back contract
         shell: bash
         run: |
