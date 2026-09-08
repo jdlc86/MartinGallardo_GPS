@@ -128,6 +128,31 @@ jobs:
           print(f"Service Worker: {sw_cache}")
           PY
 
+      - name: Verify canonical theme runtime token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib
+          import re
+
+          root = pathlib.Path("docs/preview-modern")
+          refs = {}
+          for path in root.rglob("*"):
+              if not path.is_file() or path.suffix not in {".html", ".js"}:
+                  continue
+              text = path.read_text(encoding="utf-8")
+              versions = sorted(set(re.findall(r"theme\\.js\\?v=([A-Za-z0-9._-]+)", text)))
+              if versions:
+                  refs[str(path)] = versions
+
+          all_versions = sorted({v for versions in refs.values() for v in versions})
+          if all_versions != ["12"]:
+              details = "; ".join(f"{p}: {','.join(v)}" for p, v in sorted(refs.items()))
+              raise SystemExit(f"theme.js cache token mismatch; expected only v=12, found {all_versions}. {details}")
+          print(f"Canonical theme runtime token: v=12 across {len(refs)} references")
+          PY
+
       - name: Verify Telegram native Android Back contract
         shell: bash
         run: |
