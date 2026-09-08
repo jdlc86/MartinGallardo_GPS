@@ -142,7 +142,7 @@ jobs:
               if not path.is_file() or path.suffix not in {".html", ".js"}:
                   continue
               text = path.read_text(encoding="utf-8")
-              versions = sorted(set(re.findall(r"theme\\.js\\?v=([A-Za-z0-9._-]+)", text)))
+              versions = sorted(set(re.findall(r"theme\.js\?v=([A-Za-z0-9._-]+)", text)))
               if versions:
                   refs[str(path)] = versions
 
