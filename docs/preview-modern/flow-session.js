@@ -2,6 +2,8 @@
   const label=String(opts.label||"Operación");
   const plate=norm(opts.plate||"");
   const detail=String(opts.detail||"Los datos registrados siguen guardados.");
+  const article=String(opts.article||"una");
+  const other=String(opts.other||"OTRA");
   return new Promise(resolve=>{
     document.getElementById("pmg-flow-recovery-modal")?.remove();
     const wrap=document.createElement("div");
@@ -19,7 +21,7 @@
     plateEl.className="pmg-flow-recovery-plate";
     plateEl.textContent=plate;
     const p1=document.createElement("p");
-    p1.textContent="Se ha recuperado una "+label.toLowerCase()+" que todavía sigue activa.";
+    p1.textContent="Se ha recuperado "+article+" "+label.toLowerCase()+" que todavía sigue activa.";
     const p2=document.createElement("p");
     p2.className="pmg-flow-recovery-detail";
     p2.textContent=detail;
@@ -29,7 +31,7 @@
     const restart=document.createElement("button");
     restart.type="button";
     restart.className="secondary";
-    restart.textContent="INICIAR OTRA "+label.toUpperCase();
+    restart.textContent="INICIAR "+other+" "+label.toUpperCase();
     const note=document.createElement("small");
     note.textContent="Si inicias otra, esta operación pendiente se cancelará antes de empezar la nueva.";
     const style=document.createElement("style");
