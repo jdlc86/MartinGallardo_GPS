@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.08.02
+- **Build estable:** 2026.09.08.03
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.08.02`
+`v1.4.0 · Build 2026.09.08.03`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -130,7 +130,7 @@ Para esta baseline se ha comprobado directamente que las siguientes Edge Functio
 - `modern-parking-api`
 - `modern-relocate-api`
 
-La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260908B02`.
+La URL declarada por `telegram-gateway` y `telegram-modern-action` corresponde a `20260908B03`.
 
 La siguiente evolución del pipeline será convertir estas comprobaciones externas en una verificación automática mediante credenciales de despliegue/gestión, sin exponer secretos en el repositorio. Hasta entonces, un Release contract verde certifica coherencia del código y un Deployed Release Verification verde certifica Pages, pero no debe interpretarse por sí solo como prueba automática del estado remoto de Supabase/Telegram.
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.08.02
+## Baseline consolidada 2026.09.08.03
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.08.02**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.08.03**.
 
 Incluye:
 
@@ -233,7 +233,7 @@ Incluye:
 - doble comprobación de reachability estática antes de declarar falta de Internet;
 - `connectivity-ping.txt` forzado a red para impedir falsos positivos por caché;
 - corrección F-03: el control flotante para volver arriba se oculta mientras el panel de asignación está abierto y recupera su comportamiento normal al cerrarlo;
-- corrección del acceso al Asistente IA: las acciones de usuario vuelven a usar el planner autenticado, mientras `reservation-ai-planner-v2` permanece restringido a llamadas server-to-server;\n- las APIs operativas Recogida, Aparcar, Reubicar, Buscar y Entrega aceptan la access session backend revocable antes de recurrir a initData fresco;\n- Centro de Operaciones y los flujos Recogida, Aparcar, Reubicar, Buscar y Entrega cargan explícitamente `session-runtime.js?v=7`, sin depender del Service Worker para inyectar la access session;\n- al abrir un flujo nuevo, un estado local antiguo ya expirado se descarta en vez de bloquear la nueva sesión como si acabara de caducar;\n- la Home evita el reflow visible de la cuadrícula mientras se resuelven permisos, mostrando directamente la disposición final;\n- la expiración rutinaria de la access session deja de generar mensajes Telegram repetitivos; las notificaciones de expiración de operaciones se conservan;\n- Buscar coche adopta el mismo patrón moderno de navegación superior que Aparcar, Recogida, Reubicar y Entrega;\n- confirmación del Asistente IA genera el mismo contrato operativo de notificaciones que la asignación manual: detalle de tareas por operario y aviso de reasignación cuando proceda;\n- la asignación manual permite elegir `SIN ASIGNAR` para retirar responsable de tareas seleccionadas, con control de versión, historial y aviso al operario anterior;\n- informe diario de salud de base de datos para Root/Admin a medianoche de Madrid, con tamaño usado/restante, conexiones, consultas largas de cliente, tuplas muertas, notificaciones pendientes y carga operativa;\n- las sesiones persistentes de replicación Realtime/walsender quedan excluidas del indicador de consultas largas para evitar falsos avisos;\n- Service Worker actual: `pmg-shell-v94`;
+- corrección del acceso al Asistente IA: las acciones de usuario vuelven a usar el planner autenticado, mientras `reservation-ai-planner-v2` permanece restringido a llamadas server-to-server;\n- las APIs operativas Recogida, Aparcar, Reubicar, Buscar y Entrega aceptan la access session backend revocable antes de recurrir a initData fresco;\n- Centro de Operaciones y los flujos Recogida, Aparcar, Reubicar, Buscar y Entrega cargan explícitamente `session-runtime.js?v=7`, sin depender del Service Worker para inyectar la access session;\n- al abrir un flujo nuevo, un estado local antiguo ya expirado se descarta en vez de bloquear la nueva sesión como si acabara de caducar;\n- la Home evita el reflow visible de la cuadrícula mientras se resuelven permisos, mostrando directamente la disposición final;\n- la expiración rutinaria de la access session deja de generar mensajes Telegram repetitivos; las notificaciones de expiración de operaciones se conservan;\n- Buscar coche adopta el mismo patrón moderno de navegación superior que Aparcar, Recogida, Reubicar y Entrega;\n- confirmación del Asistente IA genera el mismo contrato operativo de notificaciones que la asignación manual: detalle de tareas por operario y aviso de reasignación cuando proceda;\n- la asignación manual permite elegir `SIN ASIGNAR` para retirar responsable de tareas seleccionadas, con control de versión, historial y aviso al operario anterior;\n- informe diario de salud de base de datos para Root/Admin a medianoche de Madrid, con tamaño usado/restante, conexiones, consultas largas de cliente, tuplas muertas, notificaciones pendientes y carga operativa;\n- las sesiones persistentes de replicación Realtime/walsender quedan excluidas del indicador de consultas largas para evitar falsos avisos;\n- Service Worker actual: `pmg-shell-v95`;
 - runtime de navegación actual: `navigation-runtime.js?v=5`;
 - runtime de sesión actual: `session-runtime.js?v=7`;\n- runtime de notificaciones actual: `notification-runtime.js?v=8`;
 - runtime de conectividad actual: `offline-runtime.js?v=6`.
@@ -258,3 +258,8 @@ Reglas protegidas:
 ## Recuperación explícita de operaciones pendientes
 
 Cuando Recogida, Aparcamiento, Reubicación o Entrega encuentra una flow session todavía activa y recuperable, la Mini App no continúa automáticamente. Debe mostrar de forma bloqueante el tipo de operación y la matrícula y exigir una elección explícita entre continuar la operación pendiente o iniciar otra. Si el usuario elige iniciar otra, la sesión pendiente debe cancelarse primero en backend y solo después limpiarse el estado local.
+
+
+## Home operativo estable y render inmediato
+
+El Home debe pintar desde el primer render todas las tarjetas comunes del operario sin esperar a la respuesta `dashboard`. Las tarjetas administrativas permanecen ocultas hasta validar el rol y se sitúan al final de su sección para que su aparición no desplace ni reordene las tarjetas comunes ya visibles. La validación de acceso y rol sigue ejecutándose y las APIs continúan aplicando autorización backend.
