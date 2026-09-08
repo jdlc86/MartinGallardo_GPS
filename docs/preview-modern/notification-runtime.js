@@ -233,7 +233,13 @@
   }
 
   let initialized = false;
+  function hideSessionExpiryToast() {
+    clearTimeout(showSessionExpiryToast.timer);
+    document.getElementById("pmg-session-expiry-toast")?.classList.remove("on");
+  }
+
   function showSessionExpiryToast(notice) {
+    if (window.PMGSessionRuntime?.locked) return;
     let toast = document.getElementById("pmg-session-expiry-toast");
     if (!toast) {
       toast = document.createElement("div");
@@ -325,6 +331,7 @@
       if (event.key === "Escape" && document.getElementById("pmg-notice-panel")) closePanel(true);
     });
     window.addEventListener("pmg:online", () => refreshFromEvent(0));
+    window.addEventListener("pmg:session-expired", hideSessionExpiryToast);
     window.addEventListener("pagehide", () => {
       clearTimeout(eventRefreshTimer);
       if (client) channels.forEach((channel) => client.removeChannel(channel).catch(() => {}));
