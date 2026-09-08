@@ -208,6 +208,7 @@ jobs:
           home = Path("docs/preview-modern/index.html").read_text(encoding="utf-8")
           api = Path("supabase/functions/telegram-modern-action/index.ts").read_text(encoding="utf-8")
           migration = Path("supabase/migrations/20260909001500_owner_resource_observability.sql").read_text(encoding="utf-8")
+          analytics_migration = Path("supabase/migrations/20260909020500_resource_usage_analytics.sql").read_text(encoding="utf-8")
 
           required_home = [
               'id="resourceObservability" class="card owner-only"',
@@ -227,6 +228,8 @@ jobs:
               'async function requireOwner',
               'action==="resource_observability"',
               'action==="resource_budget_update"',
+              'action==="resource_analytics_refresh"',
+              'Deno.env.get("ANALYTICS_ACCESS_TOKEN")',
               'throw new Error("not_owner")',
           ]
           missing_api = [x for x in required_api if x not in api]
@@ -242,6 +245,16 @@ jobs:
           missing_db = [x for x in required_db if x not in migration.lower()]
           if missing_db:
               raise SystemExit("Resource observability DB hardening missing: " + ", ".join(missing_db))
+
+          required_analytics_db = [
+              "alter table public.resource_usage_snapshots enable row level security",
+              "revoke all on table public.resource_usage_snapshots from public, anon, authenticated",
+              "api_requests_budget",
+              "edge_function_invocations_budget",
+          ]
+          missing_analytics_db = [x for x in required_analytics_db if x not in analytics_migration.lower()]
+          if missing_analytics_db:
+              raise SystemExit("Resource analytics DB hardening missing: " + ", ".join(missing_analytics_db))
 
           print("Owner-only resource observability contract: OK")
           PY
