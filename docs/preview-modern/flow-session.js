@@ -1,1 +1,46 @@
-(function(){"use strict";if(window.PMGFlowSession)return;const INTEGRITY_ERRORS=new Set(["verification_session_mismatch","flow_session_context_mismatch","flow_task_plate_mismatch","flow_task_context_mismatch","flow_vehicle_mismatch","flow_session_not_active","flow_session_expired","flow_session_not_found","flow_session_required","flow_task_not_assigned"]);function norm(v){return String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"")}function key(flow){return"pmg_flow_session_v3_"+String(flow||"")}function read(flow){try{const raw=localStorage.getItem(key(flow));if(!raw)return null;const x=JSON.parse(raw);if(!x?.id||!x?.plate||!x?.vehicleId||x.flow!==String(flow||""))return null;return Object.freeze({id:String(x.id),flow:String(flow||""),plate:norm(x.plate),vehicleId:String(x.vehicleId),taskId:x.taskId?String(x.taskId):null})}catch{return null}}function write(flow,s){try{s?localStorage.setItem(key(flow),JSON.stringify(s)):localStorage.removeItem(key(flow))}catch{}}function create(flow){let s=read(flow),done=false;return{bind(x){const next={id:String(x?.id||""),flow:String(flow||""),plate:norm(x?.plate),vehicleId:String(x?.vehicleId||""),taskId:x?.taskId?String(x.taskId):null};if(!next.id||!next.plate||!next.vehicleId)throw new Error("flow_session_invalid");if(s&&(s.id!==next.id||s.plate!==next.plate||s.vehicleId!==next.vehicleId||s.taskId!==next.taskId))throw new Error("flow_session_context_mismatch");s=Object.freeze(next);done=false;write(flow,s);return s},assert(plate,taskId){if(!s||done)throw new Error("flow_session_not_active");if(s.plate!==norm(plate))throw new Error("flow_session_context_mismatch");if(taskId!==undefined&&String(taskId||"")!==String(s.taskId||""))throw new Error("flow_task_context_mismatch");return s},id(){if(!s||done)throw new Error("flow_session_not_active");return s.id},complete(){if(!s)throw new Error("flow_session_not_active");done=true;write(flow,null);window.PMGSessionRuntime?.clearFlow?.()},reset(){s=null;done=false;write(flow,null);window.PMGSessionRuntime?.clearFlow?.()},snapshot(){return s?{...s,completed:done}:null},restored(){return Boolean(s&&!done)}}}window.PMGFlowSession={create,isIntegrityError:e=>INTEGRITY_ERRORS.has(String(e?.message||e||''))}})();
+(function(){"use strict";if(window.PMGFlowSession)return;const INTEGRITY_ERRORS=new Set(["verification_session_mismatch","flow_session_context_mismatch","flow_task_plate_mismatch","flow_task_context_mismatch","flow_vehicle_mismatch","flow_session_not_active","flow_session_expired","flow_session_not_found","flow_session_required","flow_task_not_assigned"]);function norm(v){return String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"")}function key(flow){return"pmg_flow_session_v3_"+String(flow||"")}function read(flow){try{const raw=localStorage.getItem(key(flow));if(!raw)return null;const x=JSON.parse(raw);if(!x?.id||!x?.plate||!x?.vehicleId||x.flow!==String(flow||""))return null;return Object.freeze({id:String(x.id),flow:String(flow||""),plate:norm(x.plate),vehicleId:String(x.vehicleId),taskId:x.taskId?String(x.taskId):null})}catch{return null}}function write(flow,s){try{s?localStorage.setItem(key(flow),JSON.stringify(s)):localStorage.removeItem(key(flow))}catch{}}function create(flow){let s=read(flow),done=false;return{bind(x){const next={id:String(x?.id||""),flow:String(flow||""),plate:norm(x?.plate),vehicleId:String(x?.vehicleId||""),taskId:x?.taskId?String(x.taskId):null};if(!next.id||!next.plate||!next.vehicleId)throw new Error("flow_session_invalid");if(s&&(s.id!==next.id||s.plate!==next.plate||s.vehicleId!==next.vehicleId||s.taskId!==next.taskId))throw new Error("flow_session_context_mismatch");s=Object.freeze(next);done=false;write(flow,s);return s},assert(plate,taskId){if(!s||done)throw new Error("flow_session_not_active");if(s.plate!==norm(plate))throw new Error("flow_session_context_mismatch");if(taskId!==undefined&&String(taskId||"")!==String(s.taskId||""))throw new Error("flow_task_context_mismatch");return s},id(){if(!s||done)throw new Error("flow_session_not_active");return s.id},complete(){if(!s)throw new Error("flow_session_not_active");done=true;write(flow,null);window.PMGSessionRuntime?.clearFlow?.()},reset(){s=null;done=false;write(flow,null);window.PMGSessionRuntime?.clearFlow?.()},snapshot(){return s?{...s,completed:done}:null},restored(){return Boolean(s&&!done)}}}function recoveryDecision(opts={}){
+  const label=String(opts.label||"Operación");
+  const plate=norm(opts.plate||"");
+  const detail=String(opts.detail||"Los datos registrados siguen guardados.");
+  return new Promise(resolve=>{
+    document.getElementById("pmg-flow-recovery-modal")?.remove();
+    const wrap=document.createElement("div");
+    wrap.id="pmg-flow-recovery-modal";
+    wrap.setAttribute("role","dialog");
+    wrap.setAttribute("aria-modal","true");
+    const card=document.createElement("div");
+    card.className="pmg-flow-recovery-card";
+    const kicker=document.createElement("div");
+    kicker.className="pmg-flow-recovery-kicker";
+    kicker.textContent=label.toUpperCase()+" PENDIENTE";
+    const title=document.createElement("h2");
+    title.textContent="Esta operación quedó pendiente";
+    const plateEl=document.createElement("div");
+    plateEl.className="pmg-flow-recovery-plate";
+    plateEl.textContent=plate;
+    const p1=document.createElement("p");
+    p1.textContent="Se ha recuperado una "+label.toLowerCase()+" que todavía sigue activa.";
+    const p2=document.createElement("p");
+    p2.className="pmg-flow-recovery-detail";
+    p2.textContent=detail;
+    const keep=document.createElement("button");
+    keep.type="button";
+    keep.textContent="CONTINUAR "+label.toUpperCase();
+    const restart=document.createElement("button");
+    restart.type="button";
+    restart.className="secondary";
+    restart.textContent="INICIAR OTRA "+label.toUpperCase();
+    const note=document.createElement("small");
+    note.textContent="Si inicias otra, esta operación pendiente se cancelará antes de empezar la nueva.";
+    const style=document.createElement("style");
+    style.textContent='#pmg-flow-recovery-modal{position:fixed;inset:0;z-index:2147483002;display:flex;align-items:center;justify-content:center;padding:22px;background:var(--pmg-overlay,#020617b8);backdrop-filter:blur(8px)}.pmg-flow-recovery-card{width:min(100%,460px);border:1px solid var(--pmg-border,#ffffff16);border-radius:24px;padding:24px;background:var(--pmg-surface,#101d30);color:var(--pmg-text,#eef5ff);box-shadow:0 22px 70px var(--pmg-shadow,#0006)}.pmg-flow-recovery-kicker{font-size:11px;font-weight:900;letter-spacing:.12em;color:var(--pmg-warning-text,#fbbf24);margin-bottom:7px}.pmg-flow-recovery-card h2{margin:0 0 14px;font-size:24px;line-height:1.12;color:var(--pmg-text,#eef5ff)}.pmg-flow-recovery-plate{font-size:30px;font-weight:950;letter-spacing:.06em;padding:12px 14px;margin:0 0 14px;border-radius:16px;background:var(--pmg-warning-soft,#f59e0b18);color:var(--pmg-warning-text,#fbbf24);text-align:center}.pmg-flow-recovery-card p{margin:8px 0;color:var(--pmg-text,#eef5ff);line-height:1.45}.pmg-flow-recovery-detail{color:var(--pmg-muted,#91a4bb)!important}.pmg-flow-recovery-card button{width:100%;border:0;border-radius:14px;padding:14px 16px;margin-top:12px;font-weight:900;font-size:14px;background:var(--pmg-accent,#2563eb);color:var(--pmg-on-accent,#fff)}.pmg-flow-recovery-card button.secondary{background:var(--pmg-soft,#ffffff0b);color:var(--pmg-text,#eef5ff);border:1px solid var(--pmg-border,#ffffff16)}.pmg-flow-recovery-card small{display:block;margin-top:13px;color:var(--pmg-muted,#91a4bb);line-height:1.4;text-align:center}';
+    card.append(kicker,title,plateEl,p1,p2,keep,restart,note);
+    wrap.append(style,card);
+    const done=choice=>{wrap.remove();resolve(choice)};
+    keep.onclick=()=>done("continue");
+    restart.onclick=()=>done("restart");
+    document.body.appendChild(wrap);
+    keep.focus();
+  });
+}
+window.PMGFlowSession={create,recoveryDecision,isIntegrityError:e=>INTEGRITY_ERRORS.has(String(e?.message||e||""))}})();
