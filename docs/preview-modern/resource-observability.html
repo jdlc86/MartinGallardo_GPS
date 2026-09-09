@@ -86,7 +86,7 @@ function fmtBytes(v){const n=Number(v||0);if(n>=1073741824)return (n/1073741824)
 function statusLabel(v){return v==='critical'?'CRITICAL':v==='warning'?'WARNING':v==='ok'?'OK':v==='unavailable'?'NO DISPONIBLE':'SIN PRESUPUESTO'}
 function paintStatus(id,value){const el=$(id);el.className='status '+String(value||'unconfigured');el.textContent=statusLabel(value)}
 function paintBar(id,pct){const n=Number(pct);$(id).style.width=Number.isFinite(n)?Math.max(0,Math.min(100,n))+'%':'0%'}
-function fmtCount(v){const n=Number(v);return Number.isFinite(n)?new Intl.NumberFormat('es-ES').format(n):'—'}
+function fmtCount(v){if(v===null||v===undefined||v==='')return '—';const n=Number(v);return Number.isFinite(n)?new Intl.NumberFormat('es-ES').format(n):'—'}
 async function api(action,extra={}){if(!tg?.initData)throw new Error('missing_user');const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData,action,...extra})});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.error||'network_error');return d}
 function render(r){
   current=r;
