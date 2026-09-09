@@ -47,6 +47,58 @@ async function notify(user:any,type:string){try{const role=visibleRole(String(us
 async function requireAdmin(id:number){const u=await currentUser(id);if(!u||!u.active||(u.role!=="owner"&&u.role!=="admin"))throw new Error("not_admin");return u}
 async function requireOwner(id:number){const u=await currentUser(id);if(!u||!u.active||u.role!=="owner")throw new Error("not_owner");return u}
 function validPercent(v:number){return Number.isFinite(v)&&v>0&&v<=100}
+async function analyticsGet(path:string){
+  if(!ANALYTICS_ACCESS_TOKEN)throw new Error("analytics_token_unavailable");
+  const r=await fetch(`https://api.supabase.com/v1/projects/${ANALYTICS_PROJECT_REF}/analytics/endpoints/${path}`,{
+    headers:{Authorization:`Bearer ${ANALYTICS_ACCESS_TOKEN}`,Accept:"application/json"}
+  });
+  const text=await r.text();let data:any=null;
+  try{data=text?JSON.parse(text):null}catch{data={raw:text}}
+  if(!r.ok)throw new Error(`analytics_${r.status}`);
+  return data;
+}
+function exactCount(data:any){
+  if(Number.isFinite(Number(data?.count)))return Number(data.count);
+  const rows=Array.isArray(data?.result)?data.result:[];
+  if(rows.length===1&&Number.isFinite(Number(rows[0]?.count)))return Number(rows[0].count);
+  return null;
+}
+function exactInvocationCount(data:any){
+  if(Number.isFinite(Number(data?.count)))return Number(data.count);
+  const rows=Array.isArray(data?.result)?data.result.filter((x:any)=>x&&typeof x==="object"):[];
+  if(!rows.length)return 0;
+  for(const key of ["total_invocations","invocations","invocation_count","count"]){
+    if(rows.length===1&&Number.isFinite(Number(rows[0]?.[key])))return Number(rows[0][key]);
+  }
+  if(rows.every((x:any)=>Number.isFinite(Number(x.count))))return rows.reduce((n:number,x:any)=>n+Number(x.count),0);
+  return null;
+}
+async function refreshResourceAnalytics(actorId:number){
+  await requireOwner(actorId);
+  const api=await analyticsGet("usage.api-requests-count");
+  const apiRequests=exactCount(api);
+  const raw:any[]=[];let edgeTotal=0,edgeKnown=true,checked=0;
+  for(const [slug,id] of ANALYTICS_FUNCTIONS){
+    try{
+      const d=await analyticsGet(`functions.combined-stats?interval=1day&function_id=${encodeURIComponent(id)}`);
+      const n=exactInvocationCount(d);
+      raw.push({slug,id,result:d?.result??null,error:d?.error??null});
+      checked++;
+      if(n===null)edgeKnown=false; else edgeTotal+=n;
+    }catch(e){
+      raw.push({slug,id,error:String((e as Error)?.message||e)});
+      edgeKnown=false;
+    }
+  }
+  await insert("resource_usage_snapshots",{
+    api_requests:apiRequests,
+    edge_function_invocations:edgeKnown?edgeTotal:null,
+    edge_functions_checked:checked,
+    raw_edge_stats:raw,
+    error_metadata:{api_requests_known:apiRequests!==null,edge_invocations_known:edgeKnown}
+  });
+  return await rpc("resource_observability_snapshot");
+}
 async function resourceObservabilityData(actorId:number){
   await requireOwner(actorId);
   const snapshot=await rpc("resource_observability_snapshot");
@@ -57,6 +109,10 @@ async function updateResourceBudget(actorId:number,body:any){
   const databaseMb=Number(body.database_budget_mb);
   const storageRaw=body.storage_budget_mb;
   const storageMb=storageRaw===null||storageRaw===undefined||String(storageRaw).trim()===""?null:Number(storageRaw);
+  const apiRaw=body.api_requests_budget;
+  const edgeRaw=body.edge_function_invocations_budget;
+  const apiBudget=apiRaw===null||apiRaw===undefined||String(apiRaw).trim()===""?null:Number(apiRaw);
+  const edgeBudget=edgeRaw===null||edgeRaw===undefined||String(edgeRaw).trim()===""?null:Number(edgeRaw);
   const warning=Number(body.warning_percent);
   const critical=Number(body.critical_percent);
   if(!Number.isFinite(databaseMb)||databaseMb<=0||databaseMb>102400)throw new Error("invalid_database_budget");
