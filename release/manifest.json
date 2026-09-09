@@ -31,7 +31,7 @@
     "attestations": {
       "reservation-optimization-jobs-v1": "1b23cd45ef67ab89cd01ef23ab45cd67ef89ab01",
       "telegram-gateway": "c52e83a7d1094bf2635ca8e071b4d92f6a315e40",
-      "telegram-modern-action": "b7319d4e62ca50f1873ba906d41ec28f5a739c10",
+      "telegram-modern-action": "d4a19e7b3056cf128e4a9b70d21f63c8e5ab7412",
       "modern-parking-api": "d1a0de30fa40bc50de60fa70bc80de90fa01bc24",
       "modern-relocate-api": "e3c0ef40ab50cd60ef70ab80cd90ef01ab12cd35",
       "modern-delivery-api": "a5e0fa50bc60de70fa80bc90de01fa12bc23de46",
