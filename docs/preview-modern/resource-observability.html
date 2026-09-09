@@ -49,14 +49,14 @@ input{width:100%;min-height:40px;border:1px solid var(--pmg-border);border-radiu
     <span id="storageStatus" class="status unconfigured">—</span>
   </div>
   <div class="card">
-    <h2>API Requests</h2>
+    <h2>API Requests</h2><div class="muted">Periodo: contador oficial de uso de Supabase para este proyecto.</div>
     <div id="apiMetric" class="metric">—</div>
     <div id="apiDetail" class="muted">Pulsa actualizar para consultar Supabase Analytics.</div>
     <div class="bar"><div id="apiBar" class="fill"></div></div>
     <span id="apiStatus" class="status unconfigured">—</span>
   </div>
   <div class="card">
-    <h2>Edge Function Invocations</h2>
+    <h2>Edge Function Invocations</h2><div class="muted">Periodo: últimas 24 horas.</div>
     <div id="edgeMetric" class="metric">—</div>
     <div id="edgeDetail" class="muted">Pulsa actualizar para consultar Supabase Analytics.</div>
     <div class="bar"><div id="edgeBar" class="fill"></div></div>
@@ -68,8 +68,8 @@ input{width:100%;min-height:40px;border:1px solid var(--pmg-border);border-radiu
 <h2>Presupuestos internos</h2>
 <div class="field"><label>Base de datos<small>Presupuesto de control para ParkingMartin-G. No modifica el límite del proveedor.</small></label><input id="dbBudget" type="number" min="1" max="102400" step="1" inputmode="decimal" placeholder="500"></div>
 <div class="field"><label>Storage<small>Déjalo vacío si todavía no quieres fijar presupuesto.</small></label><input id="storageBudget" type="number" min="1" max="1024000" step="1" inputmode="decimal" placeholder="Sin presupuesto"></div>
-<div class="field"><label>API Requests<small>Presupuesto interno de solicitudes del proyecto. No modifica cuotas de Supabase.</small></label><input id="apiBudget" type="number" min="1" step="1" inputmode="numeric" placeholder="Sin presupuesto"></div>
-<div class="field"><label>Edge Function Invocations<small>Presupuesto interno de invocaciones. No bloquea funciones al superarse.</small></label><input id="edgeBudget" type="number" min="1" step="1" inputmode="numeric" placeholder="Sin presupuesto"></div>
+<div class="field"><label>API Requests<small>Presupuesto interno para el mismo contador de uso que reporta Supabase. No modifica cuotas ni bloquea operaciones.</small></label><input id="apiBudget" type="number" min="1" step="1" inputmode="numeric" placeholder="Sin presupuesto"></div>
+<div class="field"><label>Edge Function Invocations<small>Presupuesto interno para invocaciones en 24 horas. No bloquea funciones al superarse.</small></label><input id="edgeBudget" type="number" min="1" step="1" inputmode="numeric" placeholder="Sin presupuesto"></div>
 <div class="field"><label>Aviso WARNING<small>Porcentaje del presupuesto a partir del cual se avisa.</small></label><input id="warning" type="number" min="1" max="99" step="1"></div>
 <div class="field"><label>Aviso CRITICAL<small>Debe ser mayor que WARNING. No bloquea ninguna operación.</small></label><input id="critical" type="number" min="2" max="100" step="1"></div>
 <div class="actions"><button id="save" class="btn">Guardar presupuestos</button><button id="refresh" class="btn secondary">↻ Actualizar consumo</button></div>
@@ -101,10 +101,10 @@ function render(r){
   $('storageBudget').value=st.budget_bytes?String(Math.round(Number(st.budget_bytes)/1048576)):'';
   const api=r.api_requests||{},edge=r.edge_function_invocations||{};
   $('apiMetric').textContent=fmtCount(api.used);
-  $('apiDetail').textContent=api.used==null?'Sin lectura válida todavía':fmtCount(api.used)+(api.budget?' / '+fmtCount(api.budget)+' · '+(api.used_percent==null?'—':api.used_percent+'%'):' · presupuesto no configurado');
+  $('apiDetail').textContent=api.used==null?'Sin lectura válida todavía':fmtCount(api.used)+' · contador Supabase'+(api.budget?' / '+fmtCount(api.budget)+' · '+(api.used_percent==null?'—':api.used_percent+'%'):' · presupuesto no configurado');
   paintBar('apiBar',api.used_percent);paintStatus('apiStatus',api.status);
   $('edgeMetric').textContent=fmtCount(edge.used);
-  $('edgeDetail').textContent=edge.used==null?'Sin lectura válida todavía':fmtCount(edge.used)+(edge.budget?' / '+fmtCount(edge.budget)+' · '+(edge.used_percent==null?'—':edge.used_percent+'%'):' · presupuesto no configurado')+' · '+Number(edge.functions_checked||0)+' funciones';
+  $('edgeDetail').textContent=edge.used==null?'Sin lectura válida todavía':fmtCount(edge.used)+' · últimas 24 h'+(edge.budget?' / '+fmtCount(edge.budget)+' · '+(edge.used_percent==null?'—':edge.used_percent+'%'):' · presupuesto no configurado')+' · '+Number(edge.functions_checked||0)+' funciones';
   paintBar('edgeBar',edge.used_percent);paintStatus('edgeStatus',edge.status);
   $('apiBudget').value=api.budget?String(api.budget):'';
   $('edgeBudget').value=edge.budget?String(edge.budget):'';
