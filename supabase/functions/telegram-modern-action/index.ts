@@ -75,14 +75,33 @@ function exactInvocationCount(data:any){
 }
 async function refreshResourceAnalytics(actorId:number){
   await requireOwner(actorId);
-  const api=await analyticsGet("usage.api-requests-count");
-  const apiRequests=exactCount(api);
-  const raw:any[]=[];let edgeTotal=0,edgeKnown=true,checked=0;
+  let apiRequests:number|null=null;
+  let apiError:string|null=null;
+  const raw:any[]=[];
+  let edgeTotal=0,edgeKnown=true,checked=0;
+
+  try{
+    const api=await analyticsGet("usage.api-requests-count");
+    apiRequests=exactCount(api);
+    if(apiRequests===null)apiError="api_response_unrecognized";
+  }catch(e){
+    apiError=String((e as Error)?.message||e);
+  }
+
   for(const [slug,id] of ANALYTICS_FUNCTIONS){
     try{
-      const d=await analyticsGet(`functions.combined-stats?interval=1day&function_id=${encodeURIComponent(id)}`);
-      const n=exactInvocationCount(d);
-      raw.push({slug,id,result:d?.result??null,error:d?.error??null});
+      let d:any=null,n:number|null=null,intervalUsed:string|null=null;
+      for(const interval of ["1d","1day","1 day","day"]){
+        try{
+          d=await analyticsGet(`functions.combined-stats?interval=${encodeURIComponent(interval)}&function_id=${encodeURIComponent(id)}`);
+          n=exactInvocationCount(d);
+          intervalUsed=interval;
+          break;
+        }catch(e){
+          if(String((e as Error)?.message||e)!=="analytics_400")throw e;
+        }
+      }
+      raw.push({slug,id,interval:intervalUsed,result:d?.result??null});
       checked++;
       if(n===null)edgeKnown=false; else edgeTotal+=n;
     }catch(e){
@@ -90,12 +109,17 @@ async function refreshResourceAnalytics(actorId:number){
       edgeKnown=false;
     }
   }
+
   await insert("resource_usage_snapshots",{
     api_requests:apiRequests,
     edge_function_invocations:edgeKnown?edgeTotal:null,
     edge_functions_checked:checked,
     raw_edge_stats:raw,
-    error_metadata:{api_requests_known:apiRequests!==null,edge_invocations_known:edgeKnown}
+    error_metadata:{
+      api_requests_known:apiRequests!==null,
+      api_error:apiError,
+      edge_invocations_known:edgeKnown
+    }
   });
   return await rpc("resource_observability_snapshot");
 }
