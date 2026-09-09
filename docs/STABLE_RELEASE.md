@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.09.06
+- **Build estable:** 2026.09.09.07
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.09.06`
+`v1.4.0 · Build 2026.09.09.07`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.09.06
+## Baseline consolidada 2026.09.09.07
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.09.06**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.09.07**.
 
 Incluye:
 
@@ -233,7 +233,7 @@ Incluye:
 - doble comprobación de reachability estática antes de declarar falta de Internet;
 - `connectivity-ping.txt` forzado a red para impedir falsos positivos por caché;
 - corrección F-03: el control flotante para volver arriba se oculta mientras el panel de asignación está abierto y recupera su comportamiento normal al cerrarlo;
-- corrección del acceso al Asistente IA: las acciones de usuario vuelven a usar el planner autenticado, mientras `reservation-ai-planner-v2` permanece restringido a llamadas server-to-server;\n- las APIs operativas Recogida, Aparcar, Reubicar, Buscar y Entrega aceptan la access session backend revocable antes de recurrir a initData fresco;\n- Centro de Operaciones y los flujos Recogida, Aparcar, Reubicar, Buscar y Entrega cargan explícitamente `session-runtime.js?v=7`, sin depender del Service Worker para inyectar la access session;\n- al abrir un flujo nuevo, un estado local antiguo ya expirado se descarta en vez de bloquear la nueva sesión como si acabara de caducar;\n- la Home evita el reflow visible de la cuadrícula mientras se resuelven permisos, mostrando directamente la disposición final;\n- la expiración rutinaria de la access session deja de generar mensajes Telegram repetitivos; las notificaciones de expiración de operaciones se conservan;\n- Buscar coche adopta el mismo patrón moderno de navegación superior que Aparcar, Recogida, Reubicar y Entrega;\n- confirmación del Asistente IA genera el mismo contrato operativo de notificaciones que la asignación manual: detalle de tareas por operario y aviso de reasignación cuando proceda;\n- la asignación manual permite elegir `SIN ASIGNAR` para retirar responsable de tareas seleccionadas, con control de versión, historial y aviso al operario anterior;\n- informe diario de salud de base de datos para Root/Admin a medianoche de Madrid, con tamaño usado/restante, conexiones, consultas largas de cliente, tuplas muertas, notificaciones pendientes y carga operativa;\n- las sesiones persistentes de replicación Realtime/walsender quedan excluidas del indicador de consultas largas para evitar falsos avisos;\n- Service Worker actual: `pmg-shell-v98`;
+- corrección del acceso al Asistente IA: las acciones de usuario vuelven a usar el planner autenticado, mientras `reservation-ai-planner-v2` permanece restringido a llamadas server-to-server;\n- las APIs operativas Recogida, Aparcar, Reubicar, Buscar y Entrega aceptan la access session backend revocable antes de recurrir a initData fresco;\n- Centro de Operaciones y los flujos Recogida, Aparcar, Reubicar, Buscar y Entrega cargan explícitamente `session-runtime.js?v=7`, sin depender del Service Worker para inyectar la access session;\n- al abrir un flujo nuevo, un estado local antiguo ya expirado se descarta en vez de bloquear la nueva sesión como si acabara de caducar;\n- la Home evita el reflow visible de la cuadrícula mientras se resuelven permisos, mostrando directamente la disposición final;\n- la expiración rutinaria de la access session deja de generar mensajes Telegram repetitivos; las notificaciones de expiración de operaciones se conservan;\n- Buscar coche adopta el mismo patrón moderno de navegación superior que Aparcar, Recogida, Reubicar y Entrega;\n- confirmación del Asistente IA genera el mismo contrato operativo de notificaciones que la asignación manual: detalle de tareas por operario y aviso de reasignación cuando proceda;\n- la asignación manual permite elegir `SIN ASIGNAR` para retirar responsable de tareas seleccionadas, con control de versión, historial y aviso al operario anterior;\n- informe diario de salud de base de datos para Root/Admin a medianoche de Madrid, con tamaño usado/restante, conexiones, consultas largas de cliente, tuplas muertas, notificaciones pendientes y carga operativa;\n- las sesiones persistentes de replicación Realtime/walsender quedan excluidas del indicador de consultas largas para evitar falsos avisos;\n- Service Worker actual: `pmg-shell-v99`;
 - runtime de navegación actual: `navigation-runtime.js?v=5`;
 - runtime de sesión actual: `session-runtime.js?v=7`;\n- runtime de notificaciones actual: `notification-runtime.js?v=8`;
 - runtime de conectividad actual: `offline-runtime.js?v=6`.
