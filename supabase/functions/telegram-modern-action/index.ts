@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="d83a6f1042be57c91d3ea468b20cf7591a6e4d82";
+const RELEASE_SOURCE_REVISION="f1c7a28d43be59c60d81ea7b92cf04d35e6819ab";
 function releaseAttestation(){return new Response(JSON.stringify({ok:true,product:RELEASE_PRODUCT,function:"telegram-modern-action",version:RELEASE_VERSION,build:RELEASE_BUILD,source_revision:RELEASE_SOURCE_REVISION}),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}})}
 
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
