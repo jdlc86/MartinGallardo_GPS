@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const RELEASE_PRODUCT="ParkingMartin-G";
 const RELEASE_VERSION="1.4.0";
 const RELEASE_BUILD="2026.09.04.04";
-const RELEASE_SOURCE_REVISION="b7319d4e62ca50f1873ba906d41ec28f5a739c10";
+const RELEASE_SOURCE_REVISION="d4a19e7b3056cf128e4a9b70d21f63c8e5ab7412";
 function releaseAttestation(){return new Response(JSON.stringify({ok:true,product:RELEASE_PRODUCT,function:"telegram-modern-action",version:RELEASE_VERSION,build:RELEASE_BUILD,source_revision:RELEASE_SOURCE_REVISION}),{headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}})}
 
 const BOT_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN")!;
@@ -67,6 +67,7 @@ function exactInvocationCount(data:any){
   if(Number.isFinite(Number(data?.count)))return Number(data.count);
   const rows=Array.isArray(data?.result)?data.result.filter((x:any)=>x&&typeof x==="object"):[];
   if(!rows.length)return 0;
+  if(rows.every((x:any)=>Number.isFinite(Number(x.request_count))))return rows.reduce((n:number,x:any)=>n+Number(x.request_count),0);
   for(const key of ["total_invocations","invocations","invocation_count","count"]){
     if(rows.length===1&&Number.isFinite(Number(rows[0]?.[key])))return Number(rows[0][key]);
   }
