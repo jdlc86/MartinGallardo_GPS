@@ -9,7 +9,7 @@
   let timer = null;
   let connectivityState = "unknown";
   let probePromise = null;
-  let lastProbeAt = 0;\n  let recoveryTimer = null;
+  let lastProbeAt = 0;
 
   function ensureStyles() {
     if (document.getElementById("pmg-connectivity-style")) return;
@@ -55,27 +55,15 @@
     }
   }
 
-  function scheduleRecovery(delayMs) {
-    clearTimeout(recoveryTimer);
-    recoveryTimer = setTimeout(() => {
-      recoveryTimer = null;
-      probe(true).catch(() => {});
-    }, delayMs);
-  }
-
   function applyState(next) {
     const previous = connectivityState;
     connectivityState = next;
-    clearTimeout(recoveryTimer);
-    recoveryTimer = null;
     if (next === "offline") {
       show("Sin conexión a Internet. Operaciones en pausa.", "offline", 0);
-      scheduleRecovery(15000);
       return;
     }
     if (next === "backend_down") {
       show("No se puede conectar con el servidor. Reintentando…", "backend_down", 0);
-      scheduleRecovery(12000);
       return;
     }
     if (next === "online") {
@@ -111,20 +99,6 @@
     return false;
   }
 
-  async function probeBackendReachability() {
-    const timeouts = [3000, 5500];
-    for (let attempt = 0; attempt < timeouts.length; attempt += 1) {
-      try {
-        const healthUrl = new URL(BACKEND_HEALTH);
-        healthUrl.searchParams.set("_", String(Date.now()) + "-" + (attempt + 1));
-        const r = await fetchWithTimeout(healthUrl.toString(), timeouts[attempt]);
-        if (r.ok) return true;
-      } catch {}
-      if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    return false;
-  }
-
   async function probe(force = false) {
     const now = Date.now();
     if (!force && probePromise) return probePromise;
@@ -139,7 +113,13 @@
         return "offline";
       }
 
-      const backendOk = await probeBackendReachability();
+      let backendOk = false;
+      try {
+        const healthUrl = new URL(BACKEND_HEALTH);
+        healthUrl.searchParams.set("_", String(Date.now()));
+        const r = await fetchWithTimeout(healthUrl.toString(), 3000);
+        backendOk = r.ok;
+      } catch {}
 
       applyState(backendOk ? "online" : "backend_down");
       return backendOk ? "online" : "backend_down";
