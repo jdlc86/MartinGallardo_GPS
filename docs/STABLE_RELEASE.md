@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.10.02
+- **Build estable:** 2026.09.10.03
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.10.02`
+`v1.4.0 · Build 2026.09.10.03`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.10.02
+## Baseline consolidada 2026.09.10.03
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.10.02**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.10.03**.
 
 Incluye:
 
@@ -286,3 +286,11 @@ ParkingMartin-G dispone de una pantalla `Recursos & presupuestos` visible única
 - Se invalida la caché del Service Worker para distribuir `offline-runtime.js?v=8` a clientes que todavía conservaban la versión anterior.
 - Mensajes visibles: `Sin conexión a Internet. Operaciones en pausa.` y `No se puede conectar con el servidor. Reintentando…`.
 - Los avisos usan fondo sólido basado en el tema activo, sin transparencia ni blur.
+
+
+### Service Worker handoff 2026-09-10
+
+- `offline-runtime.js` pasa a network-first dentro del Service Worker para evitar servir una copia antigua cuando cambia la caché.
+- La pantalla principal recarga una sola vez cuando un Service Worker nuevo toma el control de una sesión ya abierta.
+- La recarga está protegida por `sessionStorage` para evitar bucles.
+- Se mantiene fallback a caché si no hay red y no cambia la lógica de conectividad ni de negocio.
