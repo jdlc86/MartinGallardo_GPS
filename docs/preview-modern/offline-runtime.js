@@ -16,13 +16,15 @@
     const style = document.createElement("style");
     style.id = "pmg-connectivity-style";
     style.textContent = `
-      #pmg-connectivity-banner{position:fixed;z-index:2147483540;left:50%;top:calc(62px + env(safe-area-inset-top));width:max-content;max-width:calc(100vw - 24px);display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font:750 10.5px/1.35 system-ui,-apple-system,sans-serif;text-align:left;box-shadow:var(--pmg-control-shadow,0 10px 30px rgba(0,0,0,.22));transform:translate(-50%,-10px) scale(.98);opacity:0;transition:transform .2s ease,opacity .2s ease;background:var(--pmg-surface,#101d30);color:var(--pmg-text,#fff);border:1px solid var(--pmg-border,#ffffff22);pointer-events:none}
+      #pmg-connectivity-banner{--pmg-connectivity-accent:var(--pmg-accent,#2563eb);position:fixed;z-index:2147483540;left:50%;top:calc(64px + env(safe-area-inset-top));width:max-content;min-width:min(310px,calc(100vw - 28px));max-width:min(430px,calc(100vw - 28px));display:flex;align-items:center;gap:11px;padding:11px 14px 11px 11px;border-radius:18px;font:760 11px/1.4 system-ui,-apple-system,sans-serif;letter-spacing:.005em;text-align:left;box-shadow:0 14px 36px var(--pmg-shadow,#0006),0 2px 8px var(--pmg-shadow,#0004);transform:translate(-50%,-10px) scale(.985);opacity:0;transition:transform .2s ease,opacity .2s ease;background:var(--pmg-surface,#101d30);color:var(--pmg-text,#fff);border:1px solid color-mix(in srgb,var(--pmg-connectivity-accent) 38%,var(--pmg-border,#ffffff22));pointer-events:none;overflow:hidden}
+      #pmg-connectivity-banner::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:999px;background:var(--pmg-connectivity-accent)}
       #pmg-connectivity-banner.visible{transform:translate(-50%,0) scale(1);opacity:1}
-      #pmg-connectivity-banner[data-state="offline"]{background:var(--pmg-surface,#101d30);border-color:color-mix(in srgb,var(--pmg-danger,#dc2626) 44%,var(--pmg-border,#ffffff22))}
-      #pmg-connectivity-banner[data-state="backend_down"]{background:var(--pmg-surface,#101d30);border-color:color-mix(in srgb,var(--pmg-warning,#d97706) 42%,var(--pmg-border,#ffffff22))}
-      #pmg-connectivity-banner[data-state="online"]{background:var(--pmg-surface,#101d30);border-color:color-mix(in srgb,var(--pmg-success,#10b981) 44%,var(--pmg-border,#ffffff22))}
-      #pmg-connectivity-banner .pmg-connectivity-icon{width:22px;height:22px;display:grid;place-items:center;flex:0 0 auto;border-radius:999px;background:var(--pmg-soft,#ffffff0b);font-size:11px}
-      @media(max-width:480px){#pmg-connectivity-banner{top:calc(57px + env(safe-area-inset-top));max-width:calc(100vw - 20px);font-size:10px}}
+      #pmg-connectivity-banner[data-state="offline"]{--pmg-connectivity-accent:var(--pmg-danger,#dc2626)}
+      #pmg-connectivity-banner[data-state="backend_down"]{--pmg-connectivity-accent:var(--pmg-warning,#d97706)}
+      #pmg-connectivity-banner[data-state="online"]{--pmg-connectivity-accent:var(--pmg-success,#10b981)}
+      #pmg-connectivity-banner .pmg-connectivity-icon{width:30px;height:30px;display:grid;place-items:center;flex:0 0 auto;border-radius:10px;background:color-mix(in srgb,var(--pmg-connectivity-accent) 18%,var(--pmg-surface,#101d30));color:var(--pmg-connectivity-accent);border:1px solid color-mix(in srgb,var(--pmg-connectivity-accent) 34%,var(--pmg-surface,#101d30));font-size:13px;font-weight:950;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--pmg-connectivity-accent) 9%,var(--pmg-surface,#101d30))}
+      #pmg-connectivity-banner>span:last-child{display:block;min-width:0;color:var(--pmg-text,#fff);text-wrap:balance}
+      @media(max-width:480px){#pmg-connectivity-banner{top:calc(59px + env(safe-area-inset-top));min-width:0;width:calc(100vw - 20px);max-width:calc(100vw - 20px);padding:10px 12px 10px 10px;border-radius:16px;font-size:10.5px;gap:10px}#pmg-connectivity-banner .pmg-connectivity-icon{width:28px;height:28px;border-radius:9px}}
       @media(prefers-reduced-motion:reduce){#pmg-connectivity-banner{transition:none}}
     `;
     document.head.appendChild(style);
