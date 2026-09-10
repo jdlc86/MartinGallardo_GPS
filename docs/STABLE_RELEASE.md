@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.10.01
+- **Build estable:** 2026.09.10.02
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.10.01`
+`v1.4.0 · Build 2026.09.10.02`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.10.01
+## Baseline consolidada 2026.09.10.02
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.10.01**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.10.02**.
 
 Incluye:
 
@@ -279,3 +279,10 @@ ParkingMartin-G dispone de una pantalla `Recursos & presupuestos` visible única
 - Si no hay alcance al recurso estático de Internet, reintenta cada 15 s.
 - Al recuperarse el backend, el banner desaparece y se emite `pmg:online` como antes.
 - No cambia ninguna lógica operativa ni permisos.
+
+
+### Rollout de mensajes de conectividad 2026-09-10
+
+- Se invalida la caché del Service Worker para distribuir `offline-runtime.js?v=8` a clientes que todavía conservaban la versión anterior.
+- Mensajes visibles: `Sin conexión a Internet. Operaciones en pausa.` y `No se puede conectar con el servidor. Reintentando…`.
+- Los avisos usan fondo sólido basado en el tema activo, sin transparencia ni blur.
