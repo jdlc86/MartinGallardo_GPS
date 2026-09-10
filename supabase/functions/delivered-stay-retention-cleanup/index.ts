@@ -6,7 +6,7 @@ const headers=(extra:Record<string,string>={})=>({Authorization:`Bearer ${SERVIC
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 async function rpc(name:string,body:unknown){const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`,{method:"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error((d as any)?.message||(d as any)?.error||`rpc_${name}_failed`);return d}
 async function authorized(secret:string){return Boolean(secret)&&Boolean(await rpc("validate_maintenance_runner_secret",{p_secret:secret}))}
-async function deleteObject(bucket:string,path:string){const b=encodeURIComponent(bucket),p=path.split('/').map(encodeURIComponent).join('/');const r=await fetch(`${SUPABASE_URL}/storage/v1/object/${b}/${p}`,{method:"DELETE",headers});if(r.ok||r.status===404)return;throw new Error(`storage_delete_failed_${r.status}`)}
+async function deleteObject(bucket:string,path:string){const b=encodeURIComponent(bucket),p=path.split('/').map(encodeURIComponent).join('/');const r=await fetch(`${SUPABASE_URL}/storage/v1/object/${b}/${p}`,{method:"DELETE",headers:headers()});if(r.ok||r.status===404)return;throw new Error(`storage_delete_failed_${r.status}`)}
 
 Deno.serve(async req=>{
   if(req.method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
