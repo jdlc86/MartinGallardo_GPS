@@ -22,7 +22,7 @@ h1{margin:5px 0 7px;font-size:29px}.sub{font-size:12px;line-height:1.5;color:var
 .muted{font-size:11px;color:var(--pmg-muted);line-height:1.45;margin-top:5px}.bar{height:8px;border-radius:999px;background:var(--pmg-soft);overflow:hidden;margin-top:13px}.fill{height:100%;width:0;background:var(--pmg-accent);transition:width .25s ease}.status{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:900}.ok{color:var(--pmg-success-text);background:var(--pmg-success-soft)}.warning{color:var(--pmg-warning-text);background:var(--pmg-warning-soft)}.critical{color:var(--pmg-danger-text);background:var(--pmg-danger-soft)}.unconfigured,.needs_configuration,.unavailable,.partial{color:var(--pmg-muted);background:var(--pmg-soft)}
 .section{margin-top:14px;padding:16px;border-radius:19px;background:var(--pmg-surface);border:1px solid var(--pmg-border)}.section h2{font-size:14px;margin:0 0 12px}.field{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,170px);gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--pmg-border)}.field:first-of-type{border-top:0}.field label{font-size:12px;font-weight:800}.field small{display:block;margin-top:3px;color:var(--pmg-muted);font-size:10px;line-height:1.35;font-weight:500}
 input{width:100%;min-height:40px;border:1px solid var(--pmg-border);border-radius:11px;background:var(--pmg-input);color:var(--pmg-text);padding:0 10px}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.btn{min-height:44px;border:0;border-radius:12px;font-weight:900;padding:0 12px;background:var(--pmg-accent);color:#fff}.btn.secondary{background:var(--pmg-soft);color:var(--pmg-text);border:1px solid var(--pmg-border)}.btn:disabled{opacity:.5}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}.btn{min-height:44px;border:0;border-radius:12px;font-weight:900;padding:0 12px;background:var(--pmg-accent);color:#fff}.btn.secondary{background:var(--pmg-soft);color:var(--pmg-text);border:1px solid var(--pmg-border)}.btn.danger{background:var(--pmg-danger-soft);color:var(--pmg-danger-text);border:1px solid var(--pmg-danger-text)}.btn:disabled{opacity:.5}
 .state{margin-top:14px;padding:12px;border-radius:13px;background:var(--pmg-soft);font-size:11px;color:var(--pmg-muted);line-height:1.5}
 @media(max-width:560px){.grid{grid-template-columns:1fr}.field{grid-template-columns:1fr}.actions{grid-template-columns:1fr}}
 </style>
@@ -75,6 +75,12 @@ input{width:100%;min-height:40px;border:1px solid var(--pmg-border);border-radiu
 <div class="actions"><button id="save" class="btn">Guardar presupuestos</button><button id="refresh" class="btn secondary">↻ Actualizar consumo</button></div>
 </section>
 
+<section class="section">
+<h2>Mantenimiento excepcional</h2>
+<div class="muted">Herramienta exclusiva del Owner para limpiar datos operativos y evidencias de prueba. Antes de borrar muestra una vista previa, exige confirmación fuerte y respeta las protecciones por disputa.</div>
+<button id="factoryReset" class="btn danger" type="button" style="width:100%;margin-top:12px">🧹 Abrir limpieza / Factory Reset</button>
+</section>
+
 <div id="state" class="state">Consultando recursos reales del proyecto…</div>
 <button id="back" class="btn secondary" style="width:100%;margin-top:14px">← Volver al inicio</button>
 </main>
@@ -114,7 +120,7 @@ function render(r){
 async function load(){try{const d=await api('resource_observability');render(d.resources)}catch(e){$('state').textContent=window.PMGFriendlyError?PMGFriendlyError(e.message):e.message}}
 async function refreshUsage(){if(refreshing)return;refreshing=true;$('refresh').disabled=true;$('refresh').textContent='Actualizando…';try{$('state').textContent='Consultando Supabase Analytics para este proyecto…';const d=await api('resource_analytics_refresh');render(d.resources);$('state').textContent='Consumo actualizado desde Supabase Analytics. Egress permanece excluido.'}catch(e){$('state').textContent=window.PMGFriendlyError?PMGFriendlyError(e.message):e.message}finally{refreshing=false;$('refresh').disabled=false;$('refresh').textContent='↻ Actualizar consumo'}}
 async function save(){if(saving)return;const db=Number($('dbBudget').value),storage=$('storageBudget').value.trim(),apiBudget=$('apiBudget').value.trim(),edgeBudget=$('edgeBudget').value.trim(),warning=Number($('warning').value),critical=Number($('critical').value);if(!Number.isFinite(db)||db<=0)return $('state').textContent='Introduce un presupuesto válido para la base de datos.';if(!Number.isFinite(warning)||!Number.isFinite(critical)||warning<=0||critical<=warning||critical>100)return $('state').textContent='Los umbrales deben cumplir 0 < WARNING < CRITICAL ≤ 100.';try{saving=true;$('save').disabled=true;const d=await api('resource_budget_update',{database_budget_mb:db,storage_budget_mb:storage===''?null:Number(storage),api_requests_budget:apiBudget===''?null:Number(apiBudget),edge_function_invocations_budget:edgeBudget===''?null:Number(edgeBudget),warning_percent:warning,critical_percent:critical});render(d.resources);$('state').textContent='Presupuestos guardados. No se ha bloqueado ninguna operación.'}catch(e){$('state').textContent=window.PMGFriendlyError?PMGFriendlyError(e.message):e.message}finally{saving=false;$('save').disabled=false}}
-$('save').onclick=save;$('refresh').onclick=refreshUsage;$('back').onclick=()=>location.href='./';load();
+$('save').onclick=save;$('refresh').onclick=refreshUsage;$('factoryReset').onclick=()=>location.href='factory-reset.html?v=20260910RESET1';$('back').onclick=()=>location.href='./';load();
 </script>
 </body>
 </html>
