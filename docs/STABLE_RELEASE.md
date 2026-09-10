@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.09.08
+- **Build estable:** 2026.09.10.01
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.09.08`
+`v1.4.0 · Build 2026.09.10.01`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.09.08
+## Baseline consolidada 2026.09.10.01
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.09.08**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.10.01**.
 
 Incluye:
 
@@ -268,3 +268,14 @@ El Home debe pintar desde el primer render todas las tarjetas comunes del operar
 ## Observabilidad de recursos · Root
 
 ParkingMartin-G dispone de una pantalla `Recursos & presupuestos` visible únicamente al rol `owner`/Root. La primera fase mide de forma exacta el tamaño PostgreSQL y los bytes/objetos de Supabase Storage del propio proyecto. El Owner puede definir presupuestos internos y umbrales WARNING/CRITICAL. Estos presupuestos son solo de observabilidad: no modifican límites del proveedor y no bloquean operaciones. API Requests y Edge Function Invocations se consultan desde backend mediante la Management API oficial de Supabase con una credencial scoped `Usage Analytics: Read`; la credencial nunca llega al navegador. Los presupuestos de estas métricas son internos y pueden permanecer sin configurar. Edge se suma sobre el inventario de funciones registrado por el backend y, si Supabase devuelve una forma que no puede interpretarse con certeza, la métrica se marca como no disponible en lugar de estimarse. Egress permanece deliberadamente excluido.
+
+
+## Corrección de conectividad 2026-09-10
+
+- El estado `backend_down` ya no se declara por un único timeout de 3 s.
+- El health-check de Supabase se confirma con dos intentos (3 s y 5,5 s) separados por 500 ms.
+- Mientras se confirma un fallo no se muestra un falso aviso al usuario.
+- Si el backend queda confirmado como no disponible, la Mini App reintenta automáticamente cada 12 s.
+- Si no hay alcance al recurso estático de Internet, reintenta cada 15 s.
+- Al recuperarse el backend, el banner desaparece y se emite `pmg:online` como antes.
+- No cambia ninguna lógica operativa ni permisos.
