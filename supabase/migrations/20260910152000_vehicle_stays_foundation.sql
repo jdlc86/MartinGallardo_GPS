@@ -67,6 +67,32 @@ where not exists (
 )
 on conflict (stay_code) do nothing;
 
+-- Disputes belong to a stay, not to the physical plate forever. Keep vehicle_id for
+-- compatibility/reporting, but make stay_id the retention hold boundary.
+alter table public.vehicle_disputes
+  add column if not exists stay_id uuid null references public.vehicle_stays(id) on delete cascade;
+
+update public.vehicle_disputes d
+set stay_id = s.id
+from lateral (
+  select vs.id
+  from public.vehicle_stays vs
+  where vs.vehicle_id = d.vehicle_id
+  order by vs.started_at desc
+  limit 1
+) s
+where d.stay_id is null;
+
+alter table public.vehicle_disputes
+  alter column stay_id set not null;
+
+drop index if exists public.vehicle_disputes_one_open_per_vehicle;
+create unique index if not exists vehicle_disputes_one_open_per_stay
+  on public.vehicle_disputes(stay_id)
+  where status = 'open';
+create index if not exists vehicle_disputes_stay_history_idx
+  on public.vehicle_disputes(stay_id, opened_at desc);
+
 -- Service-role helper for future operational integration. It allocates a readable code
 -- while the UUID remains the true immutable identity.
 create or replace function public.create_vehicle_stay(
@@ -150,3 +176,21 @@ $$;
 
 revoke all on function public.mark_vehicle_stay_delivered(uuid,timestamptz) from public, anon, authenticated;
 grant execute on function public.mark_vehicle_stay_delivered(uuid,timestamptz) to service_role;
+
+create or replace function public.stay_has_open_dispute(p_stay_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.vehicle_disputes d
+    where d.stay_id = p_stay_id
+      and d.status = 'open'
+  );
+$$;
+
+revoke all on function public.stay_has_open_dispute(uuid) from public, anon, authenticated;
+grant execute on function public.stay_has_open_dispute(uuid) to service_role;
