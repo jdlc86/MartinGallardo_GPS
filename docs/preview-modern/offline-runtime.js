@@ -16,12 +16,12 @@
     const style = document.createElement("style");
     style.id = "pmg-connectivity-style";
     style.textContent = `
-      #pmg-connectivity-banner{position:fixed;z-index:2147483540;left:50%;top:calc(62px + env(safe-area-inset-top));width:max-content;max-width:calc(100vw - 24px);display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font:750 10.5px/1.35 system-ui,-apple-system,sans-serif;text-align:left;box-shadow:var(--pmg-control-shadow,0 10px 30px rgba(0,0,0,.22));transform:translate(-50%,-10px) scale(.98);opacity:0;transition:transform .2s ease,opacity .2s ease;background:var(--pmg-surface,#101d30);color:var(--pmg-text,#fff);border:1px solid var(--pmg-border,#ffffff22);pointer-events:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+      #pmg-connectivity-banner{position:fixed;z-index:2147483540;left:50%;top:calc(62px + env(safe-area-inset-top));width:max-content;max-width:calc(100vw - 24px);display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font:750 10.5px/1.35 system-ui,-apple-system,sans-serif;text-align:left;box-shadow:var(--pmg-control-shadow,0 10px 30px rgba(0,0,0,.22));transform:translate(-50%,-10px) scale(.98);opacity:0;transition:transform .2s ease,opacity .2s ease;background:var(--pmg-surface,#101d30);color:var(--pmg-text,#fff);border:1px solid var(--pmg-border,#ffffff22);pointer-events:none}
       #pmg-connectivity-banner.visible{transform:translate(-50%,0) scale(1);opacity:1}
-      #pmg-connectivity-banner[data-state="offline"]{background:color-mix(in srgb,var(--pmg-surface,#101d30) 86%,var(--pmg-danger,#dc2626));border-color:color-mix(in srgb,var(--pmg-danger,#dc2626) 44%,var(--pmg-border,#ffffff22))}
-      #pmg-connectivity-banner[data-state="backend_down"]{background:color-mix(in srgb,var(--pmg-surface,#101d30) 88%,var(--pmg-warning,#d97706));border-color:color-mix(in srgb,var(--pmg-warning,#d97706) 42%,var(--pmg-border,#ffffff22))}
-      #pmg-connectivity-banner[data-state="online"]{background:color-mix(in srgb,var(--pmg-surface,#101d30) 86%,var(--pmg-success,#10b981));border-color:color-mix(in srgb,var(--pmg-success,#10b981) 44%,var(--pmg-border,#ffffff22))}
-      #pmg-connectivity-banner .pmg-connectivity-icon{width:22px;height:22px;display:grid;place-items:center;flex:0 0 auto;border-radius:999px;background:color-mix(in srgb,currentColor 10%,transparent);font-size:11px}
+      #pmg-connectivity-banner[data-state="offline"]{background:var(--pmg-surface,#101d30);border-color:color-mix(in srgb,var(--pmg-danger,#dc2626) 44%,var(--pmg-border,#ffffff22))}
+      #pmg-connectivity-banner[data-state="backend_down"]{background:var(--pmg-surface,#101d30);border-color:color-mix(in srgb,var(--pmg-warning,#d97706) 42%,var(--pmg-border,#ffffff22))}
+      #pmg-connectivity-banner[data-state="online"]{background:var(--pmg-surface,#101d30);border-color:color-mix(in srgb,var(--pmg-success,#10b981) 44%,var(--pmg-border,#ffffff22))}
+      #pmg-connectivity-banner .pmg-connectivity-icon{width:22px;height:22px;display:grid;place-items:center;flex:0 0 auto;border-radius:999px;background:var(--pmg-soft,#ffffff0b);font-size:11px}
       @media(max-width:480px){#pmg-connectivity-banner{top:calc(57px + env(safe-area-inset-top));max-width:calc(100vw - 20px);font-size:10px}}
       @media(prefers-reduced-motion:reduce){#pmg-connectivity-banner{transition:none}}
     `;
@@ -69,12 +69,12 @@
     clearTimeout(recoveryTimer);
     recoveryTimer = null;
     if (next === "offline") {
-      show("Sin Internet · Operaciones en pausa", "offline", 0);
+      show("Sin conexión a Internet. Operaciones en pausa.", "offline", 0);
       scheduleRecovery(15000);
       return;
     }
     if (next === "backend_down") {
-      show("Internet disponible · servidor temporalmente no disponible", "backend_down", 0);
+      show("No se puede conectar con el servidor. Reintentando…", "backend_down", 0);
       scheduleRecovery(12000);
       return;
     }
