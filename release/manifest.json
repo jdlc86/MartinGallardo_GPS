@@ -3,10 +3,10 @@
   "product": "ParkingMartin-G",
   "release_status": "stable",
   "version": "1.4.0",
-  "build": "2026.09.10.05",
-  "released_at": "2026-09-10T23:10:00+02:00",
+  "build": "2026.09.11.01",
+  "released_at": "2026-09-11T11:40:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v106"
+    "service_worker_cache": "pmg-shell-v107"
   },
   "backend": {
     "version": "1.4.0",
@@ -26,12 +26,13 @@
       "connectivity-health",
       "miniapp-access-session-api",
       "telegram-identity-sync",
-      "reservation-ai-planner-v2"
+      "reservation-ai-planner-v2",
+      "vehicle-report-api"
     ],
     "attestations": {
       "reservation-optimization-jobs-v1": "1b23cd45ef67ab89cd01ef23ab45cd67ef89ab01",
-      "telegram-gateway": "b105000000000000000000000000000000000001",
-      "telegram-modern-action": "b105000000000000000000000000000000000002",
+      "telegram-gateway": "b111000000000000000000000000000000000001",
+      "telegram-modern-action": "b111000000000000000000000000000000000002",
       "modern-parking-api": "d1a0de30fa40bc50de60fa70bc80de90fa01bc24",
       "modern-relocate-api": "e3c0ef40ab50cd60ef70ab80cd90ef01ab12cd35",
       "modern-delivery-api": "a5e0fa50bc60de70fa80bc90de01fa12bc23de46",
@@ -43,7 +44,8 @@
       "connectivity-health": "2a41d723cfa9e6f0dbe4199a05bf889701486408",
       "miniapp-access-session-api": "91d7a4c2b83e56f019ac47d25e6384bf0a72ce19",
       "telegram-identity-sync": "1234567890abcdef1234567890abcdef12345678",
-      "reservation-ai-planner-v2": "abcdef1234567890abcdef1234567890abcdef12"
+      "reservation-ai-planner-v2": "abcdef1234567890abcdef1234567890abcdef12",
+      "vehicle-report-api": "a111000000000000000000000000000000000001"
     }
   },
   "optimizer": {
