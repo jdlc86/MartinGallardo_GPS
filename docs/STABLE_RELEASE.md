@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.11.01
+- **Build estable:** 2026.09.11.02
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.11.01`
+`v1.4.0 · Build 2026.09.11.02`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.11.01
+## Baseline consolidada 2026.09.11.02
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.11.01**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.11.02**.
 
 Incluye:
 
@@ -321,3 +321,13 @@ ParkingMartin-G dispone de una pantalla `Recursos & presupuestos` visible única
 - El PDF incluye una sección final que declara qué información fue excluida deliberadamente.
 - La interfaz muestra conteo de fotos y tamaño fuente estimado; se bloquea la generación si la selección supera 15 MB o 60 fotos.
 - La selección se almacena temporalmente en servidor durante 15 minutos; no se transportan listas largas de evidencias en la URL.
+
+
+### Prueba reversible de cámara nativa 2026-09-11
+
+- Los botones «Hacer foto» de Recogida y «Foto matrícula» de Entrega abren por defecto la cámara nativa mediante un input de captura capture=environment.
+- La galería continúa separada y no cambia.
+- El procesamiento, reducción a 1600 px, compresión JPEG, OCR, subida y asociación de evidencias se mantienen sin cambios.
+- La implementación anterior con getUserMedia() se conserva íntegra como fallback de rollback.
+- Añadiendo ?camera=embedded a la pantalla se recupera inmediatamente la cámara embebida sin desplegar una nueva versión.
+- El cambio es exclusivamente de mecanismo de captura; no modifica APIs ni modelo de datos.
