@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.10.05
+- **Build estable:** 2026.09.11.01
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.10.05`
+`v1.4.0 · Build 2026.09.11.01`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.10.05
+## Baseline consolidada 2026.09.11.01
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.10.05**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.11.01**.
 
 Incluye:
 
@@ -310,3 +310,14 @@ ParkingMartin-G dispone de una pantalla `Recursos & presupuestos` visible única
 - Mantiene intacta la lógica conocida de detección y reintentos.
 - Tarjeta flotante compacta, fondo 100 % sólido, jerarquía tipográfica mejorada, icono en contenedor propio y acento semántico lateral.
 - Usa exclusivamente variables del tema para conservar coherencia en modo claro y oscuro.
+
+
+### Expediente 360º · PDF selectivo 2026-09-11
+
+- El resumen esencial del vehículo permanece siempre incluido en el PDF.
+- Disputa/retención, ubicación, evidencias, OCR e historial son seleccionables desde sus tarjetas.
+- Cada fotografía puede incluirse o excluirse individualmente antes de generar el informe.
+- El informe muestra dos evidencias grandes por página cuando la proporción lo permite y conserva la proporción original.
+- El PDF incluye una sección final que declara qué información fue excluida deliberadamente.
+- La interfaz muestra conteo de fotos y tamaño fuente estimado; se bloquea la generación si la selección supera 15 MB o 60 fotos.
+- La selección se almacena temporalmente en servidor durante 15 minutos; no se transportan listas largas de evidencias en la URL.
