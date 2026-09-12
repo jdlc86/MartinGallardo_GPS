@@ -3,7 +3,7 @@
   window.__PMG_THEME__=true;
   if(location.pathname.endsWith('/ai-dispatch.html')&&document.readyState==='loading')document.write('<script src="ai-dispatch-runtime.js?v=1"><\/script>');
   const cameraTorchStyle=document.createElement('style');
-  cameraTorchStyle.textContent='@media (orientation:landscape) and (max-height:600px){.cameraBox.on .cameraTorch::before{content:"⚡";font-size:24px!important;line-height:1!important;display:grid!important;place-items:center!important;width:100%!important;height:100%!important;text-align:center!important}}';
+  cameraTorchStyle.textContent='@media (orientation:landscape) and (max-height:600px){.cameraBox.on .cameraTorch::before{content:"⚡";font-size:24px!important;line-height:1!important;display:grid!important;place-items:center!important;width:100%!important;height:100%!important;text-align:center!important}.cameraBox.on .cameraActions .cameraCapture::before,.cameraBox.on .cameraActions .cameraCancel::before,.cameraBox.on .cameraActions .cameraTorch::before{position:absolute!important;inset:0!important;display:grid!important;place-items:center!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;text-align:center!important;line-height:1!important}}';
   document.head.appendChild(cameraTorchStyle);
   const KEY='pmg-theme-mode';
   const OPT_JOB_KEY='pmg-optimizer-active-job';
