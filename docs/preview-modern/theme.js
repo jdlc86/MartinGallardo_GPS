@@ -2,6 +2,9 @@
   if(window.__PMG_THEME__)return;
   window.__PMG_THEME__=true;
   if(location.pathname.endsWith('/ai-dispatch.html')&&document.readyState==='loading')document.write('<script src="ai-dispatch-runtime.js?v=1"><\/script>');
+  const cameraTorchStyle=document.createElement('style');
+  cameraTorchStyle.textContent='@media (orientation:landscape) and (max-height:600px){.cameraBox.on .cameraTorch::before{content:"⚡";font-size:24px!important;line-height:1!important;display:grid!important;place-items:center!important;width:100%!important;height:100%!important;text-align:center!important}}';
+  document.head.appendChild(cameraTorchStyle);
   const KEY='pmg-theme-mode';
   const OPT_JOB_KEY='pmg-optimizer-active-job';
   const OPT_JOBS_URL='https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservation-optimization-jobs-v1';
