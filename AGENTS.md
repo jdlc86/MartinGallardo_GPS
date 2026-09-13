@@ -1,297 +1,175 @@
 # AGENTS.md — Reglas de mantenimiento
 
-Este archivo define cómo modificar **ParkingMartin-G** sin reintroducir comportamiento antiguo ni romper producción.
+Este archivo define cómo modificar **ParkingMartin-G** sin reintroducir comportamiento antiguo ni romper el estado estable.
+
+## Fuente de verdad
+
+Orden de autoridad:
+
+1. código y migraciones de `main`;
+2. `release/manifest.json` para identificación de release;
+3. documentación vigente.
+
+Si un documento contradice la implementación, corregir el documento. No conservar handoffs, auditorías cerradas ni instrucciones de transición obsoletas dentro de la documentación activa.
 
 ## Prioridades
 
 1. seguridad y permisos;
 2. integridad de datos;
-3. Mini App como única interfaz operativa;
+3. Mini App como interfaz operativa;
 4. trazabilidad;
 5. idempotencia y pruebas;
 6. simplicidad operativa.
 
-## Fuente de verdad de interfaz
+## Interfaz y Telegram
 
-La interfaz operativa es `docs/preview-modern/`.
+La interfaz operativa es `docs/preview-modern/`. El bot privado orienta/abre la Mini App, recibe ubicación en vivo y entrega notificaciones/informes según el backend vigente.
 
-El bot privado solo debe:
-
-- dar bienvenida/orientación;
-- abrir ParkingMartin-G;
-- recibir ubicación en vivo;
-- entregar informes automáticos;
-- gestionar el acceso inicial mediante el backend todavía necesario.
-
-**No reintroducir menús operativos Recogida/Aparcar/Buscar/Entrega en el chat.**
-
-`telegram-gateway` es el único webhook de producción.
-
-## Grupos Telegram
-
-ParkingMartin-G está diseñado para chat privado.
-
-En `group`/`supergroup`:
-
-- no ejecutar operaciones;
-- no registrar ubicación;
-- no crear sesiones;
-- no gestionar usuarios;
-- no reenviar a lógica operativa legacy.
-
-Los callbacks históricos pueden recibir únicamente un aviso neutro.
+- No reintroducir menús operativos Recogida/Aparcar/Reubicar/Buscar/Entrega en el chat.
+- `telegram-gateway` es el webhook operativo.
+- En `group`/`supergroup` no ejecutar operaciones privadas, registrar ubicación ni crear sesiones.
 
 ## Roles
 
-Valores internos de `telegram_users.role`:
+Roles internos: `owner`, `admin`, `operario`.
 
-- `owner`;
-- `admin`;
-- `operario`.
+- Mostrar `owner` como **Root**.
+- Solo puede existir un Owner.
+- Root permanece activo/protegido.
+- Admin no modifica Root ni sus propios permisos protegidos.
+- Operario no ejecuta funciones ADMIN.
+- El backend siempre revalida autorización; ocultar UI no es una medida de seguridad suficiente.
 
-Reglas:
+## Sesiones
 
-- **mostrar `owner` como `Root` en la UI**;
-- solo puede existir un `owner` interno;
-- Root siempre activo y protegido;
-- Admin no puede modificar Root;
-- Admin no cambia sus propios permisos desde panel;
-- Operario no puede ver ni ejecutar Equipo & Accesos.
-
-El backend debe comprobar permisos incluso si la UI oculta una tarjeta.
+- Telegram `initData`: bootstrap máximo 10 minutos.
+- Access session backend: 22 horas, opaca/revocable.
+- Flow sessions protegidas de Recogida, Aparcar, Reubicar y Entrega: 20 minutos.
+- Buscar coche es consulta autenticada, sin flow session equivalente.
+- No reutilizar tokens cacheados entre usuarios Telegram.
+- Una operación pendiente recuperable exige decisión explícita antes de continuar/iniciar otra.
 
 ## Flujos vigentes
 
 ### Recogida
 
-Matrícula -> fotos de estado -> foto matrícula/OCR -> documentación -> finalizar.
-
-- requisitos dinámicos desde `evidence_requirements`;
-- permitir borrar individualmente fotos de estado/documentación pendientes;
-- override OCR auditado;
-- finalizar -> `in_transit` + `pickup`.
+Matrícula → evidencias → matrícula/OCR → documentación → finalizar. Requisitos dinámicos desde `evidence_requirements`; override OCR auditado; finaliza `in_transit` + `pickup`.
 
 ### Aparcar
 
-Matrícula -> foto matrícula/OCR -> GPS Pro -> confirmar.
+Matrícula/OCR → GPS o referencia manual → confirmar. `normalized_plate` es generado por DB; finaliza `parked` + `park`.
 
-- `normalized_plate` es generada por DB: **no escribirla manualmente**;
-- override auditado en `plate_verifications`;
-- precisión mala exige referencia textual;
-- finalizar -> `parked` + `park`.
+### Reubicar
+
+Opera sobre vehículo existente, protege el contexto frente a cambios concurrentes y actualiza ubicación GPS/manual sin borrar historia previa.
 
 ### Buscar
 
-- solo `parked`;
-- navegación solo si sigue `parked` y hay coordenadas;
-- registra `lookup`;
-- no cambia estado.
+Solo `parked`; navegación solo con coordenadas reales; si no existen se muestra referencia manual. Registra `lookup` y no cambia estado.
 
 ### Entrega
 
-Vehículo `parked` -> Foto Matrícula/OCR de salida -> confirmar entrega.
+Vehículo `parked` → matrícula/OCR `parking_exit` → confirmar; finaliza `retrieved` + `retrieve`.
 
-- stage OCR: `parking_exit`;
-- estado no cambia antes de confirmación;
-- finalizar -> `retrieved` + `retrieve`.
+## Cámara, OCR y evidencias
 
-## OCR
+- Cámara embebida vigente en los flujos que capturan fotografías; mantener comportamiento vertical/horizontal y torch cuando sea soportado.
+- OCR activo en `airport_pickup`, `parking` y `parking_exit`.
+- Resultados/overrides en `plate_verifications`.
+- Evidencias vigentes en `vehicle_evidence` y Storage privado `vehicle-evidence`.
+- No desarrollar nuevas funciones sobre `vehicle_photos` salvo migración explícita.
+- Usar URLs firmadas temporales.
 
-OCR está activo en:
+## GPS y Equipo en vivo
 
-- `airport_pickup`;
-- `parking`;
-- `parking_exit`.
+- GPS operativo integrado en los flujos; cuando el contrato lo permita, ausencia/baja precisión usa referencia manual.
+- `gps-diagnostic.html` es diagnóstico y no modifica vehículos.
+- No reintroducir sectorización operativa salvo una nueva decisión de producto respaldada por código/migración.
+- Equipo en vivo usa Telegram Live Location, una fila vigente por usuario y sin trayectoria histórica.
+- Al dejar de compartir, la posición debe desaparecer; `worker_daily_presence` conserva presencia diaria para informes.
 
-No volver a documentar “OCR solo al aparcar”.
+## Reservas y asignación
 
-Resultados/overrides en `plate_verifications`. No crear operaciones arbitrarias de OCR en `parking_events`.
-
-## Evidencias
-
-Tabla vigente: `vehicle_evidence`.
-
-Storage: privado `vehicle-evidence`.
-
-No desarrollar nuevas funciones sobre `vehicle_photos` salvo migración explícita.
-
-Usar URLs firmadas temporales para consulta.
-
-## GPS
-
-### Operativo
-
-El aparcado usa GPS integrado en `park.html` y guarda lat/lng/accuracy/referencia.
-
-### Diagnóstico
-
-`gps-diagnostic.html` es solo informativo y no persiste nada.
-
-**No implementar sectores ni palabra Configurar.**
-
-## Equipo en vivo
-
-Fuente: Telegram Live Location.
-
-- una fila por usuario en `worker_live_locations`;
-- no guardar trayectoria;
-- throttling aproximado: 10 s / 5 m / mejora de precisión;
-- al finalizar compartición, eliminar fila si Telegram emite la edición correspondiente;
-- fallback visual máximo: 30 min;
-- visible para todos los usuarios activos;
-- `worker_daily_presence` guarda solo presencia diaria para informes.
-
-## Informes
-
-`performance-report-sender`:
-
-- 04:00 Europe/Madrid -> día anterior;
-- 13:00 -> día actual;
-- 20:00 -> día actual.
-
-Operario: individual.
-Root/Admin: individual si corresponde + global de equipo.
-
-Deduplicación: `performance_report_dispatches`.
-
-No convertir las métricas en una puntuación subjetiva sin decisión de producto explícita.
-
-## Solicitudes de acceso
-
-Estados:
-
-- `pending`;
-- `approved`;
-- `rejected`;
-- `expired`.
-
-Reglas:
-
-- pending caduca 72 h;
-- rejected puede volver a pending si no existe cuenta;
-- bloqueado (`active=false`) no vuelve a pending;
-- usuario existente debe quedar coherente con `approved`;
-- no borrar auditoría para limpiar la UI.
+- Gestión de reservas permanece protegida por backend.
+- Mantener control de versión, idempotencia e importación consistente.
+- Asignación manual notifica al operario.
+- `SIN ASIGNAR` es una opción operativa vigente.
+- Confirmar el Asistente IA aplica el plan y genera notificaciones de asignación/reasignación.
+- No duplicar en frontend notificaciones que el contrato transaccional backend ya genera.
 
 ## Optimizer V2
 
-Reglas de mantenimiento del planificador:
+- `solve()` representa Fase 1 estable.
+- Fast y Optimal son modos del rolling horizon continuo 24/7.
+- No introducir fronteras artificiales por día.
+- No aceptar planes con errores de `validate_solution()`.
+- Fase 2 permanece separada/experimental y nunca puede degradar cobertura global al promoverse.
+- `optimization_jobs` es fuente durable; Realtime solo señaliza.
+- Worker fuera de Edge Functions; secretos solo en entorno servidor.
+- No commitear `.env`, benchmarks generados ni cachés Python.
 
-- `solve()` representa exclusivamente **Fase 1 estable**;
-- Fast y Optimal son dos modos del mismo Back-Forward rolling horizon 24/7;
-- no introducir fronteras artificiales por día;
-- no aceptar ningún plan con errores de `validate_solution()`;
-- no llamar “imposible” a una tarea si la auditoría solo puede demostrar `not_proven`;
-- Fase 2 de reoptimización local permanece separada y experimental;
-- una reparación de Fase 2 nunca puede reducir cobertura global;
-- la UI debe mostrar resultado operativo, no códigos internos de auditoría;
-- Realtime es señal de actualización, no fuente de verdad: el estado durable está en `optimization_jobs`;
-- el worker debe ejecutar fuera de Edge Functions y cargar secretos únicamente desde entorno servidor;
-- no commitear `.env`, artefactos de benchmark ni cachés Python;
-- cambios de rendimiento deben compararse sobre el mismo dataset y con el mismo límite de tiempo antes de atribuir diferencias al entorno.
+## Retención y Factory Reset
 
+- Entorno actual: pruebas sin usuarios reales.
+- Retención efectiva temporal: 5 minutos para validar mantenimiento.
+- Política prevista antes de usuarios reales: 15 días.
+- Disputa abierta protege frente a purga.
+- Factory Reset solo Root; no debe borrar identidad/configuración técnica necesaria ni historia fuera de su contrato.
 
-## Backend heredado
+## Observabilidad
 
-`telegram-entry`, `telegram-router3`, `telegram-bot` y utilidades antiguas pueden seguir desplegadas mientras existan dependencias de acceso.
+- Informe diario de salud a Root/Admin a medianoche de Madrid según implementación vigente.
+- PostgreSQL/Storage se miden directamente.
+- API Requests y Edge Function Invocations se obtienen desde backend/Management API cuando estén disponibles.
+- Egress permanece fuera del alcance actual.
+- No convertir métricas en puntuaciones subjetivas ni límites de proveedor sin decisión explícita.
 
-No usarlas como interfaz ni permitir que vuelvan a controlar el webhook.
+## Identidad, idempotencia y seguridad
 
-Antes de eliminarlas:
+Coexisten `telegram_users` y `workers`; no crear una tercera identidad sin migración explícita que preserve FKs/historial.
 
-1. inventariar dependencias;
-2. versionar backend;
-3. probar alta/rechazo/bloqueo/reactivación;
-4. retirar por etapas.
-
-## Identidad
-
-Coexisten `telegram_users` y `workers`.
-
-No crear una tercera identidad. Cualquier consolidación debe conservar FKs e historial.
-
-## Idempotencia
-
-Telegram y HTTP pueden reintentar.
-
-Diseñar efectos de dominio idempotentes para:
-
-- acceso;
-- admin actions;
-- evidencias;
-- OCR/override;
-- pickup/park/retrieve;
-- ubicación live.
-
-Los informes ya usan reserva/deduplicación persistente.
-
-## Seguridad
+Telegram y HTTP pueden reintentar. Diseñar efectos idempotentes para acceso, admin actions, evidencias, OCR/override, operaciones de vehículo, reservas/asignaciones y ubicación live.
 
 Nunca:
 
 - commitear secretos;
-- exponer service-role al navegador;
+- exponer service-role/Management API al navegador;
 - confiar en username como identidad;
-- abrir Storage públicamente;
-- permitir admin actions sin consultar DB;
-- aceptar `initData` sin validación HMAC/edad;
-- procesar lógica privada dentro de grupos.
+- abrir Storage de evidencias públicamente;
+- permitir acciones ADMIN sin revalidación DB;
+- aceptar `initData` sin HMAC/edad;
+- procesar lógica privada en grupos.
 
-### Estado de seguridad vigente
+Mantener RLS/permisos/RPC privilegiados conforme a las migraciones vigentes. No documentar como deuda problemas de seguridad ya corregidos; verificar el estado actual antes de crear nueva deuda.
 
-A 2026-09-04 el Security Advisor no reporta errores ni warnings de seguridad. Los avisos restantes `rls_enabled_no_policy` son informativos para tablas backend-only con acceso cliente directo revocado.
-
-Mantener:
-
-- RLS habilitado en tablas backend-only;
-- `EXECUTE` revocado a `PUBLIC`, `anon` y `authenticated` para RPC privilegiados;
-- `search_path=''` en funciones `SECURITY DEFINER`/triggers;
-- acceso a datos sensibles únicamente mediante backend/service-role.
-
-## Esquema
+## Cambios de esquema
 
 Antes de DDL:
 
 1. inspeccionar esquema real;
-2. usar migraciones;
-3. verificar datos/invariantes;
-4. ejecutar advisors de seguridad/performance;
-5. actualizar documentación.
+2. crear migración mínima;
+3. verificar invariantes/datos;
+4. ejecutar comprobaciones de seguridad/rendimiento aplicables;
+5. actualizar documentación si cambia el contrato.
 
-## Pruebas mínimas por cambio
+## Pruebas y release
 
-- rol/permisos;
-- happy path;
-- error/reintento;
-- coherencia de estado;
-- evidencia/Storage si aplica;
-- seguridad de Mini App;
-- smoke real de Telegram cuando afecte gateway/localización.
+Ver `docs/TEST_PLAN.md` y `docs/STABLE_RELEASE.md`.
 
-Ver `docs/TEST_PLAN.md`.
+Baseline identificada por `release/manifest.json`; actualmente Mini App **1.4.0 / 2026.09.11.02**.
+
+- No cambiar silenciosamente interfaz, permisos, contratos backend o semántica del optimizador.
+- Cambios visibles/funcionales actualizan build/cache cuando el contrato de release lo requiera.
+- Backend/worker actualizan su sello cuando corresponda.
+- Stable Release Guard debe pasar cuando los paths/contratos protegidos lo requieran.
+- No desplegar una fuente distinta de la versionada en Git.
+- Fase 2 no entra en el camino estable sin decisión explícita y pruebas de no regresión.
 
 ## No reintroducir
 
-- UI operativa por botones en el bot;
-- sectores de parking;
-- configuración de terreno por sectores;
-- botón `CERRAR`;
-- nombres visibles `Owner`/`OWNER` (usar Root);
+- UI operativa mediante menús del bot;
+- nombres visibles Owner/OWNER;
 - trayectorias históricas de trabajadores;
-- navegación para vehículos no `parked`;
-- URLs públicas permanentes de evidencias.
-
-## Release estable protegida
-
-Baseline vigente: **ParkingMartin-G v1.4.0 · Build 2026.09.07.04**.
-
-Antes de modificar comportamiento estable, leer `docs/STABLE_RELEASE.md`.
-
-Reglas:
-
-- no cambiar silenciosamente interfaz, permisos, contratos backend o semántica del optimizador;
-- todo cambio visible o funcional debe incrementar `docs/preview-modern/release.js`;
-- cambios de Mini App que puedan quedar cacheados deben invalidar el Service Worker;
-- cambios de backend/worker deben actualizar su sello de versión/build cuando proceda;
-- Fase 2 experimental no se fusiona en el flujo estable sin decisión explícita y pruebas de no regresión;
-- si un cambio altera la baseline documentada, actualizar `docs/STABLE_RELEASE.md` en el mismo cambio.
+- navegación de vehículos no `parked`;
+- URLs públicas permanentes de evidencias;
+- documentación histórica como si fuese estado vigente.
