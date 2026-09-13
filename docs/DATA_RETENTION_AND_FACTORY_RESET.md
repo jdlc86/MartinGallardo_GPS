@@ -1,6 +1,7 @@
 # ParkingMartin-G — Política de retención y Factory Reset
 
-Fecha de diseño: 2026-09-10
+Fecha de diseño: 2026-09-10  
+Última auditoría: 2026-09-13
 
 ## Objetivo
 
@@ -11,31 +12,30 @@ Definir mecanismos seguros y separados para:
 3. reducir posteriormente cada expediente a un histórico ligero;
 4. eliminar ese histórico al vencer un segundo plazo configurable;
 5. suspender cualquier purga cuando exista una disputa abierta;
-6. disponer de un Factory Reset excepcional, exclusivamente Owner, que elimine datos de negocio sin tocar configuración ni infraestructura.
+6. disponer de un Factory Reset excepcional, exclusivamente Owner, que elimine datos de negocio sin destruir la infraestructura técnica necesaria para reutilizar la instalación.
 
 Esta política separa mantenimiento ordinario y Factory Reset. Ninguna tarea periódica debe tener capacidad equivalente al Factory Reset.
 
-## Estado comprobado antes de implementar
+## Estado auditado 2026-09-13
 
-- `main`: `9e1934c703d3d5be0e28ae58d451a268ba3bb9c1`.
-- El runner global ya existe y ejecuta tareas declaradas en `maintenance_tasks`.
-- Actualmente solo está activa la tarea `cleanup_aborted_flows` -> `aborted-vehicle-cleanup`.
-- Cron `global-maintenance-runner`: `20 3 * * *`.
-- El bucket operativo de evidencias es `vehicle-evidence`.
-- Los objetos de Storage deben eliminarse mediante Storage API, nunca borrando filas de `storage.objects` por SQL.
-- `vehicles.normalized_plate` es UNIQUE. Este punto impide modelar correctamente dos estancias simultáneas/históricas de una misma matrícula sin una separación explícita de estancia. Por tanto, no debe activarse la purga automática de expedientes hasta resolver este modelo.
+- Factory Reset Owner-only está implementado y probado en producción.
+- El reset dispone de preview/dry-run, confirmación fuerte, lock de ejecución, borrado de Storage por API y finalización transaccional de base de datos.
+- PR #106 corrigió la compatibilidad de la finalización con el guard de borrado seguro (`DELETE ... WHERE true`).
+- PR #107 garantiza que, tras el reset, `parking_booking_write_state` se reconstruya con el Owner preservado como titular inicial de escritura.
+- La prueba real dejó a cero las principales tablas operativas y eliminó las evidencias físicas.
+- `parking_config` se reinicia a `configured=false` y `parking_sectors` se vacía intencionadamente porque son configuración física específica del parking anterior.
+- La configuración técnica del producto, retención, salud, recursos, mantenimiento e infraestructura se conserva.
 
 ## Configuración de retención
 
 Singleton `data_retention_config`:
 
-- `evidence_retention_days`: 15 por defecto.
-- `history_retention_days`: 365 por defecto.
-- Regla de base de datos: `history_retention_days > evidence_retention_days >= 1`.
-- Máximo inicial del histórico: 3650 días.
-- Modificación prevista: Owner-only a través de backend; nunca acceso directo desde cliente.
+- `evidence_retention_days`: 15 por defecto y valor auditado en producción;
+- `history_retention_days`: 365 por defecto y valor auditado en producción;
+- `evidence_retention_minutes`: 5 en la configuración actual para la ventana provisional existente;
+- la retención de evidencias/histórico se calcula según el modelo operativo correspondiente y debe respetar disputas abiertas.
 
-Los plazos se calcularán desde la entrega efectiva del vehículo (`retrieved_at` en el modelo actual), no desde la creación.
+La configuración de retención es técnica y se conserva durante Factory Reset.
 
 ## Disputas / retención suspendida
 
@@ -64,151 +64,132 @@ La interfaz natural es Expediente 360, con un estado visible equivalente a `Expe
 4. Expediente 360 pasa a histórico ligero y muestra que las evidencias fueron eliminadas por política de retención.
 5. Al vencer `history_retention_days`, y sin disputa, se elimina definitivamente el histórico operativo.
 
-Una disputa no reinicia los plazos. Al cerrarla se vuelve a evaluar la fecha original de entrega.
+Una disputa no reinicia los plazos. Al cerrarla se vuelve a evaluar la fecha original aplicable.
 
 ## Reentrada de la misma matrícula
 
 Cada nueva estancia debe ser independiente. No se deben mezclar eventos, fotos, reserva, fechas ni operarios de dos visitas diferentes.
 
-Bloqueo detectado: el esquema actual impone `UNIQUE (normalized_plate)` en `vehicles`. Antes de activar la retención automática se debe escoger e implementar una estrategia compatible, preferiblemente una separación entre identidad de matrícula y estancia operativa, o un archivo de estancias inmutable que permita liberar/reutilizar el registro operativo sin mezclar históricos.
+El esquema y las consultas que dependan de unicidad de matrícula deben revisarse de forma conjunta antes de modificar restricciones. No se debe retirar una restricción de unicidad aisladamente si existen consultas que esperan como máximo un registro operativo por matrícula.
 
-No se debe retirar la restricción UNIQUE sin adaptar previamente todas las consultas que hoy esperan como máximo un vehículo por matrícula.
+## Matriz de datos actualizada
 
-## Matriz de datos — clasificación inicial
+### Configuración técnica / referencia — conservar en Factory Reset
 
-### Configuración / referencia — conservar en Factory Reset
+- `evidence_requirements`;
+- `ai_dispatch_config`;
+- `ai_dispatch_nodes`;
+- `ai_dispatch_route_matrix`;
+- `database_health_config`;
+- `resource_observability_config`;
+- `data_retention_config`;
+- `maintenance_tasks`;
+- `config_audit`;
+- infraestructura, migraciones, funciones, cron, secretos y buckets;
+- contenido técnico de `miniapps`.
 
-- `parking_config`
-- `parking_sectors`
-- `evidence_requirements`
-- `ai_dispatch_config`
-- `ai_dispatch_nodes`
-- `ai_dispatch_route_matrix`
-- `database_health_config`
-- `resource_observability_config`
-- `data_retention_config`
-- `maintenance_tasks`
-- `config_audit`
+### Configuración física de la instalación — reiniciar
 
-También se conservan migraciones, funciones, cron, secretos, buckets y demás infraestructura.
+- `parking_config`: conservar el singleton pero reiniciarlo a estado genérico/no configurado;
+- `parking_sectors`: eliminar sectores del recinto anterior.
+
+Esto evita reutilizar accidentalmente geometría o sectorización de otro parking.
 
 ### Telemetría de plataforma — conservar salvo política específica
 
-- `database_health_reports`
-- `resource_usage_snapshots`
-- `maintenance_cleanup_runs`
-- `maintenance_runner_runs`
+- `database_health_reports`;
+- `resource_usage_snapshots`;
+- `maintenance_cleanup_runs`;
+- `maintenance_runner_runs`.
 
 Estos datos describen salud/mantenimiento de la plataforma, no una estancia concreta.
 
-### Operación de vehículos / evidencia — eliminable
+### Operación de vehículos / evidencia — eliminar
 
-- `vehicles`
-- `parking_events`
-- `vehicle_evidence`
-- `vehicle_photos`
-- `plate_verifications`
-- `vehicle_share_links`
-- `operation_flow_sessions`
+- `vehicles`;
+- `vehicle_stays`;
+- `parking_events`;
+- `vehicle_evidence`;
+- `vehicle_photos`;
+- `plate_verifications`;
+- `vehicle_share_links`;
+- `vehicle_disputes`;
+- `operation_flow_sessions`.
 
-### Reservas / tareas / importación — eliminable
+### Reservas / tareas / importación — eliminar datos operativos
 
-- `parking_bookings`
-- `reservation_tasks`
-- `reservation_task_assignment_history`
-- `parking_booking_import_analyses`
-- `parking_booking_import_batches`
-- `parking_booking_notifications`
-- `parking_booking_permission_requests`
-- `parking_booking_admin_events`
-- `parking_booking_command_dedup`
-- `parking_booking_write_state`
+- `parking_bookings`;
+- `reservation_tasks`;
+- `reservation_task_assignment_history`;
+- `parking_booking_import_analyses`;
+- `parking_booking_import_batches`;
+- `parking_booking_notifications`;
+- `parking_booking_permission_requests`;
+- `parking_booking_admin_events`;
+- `parking_booking_command_dedup`.
 
-### IA / optimización operacional — eliminable
+`parking_booking_write_state` requiere tratamiento especial: el estado anterior se elimina, pero al completar el Factory Reset se reconstruye el singleton `id=1` con el Owner preservado como titular inicial. No puede quedar ausente porque Gestión de reservas necesita un objeto de permiso válido.
 
-- `ai_dispatch_plans`
-- `ai_dispatch_sessions`
-- `optimization_jobs`
-- `optimization_job_events`
+### IA / optimización operacional — eliminar
 
-### Presencia y localización — eliminable
+- `ai_dispatch_plans`;
+- `ai_dispatch_sessions`;
+- `optimization_jobs`;
+- `optimization_job_events`.
 
-- `worker_daily_presence`
-- `worker_live_locations`
+### Presencia y localización — eliminar
 
-### Usuarios — Factory Reset con conservación de Owner
+- `worker_daily_presence`;
+- `worker_live_locations`.
 
-- `telegram_users`
-- `workers`
-- `app_users`
-- `telegram_access_requests`
-- `telegram_conversation_sessions`
-- `miniapp_access_sessions`
-- `user_admin_events`
+### Usuarios — conservar Owner
 
-El Factory Reset no debe eliminar el/los registros necesarios para mantener el Owner que ejecuta el reset. Las referencias históricas deben resolverse antes de borrar Admin/Operarios.
+- se eliminan usuarios no Owner y datos operativos asociados;
+- se preserva el Owner ejecutor y las referencias estructurales necesarias para que la instalación siga administrable;
+- `parking_booking_write_state` se vuelve a enlazar al Owner tras el reset.
 
-### Otros datos derivados que requieren decisión antes del reset final
+## Factory Reset Owner-only — estado implementado
 
-- `audit_events`
-- `performance_report_dispatches`
+Flujo vigente:
 
-Pueden contener actividad derivada del negocio. Antes de habilitar el Factory Reset definitivo debe verificarse su contenido y decidir si se purgan o se conservan como auditoría de plataforma.
+1. `preview/dry-run`: obtiene conteos y objetos eliminables sin borrar datos;
+2. `execute`: exige autenticación Owner y confirmación fuerte;
+3. adquiere lock global;
+4. elimina Storage operativo mediante Storage API;
+5. finaliza la limpieza lógica en transacción;
+6. reinicia configuración física del parking;
+7. conserva Owner;
+8. reconstruye el estado de permisos de reservas para el Owner;
+9. registra el resultado en `factory_reset_runs`.
 
-## Mecanismos a implementar
+Protecciones:
 
-### A. Limpieza de abortados
-
-Se conserva el mecanismo existente. No se mezcla con las tareas nuevas.
-
-### B. Purga de evidencias vencidas
-
-Nueva tarea independiente del runner global. Debe:
-
-- seleccionar solo entregas vencidas;
-- excluir disputas abiertas;
-- usar claim/token para evitar carreras, siguiendo el patrón de `aborted-vehicle-cleanup`;
-- borrar Storage mediante API;
-- solo después confirmar en base de datos;
-- registrar run, contadores y errores;
-- ser idempotente.
-
-No activar hasta resolver el modelo de estancia.
-
-### C. Purga definitiva del histórico
-
-Nueva tarea independiente. Debe respetar el segundo plazo y disputas. No activar hasta que exista histórico ligero por estancia.
-
-### D. Factory Reset Owner-only
-
-Debe tener dos fases obligatorias:
-
-1. `preview/dry-run`: conteos de filas y objetos de Storage, preservados y eliminables;
-2. `execute`: requiere autenticación Owner y confirmación fuerte de un solo uso.
-
-Protecciones mínimas:
-
-- solo backend con service role;
-- la autorización Owner se resuelve a partir de una sesión válida, no de un parámetro de rol enviado por cliente;
+- backend/service role para operaciones destructivas;
+- rol resuelto desde autenticación válida, no desde parámetros del cliente;
 - no accesible a Admin;
-- lock global durante ejecución;
-- borrar dependencias en orden controlado;
-- conservar configuración e infraestructura;
-- conservar Owner;
-- Storage por API;
-- registrar un evento final de Factory Reset fuera del conjunto que se elimina;
-- reintentos seguros si falla Storage;
-- nunca usar `CASCADE` global o `TRUNCATE ... CASCADE` indiscriminado.
+- sin `TRUNCATE ... CASCADE` indiscriminado;
+- sin borrado SQL directo de `storage.objects`;
+- reintento idempotente cuando Storage ya fue eliminado pero la finalización de BD falló.
 
-## Orden de implementación seguro
+## Evidencia de validación real
 
-1. Fundación no destructiva: configuración + disputas. **Hecho en la rama de trabajo; no ejecuta purgas.**
-2. Resolver modelo de estancia/reentrada sin romper consultas actuales.
-3. Adaptar Expediente 360 a estancia/histórico y a estado de disputa.
-4. Implementar purge de evidencias con `dry_run`; validar sin borrar.
-5. Activar tarea solo tras prueba controlada.
-6. Implementar histórico ligero y su purga.
-7. Implementar Factory Reset con preview; probar con rollback/datos de prueba antes de habilitar execute.
+Auditoría posterior al reset corregido:
+
+- vehículos, estancias, evidencias, fotos, eventos, reservas, tareas, sesiones operativas, jobs del optimizador y sectores: 0;
+- Owner: exactamente 1;
+- `parking_config.configured=false`;
+- `parking_booking_write_state.id=1` presente y referenciando al Owner;
+- referencias inválidas del estado de escritura: 0;
+- Storage: 1 objeto / 2473 bytes, identificado como `miniapps/location/index.html`; no es evidencia de vehículos;
+- tamaño físico PostgreSQL observado: aproximadamente 24.8 MiB.
+
+El tamaño físico de PostgreSQL no equivale a datos operativos vivos. `DELETE` deja páginas disponibles para reutilización y autovacuum/VACUUM gestiona versiones muertas. Por ello, un Factory Reset correcto no tiene como criterio que el tamaño de la base caiga a cero.
+
+El informe diario posterior fue coherente con esta auditoría: flujos activos 0, reservas/tareas 0/0 y 576 tuplas muertas. Las tuplas muertas después de un borrado grande son esperables y no representan vehículos/reservas activos.
+
+## Mantenimiento ordinario y retención
+
+El mantenimiento ordinario sigue separado del Factory Reset. Las tareas de abortados, purga de evidencias e histórico deben ser idempotentes, auditables y respetar disputas. Ninguna de ellas debe eliminar configuración técnica ni adquirir alcance de Factory Reset.
 
 ## Principios de seguridad
 
@@ -216,5 +197,7 @@ Protecciones mínimas:
 - Migraciones primero en repositorio y solo después en Supabase desde el commit exacto aprobado.
 - Stable Release Guard obligatorio antes de fusionar.
 - Ninguna eliminación real durante auditorías o dry-runs.
-- Configuración nunca forma parte del borrado operativo.
-- Una disputa abierta siempre gana frente a la fecha de retención.
+- Configuración técnica del producto no forma parte del borrado operativo.
+- La configuración física del recinto sí se reinicia para reutilización segura.
+- Una disputa abierta gana frente a la fecha de retención ordinaria.
+- El Owner debe permanecer administrable después de Factory Reset, incluida Gestión de reservas.
