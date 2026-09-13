@@ -1,470 +1,146 @@
-# Arquitectura actual
+# ParkingMartin-G — Arquitectura actual
 
-## Alcance
+Revisada contra código y migraciones de `main`: 2026-09-13.
 
-ParkingMartin-G gestiona un único parking mediante Telegram. La interfaz operativa de producción es una **Telegram Mini App** alojada en GitHub Pages. Supabase aporta PostgreSQL, Storage privado, Edge Functions, cron y red interna de backend.
+## Fuente de verdad
+
+El código, las migraciones y la configuración versionada en `main` son la fuente de verdad técnica. Este documento es una vista arquitectónica y debe actualizarse cuando cambien los contratos implementados.
 
 ## Vista general
 
 ```text
 Telegram Bot API
       |
-      v
 telegram-gateway
-  |-- chat privado: bienvenida + acceso a Mini App
-  |-- Telegram Live Location
-  |-- group/supergroup guard
-  |-- forwarding controlado para acceso de usuarios no autorizados
       |
-      +--------------------+
-                           v
-                ParkingMartin-G Mini App
-                           |
-       +-------------------+-------------------+
-       |                   |                   |
- modern-pickup-api  modern-parking-api  modern-search-api
-       |                   |                   |
-       +----------- modern-delivery-api -------+
-                           |
-                       PostgreSQL
-                           |
-        +------------------+------------------+
-        |                                     |
- Supabase Storage                    Google Cloud Vision
- `vehicle-evidence`                  OCR matrícula
-
-Otras APIs Mini App:
-- telegram-modern-action
-- reservation-admin-api
-- reservation-task-api
-- reservation-notification-sender
-- modern-live-team-api
-- vehicle-consult-api
-- vehicle-share-api
-- vehicle-report-api
-
-Automatización:
-pg_cron -> pg_net -> performance-report-sender -> Telegram Bot API
-INSERT de aviso -> pg_net -> reservation-notification-sender -> Telegram Bot API
+Telegram Mini App — GitHub Pages
+      |
+      +-- APIs operativas
+      +-- reservas / tareas / notificaciones
+      +-- sesiones de acceso y de flujo
+      +-- consulta / Expediente 360
+      +-- Equipo en vivo
+      |
+Supabase
+      +-- PostgreSQL
+      +-- Storage privado
+      +-- Edge Functions
+      +-- cron / red backend
+      |
+      +-- Google Cloud Vision (OCR)
+      +-- worker Docker / OR-Tools (Optimizer V2)
 ```
 
-## `telegram-gateway`
+## Telegram
 
-Único webhook de producción.
+`telegram-gateway` es el punto de entrada del bot. El chat privado proporciona acceso a la Mini App, ubicación en vivo y notificaciones. La UI operativa clásica por botones está retirada del producto visible.
 
-Responsabilidades:
+Los grupos no constituyen una superficie operativa válida. Los componentes heredados solo deben conservarse mientras exista una dependencia real comprobada.
 
-- recibir `/start` y mensajes de usuarios activos;
-- mostrar bienvenida y un único acceso a ParkingMartin-G;
-- configurar el botón permanente de menú Telegram;
-- impedir que callbacks antiguos restauren la UI clásica;
-- capturar `message` y `edited_message` de ubicaciones en vivo;
-- eliminar la última ubicación cuando Telegram informa fin de compartición;
-- bloquear ejecución funcional en `group`/`supergroup`;
-- reenviar únicamente casos que siguen necesitando backend heredado, principalmente acceso de usuarios no autorizados.
+## Modelo de sesión
 
-No debe volver a existir un menú operativo Recogida/Aparcar/Buscar/Entrega en el chat.
+Existen dos niveles diferentes y no deben confundirse:
 
-## `telegram-modern-action`
+### Sesión de acceso
 
-Backend de dashboard, Equipo & Accesos y acciones administrativas.
+`miniapp-access-session-api` gestiona la sesión de acceso de la Mini App. El TTL vigente es **22 horas**. La identidad y el estado/rol del usuario se siguen validando según el contrato backend.
 
-Responsabilidades actuales:
+### Sesión de flujo operativo
 
-- validar criptográficamente `initData` de Telegram;
-- aceptar `auth_date` de hasta **24 horas**;
-- volver a comprobar en cada petición que el usuario siga activo;
-- comprobar Root/Admin para cualquier acción administrativa;
-- impedir self-change administrativo y proteger Root;
-- sincronizar `telegram_users` con `workers` cuando cambia acceso/rol;
-- auditar cambios en `user_admin_events`;
-- enviar notificaciones automáticas por Telegram tras aprobar, reactivar, promover o degradar.
+Recogida, Aparcar, Reubicar y Entrega utilizan sesiones protegidas `operation_flow_sessions`. El TTL vigente es **20 minutos**. El contexto recuperable se revalida contra backend antes de continuar un flujo tras reapertura/recarga.
 
-Notificaciones:
+**Buscar coche no crea `operation_flow_sessions`; es una consulta autenticada.**
 
-- aprobación -> bienvenida + rol visible + botón Mini App;
-- reactivación -> bienvenida de regreso + rol visible + botón;
-- promoción -> aviso de nuevo rol Admin;
-- degradación -> aviso de nuevo rol Operario.
-
-El valor interno `owner` se presenta siempre como **Root** en UI/mensajes.
-
-## `reservation-admin-api`
-
-Backend exclusivo de Root/Admin para la gestión de reservas y clientes.
-
-Responsabilidades:
-
-- validar `initData` de Telegram y volver a comprobar rol/estado en cada petición;
-- exponer consulta y búsqueda a todos los administradores activos;
-- permitir mutaciones solo al titular actual de **Lectura/Escritura**;
-- ejecutar altas, modificaciones, importaciones y borrados lógicos mediante funciones PostgreSQL transaccionales;
-- comprobar una época global de escritura y una versión por reserva;
-- gestionar solicitudes y transferencias de escritura con aceptación/rechazo;
-- crear avisos persistentes para la campana y entregarlos también por Telegram con reintentos;
-- ocultar avisos leídos después de 30 días y eliminarlos automáticamente a los 90 mediante Supabase Cron, sin borrar solicitudes ni auditoría;
-- analizar encabezados `.xlsx`, `.csv` y `.tsv` con Gemini antes de previsualizar la importación.
-
-Privacidad de la importación: Gemini recibe únicamente etiquetas de encabezado saneadas. Las filas con nombres, correos, teléfonos, matrículas, fechas y cobros se procesan dentro de la Edge Function y no se envían al proveedor de IA.
-
-## Programador de tareas
-
-`reservation-task-api` convierte las fechas de recogida y regreso de cada reserva en tareas asignables. Antes de generar la recogida consulta el estado operativo del vehículo por su matrícula normalizada: una reserva pendiente (`requested` o sin vehículo actualmente bajo custodia) genera Recogida y Entrega; si el vehículo ya está `in_transit` o `parked`, genera o conserva únicamente la Entrega. Cuando una recogida anticipada cambia el vehículo a `in_transit`, la tarea de Recogida pendiente se completa automáticamente y desaparece de las asignaciones activas sin borrar su trazabilidad. Root y Admin pueden asignar o reasignar las tareas vigentes en bloque a cualquier Root, Admin u Operario activo que tenga identidad `worker` enlazada.
-
-La versión de cada tarea protege frente a asignaciones concurrentes. El historial queda en `reservation_task_assignment_history`; el estado operativo se completa desde los eventos reales de recogida y entrega.
-
-En la Mini App, Centro de Operaciones muestra el número de tareas asignadas en Recogida aeropuerto y Entrega al cliente. Cada pantalla operativa presenta únicamente las tareas `assigned` del usuario autenticado, ordenadas por `scheduled_at`. Al seleccionar una tarea se muestran los datos necesarios de reserva y el botón de inicio precarga la matrícula en el flujo operativo vigente; no crea un flujo paralelo ni completa la tarea antes del evento real.
-
-Cada asignación o reasignación crea primero un aviso persistente en `parking_booking_notifications`. La entrega por Telegram usa la misma cola transaccional que las solicitudes de escritura:
-
-- activación asíncrona de `reservation-notification-sender` únicamente al insertar avisos;
-- hasta tres intentos breves contra Telegram dentro de esa ejecución activada por el evento;
-- reclamación con bloqueo `skip locked` para evitar duplicados;
-- confirmación de éxito o error en la propia fila;
-- espera de cinco minutos antes de reintentar un fallo;
-- llamada autenticada con un secreto aleatorio guardado en Supabase Vault.
-
-La campana escucha el canal Realtime `reservation-notifications` y no usa sondeo periódico. Reconcilia el estado únicamente al abrir la Mini App, recibir un evento, recuperar Internet o volver al primer plano. Cada lectura vuelve a validar `initData` y filtra por `telegram_user_id`. La gestión de reservas aplica el mismo patrón y ya no consulta el panel cada 20 segundos. El listado operativo reutiliza el evento Realtime de tareas de la campana, evitando otra conexión y cualquier temporizador de sondeo.
-
-Los controles globales de apariencia, campana y conectividad comparten una franja superior sin solaparse. Los avisos de red y la pantalla sin conexión usan las variables del tema resuelto, por lo que respetan Día, Noche y Automático.
-
-### Concurrencia administrativa
-
-`parking_booking_write_state` mantiene un único titular y una `epoch` creciente.
-
-- una pantalla con una época antigua no puede escribir;
-- una transferencia no cambia el titular hasta que el destinatario acepta;
-- actualizar o borrar exige además la `version` vigente de la reserva;
-- el borrado masivo es atómico y lógico, preservando auditoría;
-- si el titular deja de ser Root/Admin activo, un trigger recupera el permiso para otro administrador activo e invalida las solicitudes pendientes.
-
-## Optimizer V2
-
-La optimización de asignaciones se ejecuta de forma asíncrona y durable. La Edge Function no contiene OR-Tools ni espera a que termine el solver.
-
-```text
-ai-dispatch.html
-   -> reservation-optimization-jobs-v1
-   -> optimization_jobs (pending/running/succeeded/failed)
-   -> worker Docker Python/OR-Tools
-   -> validate_solution()
-   -> ai_dispatch_plans (proposal)
-   -> Realtime + reconciliación puntual + Telegram
-```
-
-### Fase 1 estable
-
-- línea temporal continua 24/7;
-- rolling horizon: 1440 min por defecto, solape 360 min;
-- `fast`: ancla por máxima densidad;
-- `optimal`: evalúa candidatos y usa el mismo motor de expansión;
-- descansos y duración máxima dependen de Normal/Intensiva/Máximo esfuerzo;
-- tras descanso válido, una nueva jornada puede iniciar en Parking o terminal;
-- acompañamientos, transferencias de terminal y coche/lanzadera son recursos físicos del modelo;
-- el plan solo se expone como válido tras `validate_solution()` sin errores.
-
-La auditoría de no asignadas conserva internamente `proven_unavailable_in_current_plan`, `available_in_current_plan` y `not_proven`, pero la UI final solo distingue entre operaciones incluidas en el plan y operaciones que el cliente debe organizar manualmente.
-
-### Fase 2 experimental
-
-La reoptimización local de `not_proven` no forma parte del entry point estable `solve()`. Solo puede aceptar una reparación si la cobertura global no baja y la solución reconstruida vuelve a pasar el validador físico.
-
-### Ejecución actual
-
-El worker se ejecuta en Docker sobre un PC dedicado. `.env` permanece fuera de Git, el contenedor usa reinicio automático y los logs tienen rotación limitada. La arquitectura permite mover el worker posteriormente sin modificar el contrato Mini App/Supabase.
-
-
-## Backend heredado
-
-`telegram-entry`, `telegram-router3`, `telegram-bot`, routers/reset/diagnostics antiguos siguen desplegados por compatibilidad y por lógica histórica de acceso.
-
-No son interfaz de producción y no deben recuperar control del webhook ni crear navegación global visible.
-
-## Mini App principal
-
-Ruta base: `docs/preview-modern/`.
-
-### `index.html`
-
-Centro inteligente con:
-
-- Centro de Operaciones;
-- Vehículos;
-- Actividad reciente;
-- Equipo & Accesos **solo Root/Admin**;
-- Gestión de reservas **solo Root/Admin**;
-- Equipo en vivo;
-- GPS Pro · Diagnóstico;
-- Expediente 360º.
-
-Equipo & Accesos se oculta por defecto y solo se muestra tras consultar el rol real. La API vuelve a comprobar permisos.
-
-### Política UX de errores
-
-El backend puede devolver códigos técnicos estables para lógica y logs, pero **la UI no debe mostrarlos directamente**.
-
-La capa común `docs/preview-modern/ux-errors.js` traduce errores conocidos a mensajes de usuario con una acción recomendada. Deben cubrirse, como mínimo:
-
-- sesión caducada;
-- permisos insuficientes;
-- usuario no autorizado/inactivo;
-- fallo de red;
-- respuesta inválida del servidor;
-- estado de dominio cambiado;
-- GPS insuficiente;
-- matrícula/foto/archivo inválido.
-
-No mostrar al usuario final prefijos `ERROR:`, `JS ERROR:`, códigos HTTP, SQL, stack traces ni códigos internos como `expired_init_data` o `not_admin`.
-
-Los errores inesperados deben producir un mensaje genérico accionable y conservar el detalle técnico solo en consola/logs.
-
-## Flujos
+## Flujos operativos
 
 ### Recogida
 
-Sesión operativa protegida mediante `operation_flow_sessions`, ligada a operario, vehículo, matrícula y tarea cuando aplica. La autenticación Telegram y la sesión operativa tienen una ventana máxima de 22 horas. El contexto mínimo de la sesión se persiste localmente y, tras una recarga o reapertura accidental de la Mini App, se revalida mediante `resume` contra backend antes de reconstruir el flujo.
-
-```text
-requested -> in_transit
-```
-
-- requisitos dinámicos desde `evidence_requirements`;
-- fotos de estado;
-- foto matrícula + Google Vision OCR;
-- override auditable;
-- documentación imagen/PDF;
-- galería visual con eliminación individual antes de finalizar;
-- evento final `pickup`.
+Captura evidencias requeridas, foto de matrícula/OCR y documentación aplicable. Al finalizar registra el evento y mantiene la trazabilidad de la estancia.
 
 ### Aparcar
 
-Sesión operativa protegida mediante `operation_flow_sessions`, con ventana máxima de 22 horas. El contexto mínimo se recupera tras recarga/reapertura y siempre se revalida en backend antes de continuar.
+Verifica matrícula, captura posición GPS cuando está disponible y exige referencia manual según la calidad/condiciones del posicionamiento. La ubicación queda asociada al vehículo bajo custodia.
 
-```text
-in_transit/requested -> parked
-```
+### Reubicar
 
-- foto matrícula + OCR;
-- override auditable;
-- GPS integrado;
-- precisión horizontal;
-- referencia textual obligatoria si se supera el umbral;
-- evento `park`.
+Actualiza de forma controlada la ubicación de un vehículo bajo custodia mediante el flujo vigente y sus mismas reglas de protección de sesión cuando aplica.
 
-`vehicles.normalized_plate` es una columna generada y el backend solo escribe `plate`.
+### Buscar coche
 
-### Buscar
-
-- solo acepta `status='parked'`;
-- devuelve coordenadas, precisión y referencia;
-- navegación solo con coordenadas válidas;
-- evento `lookup`;
-- no modifica estado;
-- es una consulta autenticada y no crea `operation_flow_sessions`.
+Consulta el estado y localización del vehículo aparcado. La navegación solo tiene sentido cuando existen coordenadas válidas; cuando no existen debe utilizarse la referencia manual disponible. No modifica el estado del vehículo.
 
 ### Entrega
 
-Sesión operativa protegida mediante `operation_flow_sessions`, ligada al operario, vehículo, matrícula, verificación y tarea cuando aplica. La autenticación Telegram y la sesión operativa tienen una ventana máxima de 22 horas.
+Localiza el vehículo, realiza la verificación de salida y cierra la operación conservando la trazabilidad correspondiente.
+
+## Cámara y OCR
+
+Recogida, Aparcar y Entrega comparten la cámara embebida vigente en la Mini App. El flujo utiliza `getUserMedia` dentro de Telegram y dispone de la UX común validada para orientación/controles. Google Cloud Vision participa en la verificación OCR de matrícula donde corresponde.
+
+## Reservas
+
+La gestión de reservas se realiza mediante las APIs modernas y PostgreSQL. La escritura administrativa utiliza el estado global `parking_booking_write_state`; Factory Reset reconstruye este singleton con el Owner preservado para evitar dejar Gestión de reservas sin un estado de permiso válido.
+
+La importación analiza el archivo seleccionado y la visualización debe representar el contenido de la importación actual independientemente de que un archivo equivalente se hubiera procesado anteriormente; la deduplicación de persistencia no debe convertirse en una UI vacía.
+
+## Tareas y asignaciones
+
+Las reservas generan tareas operativas según el estado real del vehículo. Las tareas pueden asignarse/reasignarse a usuarios activos o quedar `SIN ASIGNAR`.
+
+La asignación manual crea notificaciones persistentes y entrega Telegram mediante la infraestructura de notificaciones. La confirmación de planes IA dispone de paridad de notificaciones implementada en base de datos; queda pendiente únicamente su comprobación física end-to-end en el entorno desplegado.
+
+## Optimizer V2
+
+La optimización es asíncrona:
 
 ```text
-parked -> retrieved
+Mini App
+   -> API de jobs
+   -> optimization_jobs
+   -> worker Docker Python/OR-Tools
+   -> validación física
+   -> plan/propuesta
+   -> reconciliación / notificación
 ```
 
-- localización inicial;
-- navegación opcional;
-- foto de matrícula de salida;
-- OCR `stage='parking_exit'`;
-- override auditable;
-- confirmación final;
-- evento `retrieve`.
-
-## OCR
-
-Google Cloud Vision se usa en `airport_pickup`, `parking` y `parking_exit`.
-
-Resultados en `plate_verifications`: `matched`, `mismatch`, `ocr_failed`, `overridden`.
-
-## Evidencias
-
-Fuente actual: `vehicle_evidence` + Storage privado `vehicle-evidence`.
-
-Tipos: `state_photo`, `plate_photo`, `documentation`.
-
-## Expediente 360º
-
-`vehicle-v7.html` consume `vehicle-consult-api`.
-
-Incluye resumen, evidencias, OCR, ubicación, navegación solo `parked`, historial, compartir y PDF.
-
-La UI traduce operaciones internas del historial a español y presenta estados de forma legible. Las URLs de evidencias son firmadas y temporales.
-
-## GPS
-
-### GPS operativo
-
-El aparcado usa GPS desde `park.html`. Se almacena la mejor lectura seleccionada y su precisión.
-
-**No existe configuración funcional por sectores ni configuración de terreno.** La tabla legacy `parking_sectors` no implica que esa función esté implementada.
-
-### GPS Pro · Diagnóstico
-
-Informativo; no escribe en Supabase ni modifica vehículos.
+Fase 1 es estable y usa rolling horizon continuo 24/7 con modos Fast/Optimal. Fase 2 permanece experimental y separada.
 
 ## Equipo en vivo
 
-`telegram-gateway` recibe primera ubicación por `message` y actualizaciones por `edited_message`.
+Se conserva únicamente la última ubicación necesaria para la vista en vivo; no se almacena trayectoria. La arquitectura es dirigida por eventos/Realtime y no utiliza polling periódico del backend. Al finalizar la compartición, la posición debe desaparecer conforme al contrato vigente.
 
-`worker_live_locations` mantiene solo la última posición por usuario. Al terminar la compartición, la fila se elimina cuando Telegram emite la edición correspondiente.
+## Evidencias y Expediente 360
 
-`team-live.html` consume `modern-live-team-api`, visible para cualquier usuario activo. La pantalla hace una reconciliación inicial autenticada y después escucha la señal Realtime `team-live-locations`; cada señal provoca una única reconciliación del snapshot. No existe sondeo periódico al backend. Al recuperar Internet o volver al primer plano se reconcilia de nuevo. La caducidad `live_until` se aplica también localmente para retirar marcadores sin necesidad de consultar el backend. No se guarda trayectoria histórica.
+Las evidencias se almacenan en Storage privado y metadatos PostgreSQL. Expediente 360 consulta la estancia, historial, verificaciones y evidencias autorizadas. Las referencias a evidencias privadas se sirven mediante mecanismos temporales/autorizados.
 
-`worker_daily_presence` registra únicamente presencia diaria para informes.
+Una disputa abierta suspende la purga ordinaria de la evidencia afectada.
 
-## Informes automáticos
+## Retención
 
-`performance-report-sender` se invoca mediante `pg_cron` + `pg_net`.
+El entorno desplegado actual es de pruebas y no tiene usuarios reales. `evidence_retention_minutes=5` mantiene actualmente una ventana efectiva de **5 minutos** para acelerar las pruebas. La política prevista para explotación real es **15 días**.
 
-Horarios Europe/Madrid: **04:00, 13:00, 20:00**.
+Antes de incorporar usuarios reales debe retirarse/desactivarse el override corto y verificarse que el plazo efectivo sea 15 días. La selección de candidatos, purga sin disputa y protección por disputa ya fueron validadas.
 
-Operarios reciben informe individual; Root/Admin reciben además informe global. `performance_report_dispatches` deduplica.
+## Factory Reset
 
-## Identidad y roles
+Factory Reset es Owner-only y está separado del mantenimiento ordinario. Incluye preview, confirmación, control de ejecución, limpieza de Storage operativo, limpieza lógica transaccional, reinicio de configuración física, preservación del Owner y reconstrucción del escritor de reservas.
 
-### `telegram_users`
+No se utiliza el tamaño físico de PostgreSQL como criterio de éxito del reset.
 
-Roles internos: `owner`, `admin`, `operario`.
+## Salud y observabilidad
 
-En UI: `owner` -> **Root**.
+El sistema registra métricas e informes de salud/consumo. Las métricas de infraestructura (por ejemplo, solicitudes API o invocaciones de funciones) pueden sobrevivir a un Factory Reset porque no representan datos operativos del parking.
 
-Root está protegido por PostgreSQL. Admin no puede modificar a Root y el panel evita self-change.
+## Roles
 
-### `workers`
+Los valores internos son `owner`, `admin` y `operario`. `owner` se presenta como **Root**. Las autorizaciones sensibles se comprueban en backend y no deben depender de etiquetas o estados enviados por el cliente.
 
-Identidad de dominio usada por eventos/evidencias. Coexiste con `telegram_users`; no crear una tercera identidad.
+## UX de errores y conectividad
 
-## Tablas de uso actual
+La UI debe traducir errores técnicos a mensajes accionables. HTTP, SQL/PostgREST, stack traces y códigos internos se reservan para diagnóstico.
 
-- `telegram_users`
-- `telegram_access_requests`
-- `workers`
-- `vehicles`
-- `parking_events`
-- `vehicle_evidence`
-- `evidence_requirements`
-- `plate_verifications`
-- `user_admin_events`
-- `vehicle_share_links`
-- `worker_live_locations`
-- `worker_daily_presence`
-- `performance_report_dispatches`
-- `parking_bookings`
-- `parking_booking_write_state`
-- `parking_booking_permission_requests`
-- `parking_booking_notifications`
-- `parking_booking_import_analyses`
-- `parking_booking_import_batches`
-- `parking_booking_admin_events`
-- `parking_booking_command_dedup`
+La conectividad se trata como una capacidad independiente de la sesión. Cualquier cambio del detector debe partir de un caso reproducible para evitar falsos estados offline al abrir desde Telegram.
 
-`telegram_conversation_sessions` queda como compatibilidad de backend.
+## Release
 
-## Seguridad
-
-Protecciones vigentes:
-
-- secret header de webhook;
-- Telegram `initData` validado por HMAC;
-- ventana de `auth_date` de 24 h en administración;
-- estado activo y rol comprobados en cada acción sensible;
-- server/service keys solo backend;
-- origen GitHub Pages restringido en APIs web;
-- Storage privado;
-- permisos administrativos en backend;
-- group guard;
-- RLS en tablas nuevas de live/reporting sin políticas cliente.
-
-### Hallazgos abiertos del advisor
-
-1. `plate_verifications`: RLS desactivado.
-2. `telegram_access_requests_visible_rejected`: vista marcada `SECURITY DEFINER`.
-3. funciones históricas de acceso con `search_path` mutable.
-4. `expire_pending_access_requests()` ejecutable por roles cliente pese a `SECURITY DEFINER`.
-
-## Legado
-
-No forma parte del diseño funcional actual:
-
-- `parking_sectors`;
-- `vehicle_photos`;
-- `app_users`;
-- `config_audit`;
-- `audit_events`.
-
-No eliminar sin revisar FKs, triggers y dependencias.
-
-
-## Modo temporal de prueba de caducidad (2026-09-05)
-
-Configuración deliberadamente reducida para observar avisos y consecuencias antes de restaurar los tiempos productivos:
-
-- `operation_flow_sessions` nuevas: 5 minutos.
-- Aviso de sesión protegida: cuando quedan menos de 2 minutos.
-- Autenticación `initData` en Recogida, Aparcar, Reubicar, Entrega y Buscar: 10 minutos.
-- El aviso de sesión operativa reutiliza `parking_booking_notifications`: aparece en la campana, genera toast por Realtime si la Mini App está abierta y se entrega también por Telegram mediante `reservation-notification-sender`.
-- El aviso se genera solo si la sesión sigue `active` y se deduplica por `flow_session_id`.
-- Esta configuración es temporal de prueba; el objetivo productivo acordado sigue siendo 22 horas.
-
-<!-- PMG-UPDATE-2026-09-06:START -->
-## Cambios consolidados 2026-09-05 / 2026-09-06
-
-### Sesiones operativas protegidas y recuperación
-
-Los flujos protegidos conservan contexto mínimo local para poder reanudarse tras una recarga o reapertura accidental. Antes de continuar, el frontend debe revalidar siempre la sesión contra backend; nunca se confía únicamente en el estado local.
-
-Durante la prueba controlada de caducidad se añadió el ciclo completo de aviso:
-
-- aviso previo de sesión próxima a caducar;
-- notificación persistente en `parking_booking_notifications`;
-- entrega por Telegram mediante `reservation-notification-sender`;
-- al caducar, la operación queda cerrada y no se reutiliza para mezclar una nueva operación;
-- el aviso Telegram de sesión caducada abre la entrada principal de ParkingMartin-G;
-- un `/start` posterior puede responder con el mensaje específico **“Bienvenido a una nueva sesión de ParkingMartin-G”** cuando existe una expiración reciente;
-- los datos ya consolidados permanecen guardados.
-
-La configuración temporal de tiempos reducidos sigue siendo un modo de prueba y no redefine por sí sola el objetivo productivo de sesiones largas.
-
-### Informes automáticos
-
-El cálculo de rendimiento fue corregido para que los resúmenes de las 04:00, 13:00 y 20:00 no queden artificialmente en cero. El recuento incluye todos los roles operativos relevantes y contempla operaciones de reubicación. Root/Admin conservan el informe global y, cuando corresponde, su informe individual.
-
-### Pantalla principal: lista / cuadrícula
-
-La home dispone de un único control visual para alternar entre:
-
-- vista de cuadrícula;
-- vista de lista.
-
-La preferencia se persiste localmente mediante `pmg_home_layout_v1`. El control cambia de icono y texto accesible según el modo actual. No modifica permisos, navegación ni lógica de negocio.
-
-### Conectividad
-
-`offline-runtime.js` usa un modelo de tres estados:
-
-1. `offline`: no se confirma acceso al recurso estático de GitHub Pages;
-2. `backend_down`: GitHub Pages responde pero el health check de Supabase falla;
-3. `online`: frontend y backend responden.
-
-La comprobación estática se endureció para evitar falsos “Sin Internet” al abrir desde Telegram:
-
-- la sonda estática se intenta hasta dos veces antes de declarar `offline`;
-- usa timeout corto y un segundo intento con pequeña espera;
-- `connectivity-ping.txt` se sirve obligatoriamente desde red, sin respuesta de caché del Service Worker;
-- una única petición fallida no debe convertir por sí sola toda la aplicación en estado offline;
-- la recuperación de red debe retirar automáticamente el estado de pausa.
-
-Runtime vigente en HEAD documentado: `offline-runtime.js?v=6`, Service Worker `pmg-shell-v68`.
-
-### Navegación visual
-
-Las pantallas normales usan el patrón visual modernizado de navegación superior. Los flujos protegidos mantienen cabeceras específicas para no comprometer la integridad de una operación activa. El botón físico Back de Android se trata de forma nativa en pantallas normales y puede ser interceptado de forma controlada dentro de un flujo protegido.
-<!-- PMG-UPDATE-2026-09-06:END -->
+Los cambios parten de un `main` conocido, se realizan en rama y se integran mediante Pull Request. Los workflows de protección/verificación se aplican según los paths cubiertos por su configuración vigente. Los documentos históricos no determinan por sí solos qué build está desplegado.

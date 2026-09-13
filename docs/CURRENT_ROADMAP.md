@@ -1,234 +1,55 @@
-## Prioridad Optimizer V2 — estado actual
+# ParkingMartin-G — Roadmap técnico vigente
 
-### Fase 1 estable
+Revisado contra `main`: 2026-09-13.
 
-Completada y conectada a la Mini App en modo propuesta:
+## Fuente de verdad
 
-- Back-Forward rolling horizon 24/7;
-- Fast/Optimal consolidados;
-- worker Docker externo a Edge Functions;
-- cola durable `optimization_jobs`;
-- Realtime + reconciliación puntual, sin polling;
-- informes operativos expandibles;
-- tareas no asignadas visibles como trabajo manual pendiente;
-- propuestas rechazadas no se recargan;
-- controles de optimización bloqueados mientras hay job activo;
-- 0 errores físicos como condición de aceptación.
+El código, las migraciones y la configuración versionada en `main` son la fuente de verdad técnica. Los documentos fechados describen contexto histórico y no prevalecen sobre el código actual.
 
-Referencia: Fast 221/300; Optimal 223/300.
+## Implementado y no pendiente
 
-### Pendiente antes de considerar Fase 2 estable
+La aplicación dispone actualmente de los cuatro flujos modernos, Gestión de reservas, importación, asignación manual, estado `SIN ASIGNAR`, confirmación IA con paridad de notificaciones, Optimizer V2 Fase 1, Equipo en vivo por Realtime, Factory Reset Owner-only, mantenimiento y retención con protección por disputa, y observabilidad de base de datos.
 
-1. terminar benchmark reproducible de reoptimización local sobre los `not_proven`;
-2. medir cobertura antes/después, mejoras reales y swaps seguros;
-3. mantener `coverage_new >= coverage_old` y 0 errores físicos;
-4. benchmark específico de una semana completa antes de fijar el límite de tiempo definitivo del worker;
-5. automatizar actualización/rollback del contenedor de producción después de estabilizar la operación real.
+La sesión de acceso tiene TTL de **22 horas**. Los flujos protegidos usan `operation_flow_sessions` con TTL de **20 minutos**. Buscar coche es una consulta autenticada y no crea sesión de flujo.
 
-### Fase 2
+## Pendiente inmediato
 
-Continúa **experimental**. No debe incorporarse silenciosamente a `solve()` ni alterar el benchmark/score de Fase 1.
+1. Mantener toda la documentación vigente sincronizada con `main` y separar claramente los documentos históricos.
+2. Validar físicamente end-to-end la notificación Telegram al conductor después de confirmar una asignación IA; la lógica ya existe y no debe duplicarse.
+3. Continuar la regresión reproducible del aviso de conectividad desde Telegram antes de modificar esa lógica.
+4. Comprobar varios ciclos reales de los informes programados y ausencia de duplicados.
+5. Ampliar pruebas automáticas de roles, sesiones, flujos, reservas, asignaciones, Factory Reset, retención, Equipo en vivo e informes.
 
-# Roadmap técnico vigente
+## Retención durante pruebas
 
-Este documento contiene solo trabajo pendiente del sistema de producción actual.
+El entorno desplegado actual es de pruebas y no tiene usuarios reales. La retención efectiva de evidencias se mantiene intencionadamente en **5 minutos** para acelerar las pruebas. La política prevista para explotación real es **15 días**.
 
-## Prioridad 0 — Seguridad de base de datos
+Antes de incorporar usuarios reales es obligatorio retirar el override de 5 minutos y verificar que el plazo efectivo sea 15 días. La purga sin disputa y la protección por disputa abierta ya están validadas.
 
-### Resuelto: `plate_verifications`
+## Backend heredado
 
-El 2026-09-04 se habilitó RLS y se revocó el acceso directo de `anon/authenticated`. El acceso de producción queda backend-only mediante service-role. Debe mantenerse el smoke test de Recogida, Aparcar, Entrega, Expediente e informe de vehículo.
+La interfaz operativa clásica por botones está retirada. Cualquier retirada adicional de componentes heredados requiere primero inventariar dependencias reales y comprobar que no se rompe compatibilidad necesaria de acceso.
 
-### Resuelto: vista `telegram_access_requests_visible_rejected`
+## Robustez
 
-El 2026-09-04 se cambió a `SECURITY INVOKER`, se revocó el acceso directo de `anon/authenticated` y quedó backend-only mediante `service_role`. El Security Advisor ya no reporta `security_definer_view` para esta vista.
+Antes de añadir deduplicación, índices, caches o refactors transversales debe auditarse lo que ya existe. No se debe duplicar lógica implementada. Las optimizaciones deben partir de métricas y planes de consulta reales.
 
-### Resuelto: funciones con `search_path` mutable
+## UX
 
-El 2026-09-04 se fijó `search_path=''` en las funciones trigger de acceso/usuarios y en `notify_parking_reservation_change`. Todos los triggers permanecen activos y el Security Advisor ya no reporta `function_search_path_mutable`.
+La UI debe presentar mensajes accionables y evitar detalles técnicos. Queda revisar la cobertura real de la capa común de errores y corregir solo las pantallas que todavía no cumplan el contrato vigente.
 
-### Resuelto: `expire_pending_access_requests()`
+## Optimizer V2
 
-El 2026-09-04 se revocó `EXECUTE` a `PUBLIC`, `anon` y `authenticated`; el cron interno `expire_telegram_access_requests` sigue activo cada 15 minutos y sus últimas ejecuciones continúan en estado `succeeded`.
+Fase 1 permanece estable: rolling horizon 24/7, Fast/Optimal, worker Docker, cola durable, reconciliación y validación física independiente.
 
-## Prioridad 1 — Versionar backend
-
-Las Edge Functions activas siguen desplegadas principalmente desde Supabase y no están reproducidas completas en GitHub.
-
-Objetivo:
-
-```text
-supabase/
-  functions/
-    telegram-gateway/
-    telegram-modern-action/
-    modern-pickup-api/
-    modern-parking-api/
-    modern-search-api/
-    modern-delivery-api/
-    modern-live-team-api/
-    vehicle-consult-api/
-    vehicle-share-api/
-    vehicle-report-api/
-    performance-report-sender/
-  migrations/
-```
-
-Añadir despliegue reproducible, `.env.example`, variables requeridas, migraciones y smoke test.
-
-## Prioridad 2 — Retirar backend operativo clásico
-
-La UI por botones ya está retirada, pero siguen desplegadas funciones antiguas.
-
-- inventariar dependencias de `telegram-entry`, `telegram-router3`, `telegram-bot` y auxiliares;
-- conservar solo lógica necesaria para altas/acceso;
-- neutralizar endpoints legacy capaces de cambiar el webhook;
-- borrar funciones antiguas solo después de pruebas de usuario nuevo/rechazado/bloqueado.
-
-## Prioridad 3 — Idempotencia
-
-Implementar deduplicación persistente por `update_id`/clave de dominio en:
-
-- solicitudes de acceso;
-- cambios administrativos;
-- evidencias;
-- OCR/override;
-- `pickup`;
-- `park`;
-- `retrieve`;
-- ubicación Telegram.
-
-Los informes ya usan `performance_report_dispatches`.
-
-## Prioridad 4 — UX de errores y sesión
-
-La política ya está definida: códigos técnicos para backend/logs, mensajes claros para usuario.
-
-Pendiente completar la adopción de `docs/preview-modern/ux-errors.js` en **todas** las pantallas modernas, no solo Equipo & Accesos.
-
-Validar que ninguna pantalla muestre:
-
-- `ERROR:` / `JS ERROR:`;
-- códigos HTTP como mensaje principal;
-- errores SQL/PostgREST;
-- `expired_init_data`, `not_admin`, `state_changed` u otros códigos internos.
-
-La ventana administrativa de `initData` es actualmente **24 h**. Pendiente valorar a medio plazo una estrategia de renovación/reapertura explícita si una jornada real puede exceder ese límite, sin ampliar indefinidamente la vigencia de credenciales de Telegram.
-
-## Prioridad 5 — Notificaciones de acceso y roles
-
-Ya están implementadas para aprobación, reactivación, promoción y degradación.
-
-Pendiente validar en uso real:
-
-- usuario que bloqueó el bot o no permite mensajes;
-- fallo de Telegram al enviar notificación no debe revertir el cambio administrativo;
-- nombres/roles visibles correctos;
-- no enviar mensajes duplicados en reintentos administrativos;
-- conservar auditoría del cambio aunque falle la notificación.
-
-## Prioridad 6 — Revisar OCR y nomenclatura interna
-
-- centralizar extracción/normalización de matrícula;
-- centralizar subida de `plate_photo`;
-- eliminar nombres históricos como `modern_parking_beta`;
-- definir criterio cuando Vision devuelve varios candidatos.
-
-## Prioridad 7 — Identidad
-
-Coexisten `telegram_users` y `workers`. Reducir duplicidad sin romper referencias de eventos/evidencias.
-
-## Prioridad 8 — Equipo en vivo
-
-- confirmar en Android/iOS el evento de fin de compartición;
-- valorar `live_until` como expiración anticipada;
-- mantener Equipo en vivo y avisos en arquitectura dirigida por eventos/Realtime; **no introducir polling periódico**;
-- no introducir trayectorias salvo decisión explícita.
-
-## Prioridad 9 — Informes de desempeño
-
-Validar varios días reales:
-
-- Europe/Madrid y cambio horario;
-- 04:00 día anterior;
-- 13:00 y 20:00 día actual;
-- sin duplicados;
-- individual + global;
-- presencia diaria correcta.
-
-## Prioridad 10 — Rendimiento
-
-Medir antes de crear índices. Candidatos actuales:
-
-- `plate_verifications.worker_id`;
-- `plate_verifications.evidence_id`;
-- `vehicle_evidence.uploaded_by`;
-- `vehicles.last_updated_by`;
-- `worker_live_locations.worker_id`.
-
-## Prioridad 11 — Pruebas automáticas
-
-Crear fixtures/integración para:
-
-- Mini App por rol;
-- aprobación/reactivación/cambio de rol + notificación;
-- vigencia `initData` 24 h;
-- errores UX amigables;
-- Recogida/Aparcar/Buscar/Entrega;
-- OCR/override;
-- GPS;
-- Equipo en vivo/stop sharing;
-- group guard;
-- informes 04/13/20;
-- RLS/seguridad;
-- idempotencia.
-
-Ver `TEST_PLAN.md`.
+Fase 2 permanece experimental y separada. Solo podrá considerarse estable con benchmark reproducible, cobertura no decreciente y cero errores físicos.
 
 ## Fuera de alcance salvo decisión explícita
 
-- sectores de parking;
-- configuración de terreno por sectores;
-- trayectoria histórica de operarios;
 - app móvil nativa;
 - multi-parking;
+- trayectoria histórica de operarios;
 - reintroducir operaciones por botones en el chat;
 - navegación para vehículos no aparcados.
 
-### Validación funcional 2026-09-04
-
-Smoke test de producción completado tras endurecer `plate_verifications`:
-
-- Recogida: OK
-- Aparcar: OK
-- Buscar: OK
-- Entrega: OK
-- Expediente 360º: OK
-
-El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verifications`. El aviso restante `rls_enabled_no_policy` es informativo y coherente con el diseño backend-only: no existen políticas cliente y `anon/authenticated` no tienen privilegios directos sobre la tabla.
-
-### Resuelto: RPC privilegiados de reservas y ciclo de vida
-
-El 2026-09-04 se retiró `EXECUTE` de `PUBLIC`, `anon` y `authenticated` para `parking_booking_operational_snapshot(bigint)`, `vehicle_lifecycle_search(bigint,text)` y `vehicle_lifecycle_snapshot(bigint)`. Los endpoints de producción siguen accediendo mediante backend/service-role.
-
-<!-- PMG-ROADMAP-2026-09-06:START -->
-## Actualización operativa 2026-09-06
-
-### Resuelto recientemente
-
-- recuperación segura de flujos protegidos tras recarga/reapertura;
-- aviso de próxima caducidad y ciclo de sesión caducada con notificación Telegram;
-- entrada a una nueva sesión desde el aviso de expiración;
-- corrección del parser del mensaje de nueva sesión;
-- corrección de conteos del informe automático de rendimiento;
-- selector único de vista lista/cuadrícula en la home;
-- endurecimiento del detector de conectividad para evitar falsos offline al arrancar desde Telegram;
-- sonda `connectivity-ping.txt` forzada a red y Service Worker actualizado a `pmg-shell-v68`.
-
-### Pendiente inmediato
-
-1. Ejecutar regresión real de conectividad desde Telegram con arranque en frío, reapertura, caché previa y pérdida/restauración de red.
-2. Cerrar la prueba temporal de caducidad y restaurar explícitamente los tiempos productivos acordados cuando la experiencia quede validada.
-3. Verificar en producción los informes de 04:00, 13:00 y 20:00 con actividad real y confirmar que los conteos corregidos coinciden con eventos.
-4. Mantener sincronizados `release/manifest.json`, Service Worker, runtime versions y documentación cuando se publique el siguiente build formal.
-<!-- PMG-ROADMAP-2026-09-06:END -->
+La existencia de tablas legacy no basta para declarar una funcionalidad operativa.
