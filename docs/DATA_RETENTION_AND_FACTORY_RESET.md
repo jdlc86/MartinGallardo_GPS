@@ -25,17 +25,29 @@ Esta política separa mantenimiento ordinario y Factory Reset. Ninguna tarea per
 - La prueba real dejó a cero las principales tablas operativas y eliminó las evidencias físicas.
 - `parking_config` se reinicia a `configured=false` y `parking_sectors` se vacía intencionadamente porque son configuración física específica del parking anterior.
 - La configuración técnica del producto, retención, salud, recursos, mantenimiento e infraestructura se conserva.
+- La retención automática de evidencias fue validada funcionalmente usando temporalmente una ventana de 5 minutos en lugar de los 15 días operativos: un vehículo entregado sin disputa pasó a candidato y el mantenimiento programado eliminó su evidencia; un vehículo entregado con disputa abierta quedó protegido y no entró como candidato al vencer la misma ventana.
 
 ## Configuración de retención
 
 Singleton `data_retention_config`:
 
-- `evidence_retention_days`: 15 por defecto y valor auditado en producción;
-- `history_retention_days`: 365 por defecto y valor auditado en producción;
-- `evidence_retention_minutes`: 5 en la configuración actual para la ventana provisional existente;
+- `evidence_retention_days`: 15 días como política operativa de retención de evidencias;
+- `history_retention_days`: 365 días como política de histórico;
+- `evidence_retention_minutes`: mecanismo de ventana corta utilizado temporalmente para validar la retención sin esperar 15 días. El valor de 5 minutos corresponde a la prueba y no debe interpretarse como una política adicional de datos provisionales ni como el plazo operativo definitivo;
 - la retención de evidencias/histórico se calcula según el modelo operativo correspondiente y debe respetar disputas abiertas.
 
 La configuración de retención es técnica y se conserva durante Factory Reset.
+
+### Validación funcional de la retención
+
+La ventana temporal de 5 minutos se utilizó expresamente como sustitución de prueba del plazo normal de 15 días para acelerar la validación del ciclo de purga.
+
+Casos comprobados:
+
+1. **Entregado sin disputa abierta:** transcurrida la ventana de prueba, el vehículo/evidencia entró correctamente como candidato a purga. El mantenimiento programado procesó posteriormente el candidato y realizó la eliminación prevista.
+2. **Entregado con expediente de disputa abierto:** transcurrida la misma ventana de prueba, el vehículo quedó protegido y no entró como candidato a purga.
+
+Con estas pruebas quedan validadas tanto la selección ordinaria de candidatos como la protección por disputa. Antes de considerar la configuración de producción definitiva debe comprobarse que el plazo efectivo ha sido restaurado de la ventana temporal de 5 minutos a la política operativa de 15 días.
 
 ## Disputas / retención suspendida
 
@@ -191,11 +203,13 @@ El informe diario posterior fue coherente con esta auditoría: flujos activos 0,
 
 El mantenimiento ordinario sigue separado del Factory Reset. Las tareas de abortados, purga de evidencias e histórico deben ser idempotentes, auditables y respetar disputas. Ninguna de ellas debe eliminar configuración técnica ni adquirir alcance de Factory Reset.
 
+La selección y purga automática de evidencias ya fue validada con la ventana temporal de 5 minutos, incluidos los casos con y sin disputa. El pendiente de configuración es confirmar/restaurar el plazo operativo de 15 días después de las pruebas.
+
 ## Principios de seguridad
 
 - GitHub `main` es fuente de verdad.
 - Migraciones primero en repositorio y solo después en Supabase desde el commit exacto aprobado.
-- Stable Release Guard obligatorio antes de fusionar.
+- Stable Release Guard obligatorio antes de fusionar cuando los paths modificados entren en su ámbito de ejecución.
 - Ninguna eliminación real durante auditorías o dry-runs.
 - Configuración técnica del producto no forma parte del borrado operativo.
 - La configuración física del recinto sí se reinicia para reutilización segura.
