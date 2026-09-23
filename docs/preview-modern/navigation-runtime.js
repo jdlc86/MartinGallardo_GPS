@@ -61,7 +61,9 @@ function ensureBackReady(){
   }
   armFallback();
 }
+function preserveTabletFullscreen(){try{if(!document.documentElement.classList.contains('pmg-tablet'))return;tg?.expand?.();if(!tg?.isFullscreen)tg?.requestFullscreen?.()}catch{}}
 function defaultBack(){
+  preserveTabletFullscreen();
   if(cfg?.root){
     try{if(tg?.close){tg.close();return}}catch{}
     return;
