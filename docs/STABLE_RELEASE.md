@@ -4,7 +4,7 @@
 
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
-- **Build estable:** 2026.09.23.04
+- **Build estable:** 2026.09.23.05
 - **Fecha de consolidación:** 2026-09-06
 - **Rama de producción:** `main`
 
@@ -75,7 +75,7 @@ Las tarjetas marcadas `ADMIN` son visibles únicamente para Root/Admin y sus bac
 
 La Mini App muestra:
 
-`v1.4.0 · Build 2026.09.23.04`
+`v1.4.0 · Build 2026.09.23.05`
 
 Root/Admin dispone de **Información del sistema**, que identifica:
 
@@ -215,9 +215,9 @@ Cambios incorporados respecto a la baseline anterior:
 - endpoint de benchmark deshabilitado en producción.
 
 <!-- PMG-POST-BASELINE-2026-09-06:START -->
-## Baseline consolidada 2026.09.23.04
+## Baseline consolidada 2026.09.23.05
 
-Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.23.04**.
+Las correcciones posteriores a la baseline del 4 de septiembre quedan consolidadas formalmente en **1.4.0 / Build 2026.09.23.05**.
 
 Incluye:
 
