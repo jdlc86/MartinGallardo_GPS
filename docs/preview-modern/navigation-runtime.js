@@ -34,8 +34,11 @@ const tgBack=tg?.BackButton||null;
 // Do not replace this with History API as the primary in-Telegram mechanism; doing so previously
 // caused inconsistent sequences such as Park -> Operations -> Back appearing to do nothing.
 const tabletGeometry=(()=>{try{return matchMedia('(pointer: coarse)').matches&&Math.max(screen.width||0,screen.height||0)>=800&&Math.min(screen.width||0,screen.height||0)>=600}catch{return false}})();
-const nativeBack=Boolean(!tabletGeometry&&tgBack&&typeof tgBack.show==="function"&&typeof tgBack.onClick==="function");
-if(tabletGeometry){try{tgBack?.hide?.()}catch{}}
+// Parking renders its own Back control on every non-root route. Keep Telegram's native
+// BackButton hidden there so it cannot sit above the app control and collapse fullscreen.
+const appOwnsBack=Boolean(cfg&&!cfg.root);
+const nativeBack=Boolean(!appOwnsBack&&tgBack&&typeof tgBack.show==="function"&&typeof tgBack.onClick==="function");
+if(appOwnsBack){try{tgBack?.hide?.()}catch{}}
 
 function hasInternalReferrer(){
   try{
