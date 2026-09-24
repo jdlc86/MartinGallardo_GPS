@@ -42,23 +42,15 @@ body .bottom{box-shadow:0 -10px 30px color-mix(in srgb,var(--pmg-shadow) 44%,tra
 .pmg-nav-shell .pmg-nav-tools{display:flex;justify-content:flex-end;align-items:center;min-height:42px;padding:4px 4px 0}.pmg-nav-shell .pmg-nav-tools:empty{display:none}.pmg-nav-shell .pmg-nav-tools #pmg-notice-bell{position:relative!important;inset:auto!important;right:auto!important;top:auto!important;margin:0!important}
 
 /* Unified tablet header contract.
-   One owner (the app container) consumes Telegram's content safe area.
-   Shared and flow headers start at the same content baseline. */
-@media (min-width:620px){
+   Deliberately tablet-only: mobile keeps the pre-tablet layout unchanged. */
+@media (min-width:620px) and (pointer:coarse){
   html.pmg-tablet body>main.app,
   html.pmg-tablet body>.app{
     padding-top:calc(max(env(safe-area-inset-top),var(--tg-content-safe-area-inset-top,0px),var(--pmg-tg-content-top,0px)) + 12px)!important
   }
   html.pmg-tablet .pmg-nav-shell,
-  html.pmg-tablet .flowNav{
-    margin-top:0!important
-  }
-  html.pmg-tablet .pmg-nav-shell{
-    padding-top:0!important
-  }
+  html.pmg-tablet .flowNav{margin-top:0!important}
+  html.pmg-tablet .pmg-nav-shell{padding-top:0!important}
   html.pmg-tablet .pmg-nav-tools,
-  html.pmg-tablet .flowNavTools{
-    min-height:42px;
-    padding-top:4px
-  }
+  html.pmg-tablet .flowNavTools{min-height:42px;padding-top:4px}
 }
