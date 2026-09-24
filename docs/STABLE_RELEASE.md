@@ -5,7 +5,7 @@
 - **Producto:** ParkingMartin-G
 - **Versión:** 1.4.0
 - **Build estable:** 2026.09.24.15
-- **Fecha de consolidación:** 2026-09-06
+- **Fecha de consolidación:** 2026-09-24
 - **Rama de producción:** `main`
 
 Esta release se considera la **línea base estable de producción** de la Mini App hasta que se publique explícitamente un build posterior.
@@ -89,6 +89,17 @@ El worker estable sella:
 - `optimizer_version = 2.1.2`
 - `optimizer_build = 2026.09.04.04`
 
+
+## Contrato visual responsive de la baseline
+
+La build 2026.09.24.15 conserva funciones comunes pero separa su geometría por dispositivo:
+
+- **móvil `<620px`**: campana arriba a la derecha y selector Día/Noche inmediatamente a su izquierda, fuera del flujo de contenido;
+- **tablet**: controles contextuales por pantalla y shell específico activado solo tras detección positiva de tablet;
+- el safe-area/chrome de Telegram se respeta como superficie externa a la Mini App;
+- la navegación general no debe competir con la cámara por fullscreen.
+
+Este contrato documenta el comportamiento esperado. La batería física responsive completa permanece abierta en `docs/CURRENT_ROADMAP.md` y `docs/TEST_PLAN.md`; por tanto no debe confundirse “release contract verde” con validación visual física de todos los dispositivos.
 
 ## Contrato y verificación de release
 
