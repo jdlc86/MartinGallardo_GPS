@@ -1,6 +1,6 @@
 # ParkingMartin-G — Roadmap técnico vigente
 
-Revisado contra `main`: 2026-09-13.
+Revisado contra `main`: 2026-09-24.
 
 ## Fuente de verdad
 
@@ -14,11 +14,12 @@ La sesión de acceso tiene TTL de **22 horas**. Los flujos protegidos usan `oper
 
 ## Pendiente inmediato
 
-1. Mantener toda la documentación vigente sincronizada con `main` y separar claramente los documentos históricos.
-2. Validar físicamente end-to-end la notificación Telegram al conductor después de confirmar una asignación IA; la lógica ya existe y no debe duplicarse.
-3. Continuar la regresión reproducible del aviso de conectividad desde Telegram antes de modificar esa lógica.
-4. Comprobar varios ciclos reales de los informes programados y ausencia de duplicados.
-5. Ampliar pruebas automáticas de roles, sesiones, flujos, reservas, asignaciones, Factory Reset, retención, Equipo en vivo e informes.
+1. **Cerrar la regresión visual móvil/tablet** con pruebas físicas reproducibles. La build 2026.09.24.15 separa ambos contratos, pero no debe declararse visualmente validada hasta completar la batería en Telegram real.
+2. **Investigar el flicker de fullscreen en los flujos con cámara** (Recogida, Aparcar y Entrega). La recuperación final del fullscreen quedó estabilizada, pero el parpadeo de transición debe tratarse como problema independiente y no con offsets de cabecera.
+3. Validar físicamente end-to-end la notificación Telegram al conductor después de confirmar una asignación IA; la lógica ya existe y no debe duplicarse.
+4. Continuar la regresión reproducible del aviso de conectividad desde Telegram antes de modificar esa lógica.
+5. Comprobar varios ciclos reales de los informes programados y ausencia de duplicados.
+6. Ampliar pruebas automáticas de roles, sesiones, flujos, reservas, asignaciones, Factory Reset, retención, Equipo en vivo e informes.
 
 ## Retención durante pruebas
 
