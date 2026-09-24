@@ -97,18 +97,7 @@
       button.setAttribute("aria-haspopup", "dialog");
       button.setAttribute("aria-expanded", "false");
       button.innerHTML = '<span aria-hidden="true">🔔</span><span id="pmg-notice-count" hidden></span>';
-      const page=(location.pathname.split("/").pop()||"index.html");
-      const homeTools=document.getElementById("pmg-home-tools");
-      const statusTools=document.getElementById("pmg-status-tools");
-      const sharedNavTools=document.getElementById("pmg-nav-tools");
-      const flowTools=document.querySelector(".flowNavTools");
-      const nav=document.querySelector(".flowNav");
-      if(homeTools)homeTools.appendChild(button);
-      else if(statusTools)statusTools.prepend(button);
-      else if(sharedNavTools)sharedNavTools.appendChild(button);
-      else if(flowTools)flowTools.appendChild(button);
-      else if(nav){const tools=document.createElement("div");tools.className="flowNavTools";tools.appendChild(button);nav.insertAdjacentElement("afterend",tools)}
-      else{button.hidden=true;document.body.appendChild(button)}
+      document.body.appendChild(button);
       button.addEventListener("click", openPanel);
     }
     const count = unreadCount();
@@ -291,10 +280,10 @@
   }
 
   function remountBellToContext() {
+    const tablet=(()=>{try{return matchMedia("(min-width:620px) and (pointer:coarse)").matches&&document.documentElement.classList.contains("pmg-tablet")}catch{return false}})();
+    if(!tablet)return;
     const button=document.getElementById("pmg-notice-bell");
     if(!button)return;
-    const tablet=(()=>{try{return matchMedia("(min-width:620px) and (pointer:coarse)").matches&&document.documentElement.classList.contains("pmg-tablet")}catch{return false}})();
-    if(!tablet){if(button.parentElement!==document.body)document.body.appendChild(button);button.hidden=false;return}
     const homeTools=document.getElementById("pmg-home-tools");
     const statusTools=document.getElementById("pmg-status-tools");
     const sharedNavTools=document.getElementById("pmg-nav-tools");
