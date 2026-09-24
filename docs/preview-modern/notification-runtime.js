@@ -293,6 +293,8 @@
   function remountBellToContext() {
     const button=document.getElementById("pmg-notice-bell");
     if(!button)return;
+    const tablet=(()=>{try{return matchMedia("(min-width:620px) and (pointer:coarse)").matches&&document.documentElement.classList.contains("pmg-tablet")}catch{return false}})();
+    if(!tablet){if(button.parentElement!==document.body)document.body.appendChild(button);button.hidden=false;return}
     const homeTools=document.getElementById("pmg-home-tools");
     const statusTools=document.getElementById("pmg-status-tools");
     const sharedNavTools=document.getElementById("pmg-nav-tools");
