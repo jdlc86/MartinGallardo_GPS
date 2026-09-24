@@ -290,6 +290,18 @@
     }
   }
 
+  function remountBellToContext() {
+    const button=document.getElementById("pmg-notice-bell");
+    if(!button)return;
+    const homeTools=document.getElementById("pmg-home-tools");
+    const statusTools=document.getElementById("pmg-status-tools");
+    const sharedNavTools=document.getElementById("pmg-nav-tools");
+    const flowTools=document.querySelector(".flowNavTools");
+    const target=homeTools||statusTools||sharedNavTools||flowTools;
+    if(target){button.hidden=false;if(button.parentElement!==target){if(statusTools)target.prepend(button);else target.appendChild(button)}}
+    else button.hidden=true;
+  }
+
   function refreshFromEvent(delay = 120) {
     clearTimeout(eventRefreshTimer);
     eventRefreshTimer = setTimeout(refresh, delay);
@@ -331,6 +343,10 @@
 
   function start() {
     mountBell();
+    remountBellToContext();
+    window.addEventListener("pmg:navigation-ready",remountBellToContext);
+    requestAnimationFrame(remountBellToContext);
+    setTimeout(remountBellToContext,120);
     refresh();
     connectRealtime();
     document.addEventListener("visibilitychange", () => {
