@@ -25,9 +25,7 @@
     const style = document.createElement("style");
     style.id = "pmg-notice-style";
     style.textContent = `
-      html.pmg-notifications-mounted .pmg-theme-control{right:66px!important}
-      html.pmg-notifications-mounted .pmg-theme-panel{right:66px!important}
-      #pmg-notice-bell{position:fixed!important;z-index:2147483500!important;right:12px!important;top:calc(max(env(safe-area-inset-top),var(--tg-content-safe-area-inset-top,0px),var(--pmg-tg-content-top,0px)) + 10px)!important;width:42px!important;height:42px!important;display:grid!important;place-items:center!important;border-radius:14px!important;border:1px solid var(--pmg-border,#ffffff22)!important;background:color-mix(in srgb,var(--pmg-surface,#101d30) 94%,transparent)!important;color:var(--pmg-text,#fff)!important;box-shadow:var(--pmg-control-shadow,0 8px 28px #0005)!important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-size:18px!important;padding:0!important;transition:transform .16s ease,border-color .16s ease,background-color .16s ease!important}
+      #pmg-notice-bell{position:relative!important;z-index:2!important;right:auto!important;top:auto!important;flex:0 0 auto;width:42px!important;height:42px!important;display:grid!important;place-items:center!important;border-radius:14px!important;border:1px solid var(--pmg-border,#ffffff22)!important;background:color-mix(in srgb,var(--pmg-surface,#101d30) 94%,transparent)!important;color:var(--pmg-text,#fff)!important;box-shadow:var(--pmg-control-shadow,0 8px 28px #0005)!important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-size:18px!important;padding:0!important;transition:transform .16s ease,border-color .16s ease,background-color .16s ease!important}
       #pmg-notice-bell:active{transform:translateY(1px) scale(.98)}
       #pmg-notice-bell[aria-expanded="true"]{border-color:color-mix(in srgb,var(--pmg-accent,#2563eb) 58%,var(--pmg-border,#ffffff22))!important;background:var(--pmg-info-soft,#2563eb18)!important}
       #pmg-notice-count{position:absolute;right:-5px;top:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--pmg-danger,#dc2626);color:#fff;display:grid;place-items:center;font-size:9px;font-weight:950;border:2px solid var(--pmg-bg,#08111f);box-shadow:0 4px 10px color-mix(in srgb,var(--pmg-danger,#dc2626) 35%,transparent)}
@@ -61,8 +59,8 @@
       .pmg-notice-empty b{display:block;color:var(--pmg-text,#fff);font-size:13px}
       .pmg-notice-empty p{margin:5px auto 0;max-width:290px;font-size:10.5px;line-height:1.5}
       #pmg-session-expiry-toast{position:fixed;z-index:2147483650;left:50%;top:calc(68px + env(safe-area-inset-top));transform:translate(-50%,-10px);width:min(92vw,520px);padding:14px 16px;border-radius:16px;border:1px solid color-mix(in srgb,var(--pmg-warning,#f59e0b) 60%,var(--pmg-border,#ffffff22));background:var(--pmg-surface,#101d30);color:var(--pmg-text,#fff);box-shadow:0 16px 50px #0007;opacity:0;pointer-events:none;transition:.2s;font-size:12px;font-weight:800;line-height:1.45;text-align:center}#pmg-session-expiry-toast.on{opacity:1;transform:translate(-50%,0)}
-      @media(min-width:620px){html.pmg-tablet.pmg-notifications-mounted .pmg-theme-control{right:76px!important}html.pmg-tablet.pmg-notifications-mounted .pmg-theme-panel{right:76px!important}html.pmg-tablet #pmg-notice-bell{right:18px!important;top:calc(max(var(--tg-content-safe-area-inset-top,0px),var(--pmg-tg-content-top,0px)) + 12px)!important}#pmg-notice-panel{align-items:center;padding:24px}#pmg-notice-panel .pmg-notice-box{border-radius:26px;box-shadow:0 24px 90px var(--pmg-shadow,#0008)}}
-      @media(max-width:480px){html.pmg-notifications-mounted .pmg-theme-control{right:62px!important}html.pmg-notifications-mounted .pmg-theme-panel{right:10px!important}#pmg-notice-bell{right:10px!important;top:calc(max(env(safe-area-inset-top),var(--tg-content-safe-area-inset-top,0px),var(--pmg-tg-content-top,0px)) + 8px)!important;width:40px!important;height:40px!important}.pmg-notice{padding:12px 11px}}
+      @media(min-width:620px){#pmg-notice-panel{align-items:center;padding:24px}#pmg-notice-panel .pmg-notice-box{border-radius:26px;box-shadow:0 24px 90px var(--pmg-shadow,#0008)}}
+      @media(max-width:480px){#pmg-notice-bell{width:40px!important;height:40px!important}.pmg-notice{padding:12px 11px}}
       @media(prefers-reduced-motion:reduce){#pmg-notice-panel,#pmg-notice-panel .pmg-notice-box{animation:none}}
       @keyframes pmg-notice-fade{from{opacity:0}to{opacity:1}}
       @keyframes pmg-notice-rise{from{transform:translateY(18px);opacity:.65}to{transform:none;opacity:1}}
@@ -99,7 +97,16 @@
       button.setAttribute("aria-haspopup", "dialog");
       button.setAttribute("aria-expanded", "false");
       button.innerHTML = '<span aria-hidden="true">🔔</span><span id="pmg-notice-count" hidden></span>';
-      document.body.appendChild(button);
+      const page=(location.pathname.split("/").pop()||"index.html");
+      const homeTools=document.getElementById("pmg-home-tools");
+      const statusTools=document.getElementById("pmg-status-tools");
+      const flowTools=document.querySelector(".flowNavTools");
+      const nav=document.querySelector(".flowNav");
+      if(homeTools)homeTools.appendChild(button);
+      else if(statusTools)statusTools.prepend(button);
+      else if(flowTools)flowTools.appendChild(button);
+      else if(nav){const tools=document.createElement("div");tools.className="flowNavTools";tools.appendChild(button);nav.insertAdjacentElement("afterend",tools)}
+      else document.body.appendChild(button);
       button.addEventListener("click", openPanel);
     }
     const count = unreadCount();
