@@ -60,7 +60,12 @@
       .pmg-notice-empty p{margin:5px auto 0;max-width:290px;font-size:10.5px;line-height:1.5}
       #pmg-session-expiry-toast{position:fixed;z-index:2147483650;left:50%;top:calc(68px + env(safe-area-inset-top));transform:translate(-50%,-10px);width:min(92vw,520px);padding:14px 16px;border-radius:16px;border:1px solid color-mix(in srgb,var(--pmg-warning,#f59e0b) 60%,var(--pmg-border,#ffffff22));background:var(--pmg-surface,#101d30);color:var(--pmg-text,#fff);box-shadow:0 16px 50px #0007;opacity:0;pointer-events:none;transition:.2s;font-size:12px;font-weight:800;line-height:1.45;text-align:center}#pmg-session-expiry-toast.on{opacity:1;transform:translate(-50%,0)}
       @media(min-width:620px){#pmg-notice-panel{align-items:center;padding:24px}#pmg-notice-panel .pmg-notice-box{border-radius:26px;box-shadow:0 24px 90px var(--pmg-shadow,#0008)}}
-      @media(max-width:480px){html.pmg-notifications-mounted .pmg-theme-control{right:62px!important}html.pmg-notifications-mounted .pmg-theme-panel{right:10px!important}#pmg-notice-bell{right:10px!important;top:calc(8px + env(safe-area-inset-top))!important;width:40px!important;height:40px!important}.pmg-notice{padding:12px 11px}}
+      @media(max-width:619px){
+        html.pmg-notifications-mounted .pmg-theme-control{position:fixed!important;left:auto!important;right:62px!important;top:calc(8px + env(safe-area-inset-top))!important;margin:0!important;z-index:2147483500!important}
+        html.pmg-notifications-mounted .pmg-theme-panel{position:fixed!important;left:auto!important;right:10px!important;top:calc(52px + env(safe-area-inset-top))!important;margin:0!important}
+        #pmg-notice-bell{position:fixed!important;left:auto!important;right:10px!important;top:calc(8px + env(safe-area-inset-top))!important;margin:0!important;width:40px!important;height:40px!important;z-index:2147483500!important}
+        .pmg-notice{padding:12px 11px}
+      }
       @media(prefers-reduced-motion:reduce){#pmg-notice-panel,#pmg-notice-panel .pmg-notice-box{animation:none}}
       @keyframes pmg-notice-fade{from{opacity:0}to{opacity:1}}
       @keyframes pmg-notice-rise{from{transform:translateY(18px);opacity:.65}to{transform:none;opacity:1}}
