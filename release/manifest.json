@@ -3,10 +3,10 @@
   "product": "ParkingMartin-G",
   "release_status": "stable",
   "version": "1.4.0",
-  "build": "2026.09.24.10",
+  "build": "2026.09.24.11",
   "released_at": "2026-09-24T00:35:00+02:00",
   "frontend": {
-    "service_worker_cache": "pmg-shell-v123"
+    "service_worker_cache": "pmg-shell-v124"
   },
   "backend": {
     "version": "1.4.0",
