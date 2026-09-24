@@ -5,9 +5,10 @@
   const cameraTorchStyle=document.createElement('style');
   cameraTorchStyle.textContent='.cameraBox.on .cameraActions .cameraTorch::after{content:" Flash"}@media (orientation:landscape) and (max-height:600px){.cameraBox.on .cameraActions .cameraTorch::after{content:""!important}.cameraBox.on .cameraActions .cameraCapture::before,.cameraBox.on .cameraActions .cameraCancel::before,.cameraBox.on .cameraActions .cameraTorch::before{content:""!important;position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;background-position:center!important;background-repeat:no-repeat!important}.cameraBox.on .cameraActions .cameraCapture::before{background-size:28px 28px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27none%27 stroke=%27%23000%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 d=%27M4 7h3l1.5-2h7L17 7h3v12H4z%27/%3E%3Ccircle cx=%2712%27 cy=%2713%27 r=%273.5%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3C/svg%3E")!important}.cameraBox.on .cameraActions .cameraCancel::before{background-size:24px 24px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27none%27 stroke=%27%23fff%27 stroke-width=%272.5%27 stroke-linecap=%27round%27 d=%27M6 6l12 12M18 6L6 18%27/%3E%3C/svg%3E")!important}.cameraBox.on .cameraActions .cameraTorch{top:max(104px,calc(env(safe-area-inset-top) + 88px))!important}.cameraBox.on .cameraActions .cameraTorch::before{background-size:25px 25px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27%23fff%27 d=%27M13.2 2L5.5 13h5.3L9.9 22 18.5 10h-5.6z%27/%3E%3C/svg%3E")!important}.cameraBox.on .cameraActions .cameraTorch.active::before{background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27%23ffd84d%27 d=%27M13.2 2L5.5 13h5.3L9.9 22 18.5 10h-5.6z%27/%3E%3C/svg%3E")!important}}';
   document.head.appendChild(cameraTorchStyle);
-  function isTabletDevice(){try{const coarse=matchMedia('(pointer: coarse)').matches;return coarse&&Math.max(screen.width||0,screen.height||0)>=800&&Math.min(screen.width||0,screen.height||0)>=600}catch{return false}}
+  function isTabletDevice(){try{return Math.max(screen.width||0,screen.height||0)>=800&&Math.min(screen.width||0,screen.height||0)>=600}catch{return false}}
+  function syncTelegramSafeArea(){try{const tg=window.Telegram?.WebApp;if(!tg)return;const s=tg.safeAreaInset||{},c=tg.contentSafeAreaInset||{};const root=document.documentElement;for(const [k,v] of Object.entries({safeTop:s.top,safeRight:s.right,safeBottom:s.bottom,safeLeft:s.left,contentTop:c.top,contentRight:c.right,contentBottom:c.bottom,contentLeft:c.left})){const n=Number(v);root.style.setProperty('--pmg-tg-'+k.replace(/[A-Z]/g,m=>'-'+m.toLowerCase()),Number.isFinite(n)?n+'px':'0px')}}catch{}}
   function syncTabletShell(){try{const tg=window.Telegram?.WebApp;if(!tg||!isTabletDevice())return;document.documentElement.classList.add('pmg-tablet');tg.expand?.();if(!document.querySelector('.cameraBox.on')&&!tg.isFullscreen)tg.requestFullscreen?.()}catch{}}
-  function queueTabletShellSync(){[40,160,400].forEach(delay=>setTimeout(syncTabletShell,delay))}
+  function queueTabletShellSync(){[40,160,400].forEach(delay=>setTimeout(()=>{syncTelegramSafeArea();syncTabletShell()},delay))}
   function syncCameraFullscreenToOrientation(){const camera=document.querySelector('.cameraBox.on');if(!camera)return;try{const tg=window.Telegram?.WebApp;if(!tg)return;const landscape=matchMedia('(orientation: landscape)').matches&&innerHeight<=600;if(landscape){if(!tg.isFullscreen)tg.requestFullscreen?.()}else if(tg.isFullscreen!==false)tg.exitFullscreen?.()}catch{}}
   function queueCameraFullscreenSync(){[60,180,420].forEach(delay=>setTimeout(syncCameraFullscreenToOrientation,delay))}
   try{matchMedia('(orientation: landscape)').addEventListener('change',queueCameraFullscreenSync)}catch{}
@@ -16,7 +17,7 @@
   window.addEventListener('resize',queueTabletShellSync);
   window.addEventListener('orientationchange',queueTabletShellSync);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)queueTabletShellSync()});
-  try{window.Telegram?.WebApp?.onEvent?.('fullscreenChanged',()=>{if(!matchMedia('(orientation: landscape)').matches)setTimeout(syncCameraFullscreenToOrientation,60)})}catch{}
+  try{const tg=window.Telegram?.WebApp;tg?.onEvent?.('fullscreenChanged',()=>{syncTelegramSafeArea();if(!matchMedia('(orientation: landscape)').matches)setTimeout(syncCameraFullscreenToOrientation,60)});tg?.onEvent?.('safeAreaChanged',syncTelegramSafeArea);tg?.onEvent?.('contentSafeAreaChanged',syncTelegramSafeArea)}catch{}
   const KEY='pmg-theme-mode';
   const OPT_JOB_KEY='pmg-optimizer-active-job';
   const OPT_JOBS_URL='https://mvexykcxnpaywkbnoxwu.supabase.co/functions/v1/reservation-optimization-jobs-v1';
@@ -97,6 +98,7 @@
     apply();
   }
   apply();
+  syncTelegramSafeArea();
   queueTabletShellSync();
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',()=>{mountControl();mountOptimizerStatus()})}else{mountControl();mountOptimizerStatus()}
   setInterval(()=>{if(readMode()==='auto')apply()},60000);
