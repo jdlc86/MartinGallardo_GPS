@@ -214,12 +214,9 @@ Zona horaria Europe/Madrid:
 - grupo no ejecuta lógica privada;
 - funciones de reporting no ejecutables por cliente.
 
-### Deuda visible
+### Estado de endurecimiento
 
-- `plate_verifications` sin RLS;
-- vista `telegram_access_requests_visible_rejected` security-definer;
-- `expire_pending_access_requests()` a revisar;
-- funciones históricas con search_path mutable.
+Las deudas históricas de `plate_verifications`, `telegram_access_requests_visible_rejected`, `expire_pending_access_requests()` y `search_path` de triggers fueron cerradas en la baseline estable. Mantener las comprobaciones anteriores como regresión de seguridad; no volver a documentarlas como deuda abierta sin evidencia actual.
 
 ## 16. Integridad de datos
 
@@ -407,7 +404,7 @@ Medir búsqueda por matrícula, listado parked, Expediente 360º, Equipo & Acces
 - medir tareas recuperadas, `not_proven` restantes, `proven_unavailable`, tiempo extra, mejoras reales y swaps seguros;
 - si no se demuestra una reparación válida, conservar `not_proven`.
 
-## 21. Release baseline 1.4.0 / 2026.09.04.02
+## 21. Release baseline 1.4.0 / 2026.09.24.15
 
 Antes de promover un build posterior:
 
@@ -479,3 +476,26 @@ El Security Advisor ya no reporta `rls_disabled_in_public` para `plate_verificat
 - comprobar carga de `offline-runtime.js?v=6`;
 - Stable Release Guard debe permanecer verde después de cualquier cambio documental o funcional posterior.
 <!-- PMG-TESTS-2026-09-06:END -->
+
+## 23. Regresión visual móvil / tablet
+
+### Móvil
+
+- ejecutar en Telegram real con viewport inferior a 620 px;
+- campana fija en la franja superior derecha;
+- selector Día/Noche inmediatamente a la izquierda de la campana;
+- ambos controles permanecen fuera del flujo y nunca aparecen abajo/a la izquierda por anchors de tablet;
+- navegación, contenido y avisos de conectividad no se desplazan por reglas de tablet;
+- probar Inicio, Gestión de reservas, Equipo & Accesos, Expediente 360º, GPS Diagnóstico y Recursos del sistema.
+
+### Tablet
+
+- confirmar detección positiva de tablet antes de aplicar `pmg-tablet`;
+- Home: controles estructurales sin solape con chrome Telegram;
+- Centro de Operaciones: campana junto al estado `EN LÍNEA`;
+- Recogida/Aparcar/Reubicar/Buscar/Entrega: cabecera consistente y campana en su anchor contextual;
+- pantallas secundarias: navegación compartida y campana bajo la cabecera, nunca como fallback visible en `body`;
+- volver entre Centro de Operaciones y cada flujo no debe dejar la app en tamaño reducido;
+- en Recogida/Aparcar/Entrega registrar por separado cualquier flicker de fullscreen de cámara; no confundirlo con fallo de recuperación final.
+
+La build 2026.09.24.15 define este contrato, pero la validación física completa sigue pendiente hasta ejecutarse en dispositivos reales.
