@@ -37,3 +37,6 @@ body .bottom{box-shadow:0 -10px 30px color-mix(in srgb,var(--pmg-shadow) 44%,tra
 #pmg-home-tools .pmg-theme-control,#pmg-home-tools #pmg-notice-bell,#pmg-status-tools #pmg-notice-bell,.flowNavTools #pmg-notice-bell{position:relative!important;inset:auto!important;right:auto!important;top:auto!important;margin:0!important}
 #pmg-home-tools .pmg-theme-panel{position:absolute!important;inset:auto 58px auto auto!important;top:calc(100% + 8px)!important}
 @media (min-width:620px){html.pmg-tablet #pmg-home-tools .pmg-theme-control,html.pmg-tablet #pmg-home-tools #pmg-notice-bell,html.pmg-tablet #pmg-status-tools #pmg-notice-bell,html.pmg-tablet .flowNavTools #pmg-notice-bell{position:relative!important;inset:auto!important;right:auto!important;top:auto!important}html.pmg-tablet #pmg-home-tools .pmg-theme-panel{position:absolute!important;inset:auto 58px auto auto!important;top:calc(100% + 8px)!important}}
+
+/* Shared header rhythm: Telegram safe area is handled by the navigation shell; controls live under it. */
+.pmg-nav-shell .pmg-nav-tools{display:flex;justify-content:flex-end;align-items:center;min-height:42px;padding:4px 4px 0}.pmg-nav-shell .pmg-nav-tools:empty{display:none}.pmg-nav-shell .pmg-nav-tools #pmg-notice-bell{position:relative!important;inset:auto!important;right:auto!important;top:auto!important;margin:0!important}
