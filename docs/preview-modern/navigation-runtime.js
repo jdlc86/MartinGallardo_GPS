@@ -33,7 +33,6 @@ const tgBack=tg?.BackButton||null;
 // Android system Back is bridged by Telegram to back_button_pressed when BackButton is active.
 // Do not replace this with History API as the primary in-Telegram mechanism; doing so previously
 // caused inconsistent sequences such as Park -> Operations -> Back appearing to do nothing.
-const tabletGeometry=(()=>{try{return matchMedia('(pointer: coarse)').matches&&Math.max(screen.width||0,screen.height||0)>=800&&Math.min(screen.width||0,screen.height||0)>=600}catch{return false}})();
 // Parking renders its own Back control on every non-root route. Keep Telegram's native
 // BackButton hidden there so it cannot sit above the app control and collapse fullscreen.
 const appOwnsBack=Boolean(cfg&&!cfg.root);
@@ -66,9 +65,7 @@ function ensureBackReady(){
   }
   armFallback();
 }
-function preserveTabletFullscreen(){try{if(!tabletGeometry)return;tg?.expand?.();if(!tg?.isFullscreen)tg?.requestFullscreen?.()}catch{}}
 function defaultBack(){
-  preserveTabletFullscreen();
   if(cfg?.root){
     try{if(tg?.close){tg.close();return}}catch{}
     return;
@@ -91,7 +88,7 @@ window.addEventListener("popstate",()=>{
 });
 
 window.PMGNavigation={
-  go(href,{replace=false}={}){preserveTabletFullscreen();setTimeout(()=>{replace?location.replace(href):location.href=href},80)},
+  go(href,{replace=false}={}){replace?location.replace(href):location.assign(href)},
   setBackHandler(fn){customBack=typeof fn==="function"?fn:null;ensureBackReady()},
   clearBackHandler(){customBack=null;ensureBackReady()},
   back(){runBack()},
