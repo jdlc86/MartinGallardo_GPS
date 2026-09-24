@@ -1,6 +1,6 @@
 # ParkingMartin-G — Arquitectura actual
 
-Revisada contra código y migraciones de `main`: 2026-09-13.
+Revisada contra código y contratos de `main`: 2026-09-24.
 
 ## Fuente de verdad
 
@@ -140,6 +140,17 @@ Los valores internos son `owner`, `admin` y `operario`. `owner` se presenta como
 La UI debe traducir errores técnicos a mensajes accionables. HTTP, SQL/PostgREST, stack traces y códigos internos se reservan para diagnóstico.
 
 La conectividad se trata como una capacidad independiente de la sesión. Cualquier cambio del detector debe partir de un caso reproducible para evitar falsos estados offline al abrir desde Telegram.
+
+## Contrato visual móvil y tablet
+
+La Mini App mantiene dos contratos visuales deliberadamente separados:
+
+- **móvil (`<620px`)**: campana y selector Día/Noche permanecen en la franja superior, fuera del flujo del contenido, usando el safe-area móvil; las reglas contextuales de tablet no deben recolocarlos;
+- **tablet**: `theme.js` activa el shell tablet únicamente tras detección positiva del dispositivo. La Home puede usar controles estructurales propios; Centro de Operaciones alinea la campana con el estado; los flujos y pantallas secundarias usan sus anchors de navegación;
+- el chrome nativo de Telegram (por ejemplo `Cerrar/Atrás`) no pertenece a la Mini App y no debe simularse ni ocultarse mediante offsets arbitrarios;
+- la cámara puede gestionar su fullscreen/orientación como excepción local; la navegación general no debe competir por la propiedad del fullscreen.
+
+Las mejoras de tablet deben quedar encapsuladas y no cambiar la geometría móvil por efecto lateral.
 
 ## Release
 
